@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
   const [email, setEmail] = useState(localStorage.getItem("aurae_email") || "");
@@ -9,65 +9,41 @@ export default function App() {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
-  const [vinylColor, setVinylColor] = useState("#111");
-  const [vinylStyle, setVinylStyle] = useState("classic");
-
   const audioRef = useRef(null);
 
   const current = tracks?.[index] || null;
 
-  const storageKey = `aurae_${email || "guest"}`;
+  const storageKey = email ? `aurae_${email}` : null;
 
   /* SAFE LOAD */
   useEffect(() => {
-    if (!email) return;
+    if (!storageKey) return;
 
     try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) setProjects(JSON.parse(saved));
-    } catch (e) {
-      console.warn("storage error");
-    }
-  }, [email]);
+      const data = localStorage.getItem(storageKey);
+      if (data) setProjects(JSON.parse(data));
+    } catch {}
+  }, [storageKey]);
 
   useEffect(() => {
-    if (!email) return;
+    if (!storageKey) return;
 
     try {
       localStorage.setItem(storageKey, JSON.stringify(projects));
-    } catch (e) {
-      console.warn("save error");
-    }
-  }, [projects, email]);
+    } catch {}
+  }, [projects, storageKey]);
 
-  /* LOGIN */
-  if (!email) {
-    return (
-      <div style={styles.login}>
-        <div style={styles.logo}>AURAE</div>
-
-        <input
-          style={styles.input}
-          placeholder="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value || "")}
-        />
-
-        <button
-          style={styles.btn}
-          onClick={() => localStorage.setItem("aurae_email", email)}
-        >
-          enter
-        </button>
-      </div>
-    );
+  /* LOGIN SAVE */
+  function login() {
+    if (!email) return;
+    localStorage.setItem("aurae_email", email);
   }
 
-  /* OPEN PROJECT SAFE */
+  /* PROJECT OPEN SAFE */
   function openProject(name) {
     const p = projects?.[name];
 
-    setActive(name);
+    setActive(name || null);
     setTracks(Array.isArray(p?.tracks) ? p.tracks : []);
     setIndex(0);
     setPlaying(false);
@@ -93,59 +69,49 @@ export default function App() {
 
     const newTracks = files.map((f) => ({
       id: Date.now() + Math.random(),
-      name: f?.name?.replace(/\.[^/.]+$/, "") || "track",
+      name: f?.name || "track",
       url: URL.createObjectURL(f),
-      bpm: Math.floor(Math.random() * 40 + 90),
       cover: null
     }));
 
-    const updated = [...tracks, ...newTracks];
-    updateTracks(updated);
-  }
-
-  function uploadCover(e) {
-    const file = e.target.files?.[0];
-    if (!file || !tracks?.length) return;
-
-    const updated = [...tracks];
-    if (updated[index]) {
-      updated[index] = {
-        ...updated[index],
-        cover: URL.createObjectURL(file)
-      };
-      updateTracks(updated);
-    }
+    updateTracks([...(tracks || []), ...newTracks]);
   }
 
   /* PLAYER SAFE */
   function play(i) {
     if (!tracks?.length) return;
 
-    setIndex(i);
+    const safeIndex = Math.min(i, tracks.length - 1);
+
+    setIndex(safeIndex);
     setPlaying(true);
 
     setTimeout(() => {
-      if (!audioRef.current || !tracks[i]) return;
+      const audio = audioRef.current;
+      const t = tracks[safeIndex];
 
-      audioRef.current.src = tracks[i].url;
-      audioRef.current.play().catch(() => {});
+      if (!audio || !t) return;
+
+      audio.src = t.url;
+      audio.play().catch(() => {});
     }, 50);
   }
 
   function toggle() {
-    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
     if (playing) {
-      audioRef.current.pause();
+      audio.pause();
       setPlaying(false);
     } else {
-      audioRef.current.play().catch(() => {});
+      audio.play().catch(() => {});
       setPlaying(true);
     }
   }
 
   function next() {
-    if (index < tracks.length - 1) play(index + 1);
+    if (index < (tracks?.length || 0) - 1) play(index + 1);
   }
 
   function prev() {
@@ -154,111 +120,70 @@ export default function App() {
 
   /* AUTO NEXT SAFE */
   useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
     const onEnd = () => {
-      if (index < tracks.length - 1) {
+      if (index < (tracks?.length || 0) - 1) {
         play(index + 1);
       } else {
         setPlaying(false);
       }
     };
 
-    el.addEventListener("ended", onEnd);
-    return () => el.removeEventListener("ended", onEnd);
+    audio.addEventListener("ended", onEnd);
+    return () => audio.removeEventListener("ended", onEnd);
   }, [index, tracks]);
 
-  /* HOME */
-  if (!active) {
-    return (
-      <div style={styles.home}>
-        <div style={styles.logo}>AURAE</div>
-
-        <div style={styles.grid}>
-          {Object.keys(projects || {}).map((p) => (
-            <div key={p} style={styles.card} onClick={() => openProject(p)}>
-              {p}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  /* MAIN */
+  /* UI ALWAYS RENDER (IMPORTANT FIX) */
   return (
     <div style={styles.app}>
 
+      {/* LOGIN OVERLAY (NO RE-MOUNT CRASH) */}
+      {!email && (
+        <div style={styles.login}>
+          <div style={styles.logo}>AURAE</div>
+
+          <input
+            style={styles.input}
+            placeholder="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+
+          <button style={styles.btn} onClick={login}>
+            enter
+          </button>
+        </div>
+      )}
+
       {/* SIDEBAR */}
       <div style={styles.sidebar}>
-        <div style={styles.title}>{active}</div>
+        <div style={styles.title}>{active || "no project"}</div>
 
-        <label style={styles.upload}>
-          tracks
-          <input type="file" multiple hidden onChange={upload} />
-        </label>
-
-        <label style={styles.upload}>
-          cover
-          <input type="file" hidden onChange={uploadCover} />
-        </label>
-
-        <input
-          type="color"
-          value={vinylColor}
-          onChange={(e) => setVinylColor(e.target.value || "#111")}
-        />
-
-        <select
-          style={styles.btn}
-          onChange={(e) => setVinylStyle(e.target.value)}
-        >
-          <option value="classic">classic</option>
-          <option value="dark">dark</option>
-          <option value="neon">neon</option>
-        </select>
+        <input type="file" multiple onChange={upload} />
 
         <button style={styles.btn} onClick={() => setActive(null)}>
           home
         </button>
 
-        <div style={styles.list}>
-          {tracks.map((t, i) => (
-            <div key={t.id} style={styles.track} onClick={() => play(i)}>
-              {t?.name || "track"}
+        <div>
+          {Object.keys(projects || {}).map((p) => (
+            <div key={p} onClick={() => openProject(p)} style={styles.track}>
+              {p}
             </div>
           ))}
         </div>
       </div>
 
-      {/* VINYL */}
+      {/* CENTER VINYL */}
       <div style={styles.center}>
-        <div style={styles.vinylWrap}>
 
-          <div
-            style={{
-              ...styles.vinyl,
-              background:
-                vinylStyle === "neon"
-                  ? `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 70%)`
-                  : vinylStyle === "dark"
-                  ? "#111"
-                  : `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 75%)`,
-              transform: playing ? "rotate(360deg)" : "rotate(0deg)",
-              transition: playing ? "6s linear infinite" : "0.4s"
-            }}
-          >
+        <div style={styles.vinyl}>
+          <div style={styles.grooves} />
 
-            <div style={styles.grooves} />
-
-            {current?.cover ? (
-              <img src={current.cover} style={styles.label} />
-            ) : (
-              <div style={styles.labelFallback}>
-                {current?.name || "no track"}
-              </div>
-            )}
+          <div style={styles.label}>
+            {current?.name || "no track"}
           </div>
 
           <div
@@ -268,74 +193,24 @@ export default function App() {
             }}
           />
         </div>
+
       </div>
 
       {/* PLAYER */}
       <div style={styles.player}>
-        <div>{current?.name || "no track"}</div>
-
-        <div style={styles.controls}>
-          <button onClick={prev}>⏮</button>
-          <button onClick={toggle}>{playing ? "pause" : "play"}</button>
-          <button onClick={next}>⏭</button>
-        </div>
+        <button onClick={prev}>⏮</button>
+        <button onClick={toggle}>{playing ? "pause" : "play"}</button>
+        <button onClick={next}>⏭</button>
 
         <audio ref={audioRef} />
       </div>
+
     </div>
   );
 }
 
-/* ===== SAFE STYLES ===== */
+/* SAFE MINIMAL STYLES */
 const styles = {
-
-  login: {
-    height: "100vh",
-    background: "#0b0b0b",
-    color: "white",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    fontFamily: "Courier New"
-  },
-
-  logo: { fontSize: 42 },
-
-  home: {
-    padding: 80,
-    background: "#0b0b0b",
-    color: "white",
-    minHeight: "100vh",
-    fontFamily: "Courier New"
-  },
-
-  input: {
-    padding: 10,
-    background: "transparent",
-    border: "1px solid #333",
-    color: "white"
-  },
-
-  btn: {
-    padding: 10,
-    background: "rgba(255,255,255,0.08)",
-    color: "white",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 10,
-    marginTop: 10
-  },
-
-  grid: {
-    display: "flex",
-    gap: 10
-  },
-
-  card: {
-    padding: 20,
-    background: "rgba(255,255,255,0.05)"
-  },
-
   app: {
     display: "flex",
     height: "100vh",
@@ -344,25 +219,32 @@ const styles = {
     fontFamily: "Courier New"
   },
 
-  sidebar: {
-    width: 260,
-    padding: 16,
-    borderRight: "1px solid #222"
+  login: {
+    position: "fixed",
+    inset: 0,
+    background: "#0b0b0b",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999
   },
 
-  title: { opacity: 0.5 },
+  logo: { fontSize: 40 },
 
-  upload: {
-    display: "block",
+  input: { padding: 10 },
+
+  btn: {
     padding: 10,
+    marginTop: 10,
     background: "#fff",
-    color: "#000",
-    marginTop: 10
+    color: "#000"
   },
 
-  list: { marginTop: 20 },
-
-  track: { padding: 6, cursor: "pointer" },
+  sidebar: {
+    width: 220,
+    padding: 10
+  },
 
   center: {
     flex: 1,
@@ -371,12 +253,11 @@ const styles = {
     alignItems: "center"
   },
 
-  vinylWrap: { position: "relative" },
-
   vinyl: {
-    width: 340,
-    height: 340,
+    width: 320,
+    height: 320,
     borderRadius: "50%",
+    background: "#111",
     position: "relative"
   },
 
@@ -385,59 +266,35 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.04) 0px, transparent 2px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.05) 0px, transparent 2px)"
   },
 
   label: {
     position: "absolute",
-    width: 130,
-    height: 130,
-    borderRadius: "50%",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)"
-  },
-
-  labelFallback: {
-    position: "absolute",
-    width: 130,
-    height: 130,
-    borderRadius: "50%",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)",
-    background: "#111",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center"
+    inset: "40%",
+    textAlign: "center"
   },
 
   stylus: {
     position: "absolute",
-    width: 140,
+    width: 120,
     height: 6,
     background: "#fff",
-    top: "52%",
-    right: -70,
-    transformOrigin: "left center",
-    borderRadius: 10
+    right: -60,
+    top: "50%"
   },
 
   player: {
     position: "fixed",
     bottom: 0,
-    left: 260,
+    left: 220,
     right: 0,
-    height: 70,
+    height: 60,
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    background: "rgba(255,255,255,0.05)"
+    justifyContent: "center",
+    gap: 10,
+    alignItems: "center"
   },
 
-  controls: {
-    display: "flex",
-    gap: 10
-  }
+  track: { padding: 5, cursor: "pointer" }
 };
