@@ -2,36 +2,46 @@ import React, { useRef, useState, useEffect } from "react";
 
 export default function App() {
   const [projects, setProjects] = useState({});
-  const [activeProject, setActiveProject] = useState("default");
+  const [view, setView] = useState("home"); // home | project | settings
+  const [activeProject, setActiveProject] = useState(null);
   const [tracks, setTracks] = useState([]);
+
   const [current, setCurrent] = useState(null);
-  const [mode, setMode] = useState("vinyl");
+  const [mode, setMode] = useState("visualizer"); // visualizer | vinyl
+  const [theme, setTheme] = useState("#7c3aed");
 
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
   const dataRef = useRef(null);
 
-  // LOAD CLOUD (localStorage = cloud simulation)
+  // LOAD
   useEffect(() => {
-    const saved = localStorage.getItem("uc-cloud");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setProjects(parsed);
-      setTracks(parsed["default"] || []);
-    } else {
-      setProjects({ default: [] });
-    }
+    const saved = localStorage.getItem("uc-cloud-v4");
+    if (saved) setProjects(JSON.parse(saved));
   }, []);
 
-  // SAVE CLOUD
+  // SAVE
   useEffect(() => {
-    const updated = { ...projects, [activeProject]: tracks };
-    setProjects(updated);
-    localStorage.setItem("uc-cloud", JSON.stringify(updated));
-  }, [tracks]);
+    localStorage.setItem("uc-cloud-v4", JSON.stringify(projects));
+  }, [projects]);
 
-  // MULTI UPLOAD
+  // OPEN PROJECT
+  function openProject(name) {
+    setActiveProject(name);
+    setTracks(projects[name] || []);
+    setView("project");
+  }
+
+  // CREATE PROJECT
+  function createProject() {
+    const name = prompt("Project name?");
+    if (!name) return;
+
+    setProjects({ ...projects, [name]: [] });
+  }
+
+  // UPLOAD MULTI
   function upload(e) {
     const files = Array.from(e.target.files);
 
@@ -41,8 +51,17 @@ export default function App() {
       url: URL.createObjectURL(f)
     }));
 
-    setTracks([...newTracks, ...tracks]);
+    setTracks([...tracks, ...newTracks]);
   }
+
+  // SAVE TRACKS TO PROJECT
+  useEffect(() => {
+    if (!activeProject) return;
+    setProjects(prev => ({
+      ...prev,
+      [activeProject]: tracks
+    }));
+  }, [tracks]);
 
   // PLAY
   function play(track) {
@@ -54,7 +73,7 @@ export default function App() {
     initAudio();
   }
 
-  // AUDIO ENGINE
+  // AUDIO
   function initAudio() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const ctx = new AudioCtx();
@@ -72,11 +91,13 @@ export default function App() {
     const data = new Uint8Array(analyser.frequencyBinCount);
     dataRef.current = data;
 
-    render();
+    draw();
   }
 
-  function render() {
+  function draw() {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
 
     const loop = () => {
@@ -92,25 +113,27 @@ export default function App() {
         dataRef.current.reduce((a, b) => a + b, 0) /
         dataRef.current.length;
 
+      // VISUALIZER
       if (mode === "visualizer") {
         dataRef.current.forEach((v, i) => {
-          ctx.fillStyle = "#7c3aed";
-          ctx.fillRect(i * 6, 100 - v, 4, v);
+          ctx.fillStyle = theme;
+          ctx.fillRect(i * 6, 120 - v, 4, v);
         });
       }
 
+      // VINYL
       if (mode === "vinyl") {
         ctx.beginPath();
-        ctx.arc(200, 100, 70 + avg / 10, 0, Math.PI * 2);
+        ctx.arc(200, 120, 60 + avg / 12, 0, Math.PI * 2);
         ctx.fillStyle = "#111";
         ctx.fill();
 
         ctx.beginPath();
-        ctx.arc(200, 100, 20, 0, Math.PI * 2);
+        ctx.arc(200, 120, 15, 0, Math.PI * 2);
         ctx.fillStyle = "#000";
         ctx.fill();
 
-        ctx.strokeStyle = "#7c3aed";
+        ctx.strokeStyle = theme;
         ctx.stroke();
       }
     };
@@ -118,42 +141,60 @@ export default function App() {
     loop();
   }
 
-  // PROJECTS
-  function createProject() {
-    const name = prompt("Project name?");
-    if (!name) return;
-
-    setProjects({ ...projects, [name]: [] });
-    setActiveProject(name);
-    setTracks([]);
+  // DRAG SORT
+  function moveTrack(from, to) {
+    const updated = [...tracks];
+    const [item] = updated.splice(from, 1);
+    updated.splice(to, 0, item);
+    setTracks(updated);
   }
 
+  // HOME
+  if (view === "home") {
+    return (
+      <div style={styles.home}>
+        <h1>UC HOME</h1>
+
+        <button onClick={createProject} style={styles.btn}>
+          + New Project
+        </button>
+
+        <div style={styles.grid}>
+          {Object.keys(projects).map(p => (
+            <div key={p} style={styles.card} onClick={() => openProject(p)}>
+              {p}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // SETTINGS
+  if (view === "settings") {
+    return (
+      <div style={styles.settings}>
+        <h2>Settings</h2>
+
+        <label>Theme Color</label>
+        <input type="color" value={theme} onChange={e => setTheme(e.target.value)} />
+
+        <label>Mode</label>
+        <button onClick={() => setMode("visualizer")}>Visualizer</button>
+        <button onClick={() => setMode("vinyl")}>Vinyl</button>
+
+        <button onClick={() => setView("project")}>Back</button>
+      </div>
+    );
+  }
+
+  // PROJECT VIEW
   return (
     <div style={styles.app}>
 
       {/* SIDEBAR */}
       <div style={styles.sidebar}>
-        <h2>UC CLOUD</h2>
-
-        <button style={styles.btn} onClick={createProject}>
-          + New Project
-        </button>
-
-        {Object.keys(projects).map(p => (
-          <div
-            key={p}
-            onClick={() => {
-              setActiveProject(p);
-              setTracks(projects[p] || []);
-            }}
-            style={{
-              ...styles.project,
-              opacity: activeProject === p ? 1 : 0.5
-            }}
-          >
-            {p}
-          </div>
-        ))}
+        <h3>{activeProject}</h3>
 
         <input
           type="file"
@@ -164,34 +205,50 @@ export default function App() {
           onChange={upload}
         />
 
-        <button style={styles.btn} onClick={() => document.getElementById("file").click()}>
-          Upload Files
+        <button onClick={() => document.getElementById("file").click()} style={styles.btn}>
+          Upload
         </button>
 
-        <button style={styles.btn} onClick={() => setMode(mode === "vinyl" ? "visualizer" : "vinyl")}>
-          Toggle Mode
+        <button onClick={() => setView("home")} style={styles.btn}>
+          Home
         </button>
-      </div>
 
-      {/* MAIN */}
-      <div style={styles.main}>
+        <button onClick={() => setView("settings")} style={styles.btn}>
+          Settings
+        </button>
 
-        <div style={styles.stage}>
-          <canvas ref={canvasRef} width={400} height={200} />
-        </div>
-
-        <div style={styles.list}>
-          {tracks.map(t => (
-            <div key={t.id} style={styles.track} onClick={() => play(t)}>
+        <div style={{ marginTop: 10 }}>
+          {tracks.map((t, i) => (
+            <div
+              key={t.id}
+              style={styles.track}
+              draggable
+              onDragStart={e => e.dataTransfer.setData("from", i)}
+              onDrop={e => {
+                const from = Number(e.dataTransfer.getData("from"));
+                moveTrack(from, i);
+              }}
+              onDragOver={e => e.preventDefault()}
+              onClick={() => play(t)}
+            >
               {t.name}
             </div>
           ))}
         </div>
       </div>
 
-      {/* PLAYER */}
-      <div style={styles.player}>
-        <audio ref={audioRef} controls style={{ width: "100%" }} />
+      {/* MAIN */}
+      <div style={styles.main}>
+        <canvas ref={canvasRef} width={420} height={240} />
+      </div>
+
+      {/* PLAYBAR */}
+      <div style={{ ...styles.playbar, borderColor: theme }}>
+        <div style={styles.now}>
+          {current?.name || "No track"}
+        </div>
+
+        <audio ref={audioRef} controls style={{ flex: 1 }} />
       </div>
 
     </div>
@@ -207,6 +264,34 @@ const styles = {
     fontFamily: "system-ui"
   },
 
+  home: {
+    padding: 40,
+    color: "white",
+    background: "#0a0a0a",
+    minHeight: "100vh"
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: 20,
+    marginTop: 20
+  },
+
+  card: {
+    padding: 20,
+    background: "#111",
+    borderRadius: 12,
+    cursor: "pointer"
+  },
+
+  settings: {
+    padding: 40,
+    color: "white",
+    background: "#0a0a0a",
+    minHeight: "100vh"
+  },
+
   sidebar: {
     width: 260,
     borderRight: "1px solid #222",
@@ -215,26 +300,17 @@ const styles = {
 
   main: {
     flex: 1,
-    padding: 20
-  },
-
-  stage: {
-    height: 220,
     display: "flex",
     alignItems: "center",
     justifyContent: "center"
   },
 
-  list: {
-    marginTop: 20
-  },
-
   track: {
     padding: 10,
+    marginTop: 8,
     background: "#111",
-    marginBottom: 8,
     borderRadius: 8,
-    cursor: "pointer"
+    cursor: "grab"
   },
 
   btn: {
@@ -247,21 +323,21 @@ const styles = {
     cursor: "pointer"
   },
 
-  project: {
-    padding: 8,
-    marginTop: 6,
-    background: "#111",
-    borderRadius: 6,
-    cursor: "pointer"
-  },
-
-  player: {
+  playbar: {
     position: "fixed",
     bottom: 0,
     left: 260,
     right: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
     background: "#111",
     padding: 10,
-    borderTop: "1px solid #222"
+    borderTop: "2px solid"
+  },
+
+  now: {
+    width: 200,
+    opacity: 0.7
   }
 };
