@@ -96,7 +96,20 @@ export default function App() {
 
   /* ================= PROJECTS ================= */
 
-  function createProject() {
+ function createProject() {
+  const name = prompt("project name");
+  if (!name) return;
+
+  const next = {
+    ...projects,
+    [name]: {
+      tracks: [],
+      cover: null
+    }
+  };
+
+  saveProjects(next);
+}
     const name = prompt("project name");
     if (!name) return;
 
