@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
-  const [mode, setMode] = useState("home"); // home | app
-  const [authMode, setAuthMode] = useState("login"); // login | signup
+  const [mode, setMode] = useState("auth"); // auth | home | app
+  const [authMode, setAuthMode] = useState("login");
 
   const [users, setUsers] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
@@ -56,7 +56,7 @@ export default function App() {
   function logout() {
     localStorage.removeItem("aurae_session");
     setSession(null);
-    setMode("home");
+    setMode("auth");
   }
 
   /* ================= PROJECT ================= */
@@ -67,6 +67,7 @@ export default function App() {
     setActive(name);
     setTracks(p?.tracks || []);
     setIndex(0);
+    setMode("app");
   }
 
   function updateTracks(updated) {
@@ -108,24 +109,31 @@ export default function App() {
   /* ================= PLAYER ================= */
 
   function play(i) {
-    setIndex(i);
+    if (!tracks?.length) return;
+
+    const safe = Math.min(i, tracks.length - 1);
+
+    setIndex(safe);
     setPlaying(true);
 
     setTimeout(() => {
-      if (!audioRef.current || !tracks[i]) return;
-      audioRef.current.src = tracks[i].url;
-      audioRef.current.play().catch(() => {});
+      const a = audioRef.current;
+      if (!a || !tracks[safe]) return;
+
+      a.src = tracks[safe].url;
+      a.play().catch(() => {});
     }, 50);
   }
 
   function toggle() {
-    if (!audioRef.current) return;
+    const a = audioRef.current;
+    if (!a) return;
 
     if (playing) {
-      audioRef.current.pause();
+      a.pause();
       setPlaying(false);
     } else {
-      audioRef.current.play().catch(() => {});
+      a.play().catch(() => {});
       setPlaying(true);
     }
   }
@@ -138,23 +146,22 @@ export default function App() {
     if (index > 0) play(index - 1);
   }
 
-  /* AUTO NEXT */
   useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
+    const a = audioRef.current;
+    if (!a) return;
 
     const onEnd = () => {
       if (index < tracks.length - 1) play(index + 1);
       else setPlaying(false);
     };
 
-    el.addEventListener("ended", onEnd);
-    return () => el.removeEventListener("ended", onEnd);
+    a.addEventListener("ended", onEnd);
+    return () => a.removeEventListener("ended", onEnd);
   }, [index, tracks]);
 
   /* ================= AUTH SCREEN ================= */
 
-  if (!session) {
+  if (mode === "auth") {
     return (
       <div style={styles.auth}>
 
@@ -192,6 +199,10 @@ export default function App() {
           >
             switch mode
           </button>
+
+          <div style={styles.smallText}>
+            no login = nothing is stored locally
+          </div>
         </div>
 
       </div>
@@ -204,7 +215,6 @@ export default function App() {
     return (
       <div style={styles.home}>
 
-        {/* RIGHT AUTH MENU */}
         <div style={styles.topRight}>
           <button style={styles.glassBtn} onClick={logout}>
             logout
@@ -213,25 +223,14 @@ export default function App() {
 
         <div style={styles.homeCenter}>
           <div style={styles.logo}>AURAE</div>
-
-          <div style={styles.sub}>music workspace OS</div>
-
-          <button
-            style={styles.glassBtn}
-            onClick={() => setMode("app")}
-          >
-            open studio
-          </button>
+          <div style={styles.sub}>music OS</div>
 
           <div style={styles.projectGrid}>
             {Object.keys(projects || {}).map((p) => (
               <div
                 key={p}
                 style={styles.projectCard}
-                onClick={() => {
-                  openProject(p);
-                  setMode("app");
-                }}
+                onClick={() => openProject(p)}
               >
                 {p}
               </div>
@@ -251,9 +250,15 @@ export default function App() {
       <div style={styles.sidebar}>
         <div style={styles.title}>{active}</div>
 
-        <input type="file" multiple onChange={upload} />
+        <label style={styles.glassBtn}>
+          add tracks
+          <input type="file" multiple hidden onChange={upload} />
+        </label>
 
-        <input type="file" onChange={uploadCover} />
+        <label style={styles.glassBtn}>
+          cover art
+          <input type="file" hidden onChange={uploadCover} />
+        </label>
 
         <input
           type="color"
@@ -282,8 +287,7 @@ export default function App() {
             style={{
               ...styles.vinyl,
               background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 75%)`,
-              transform: playing ? "rotate(360deg)" : "rotate(0deg)",
-              transition: "6s linear"
+              animation: playing ? "spin 4s linear infinite" : "none"
             }}
           >
 
@@ -299,10 +303,12 @@ export default function App() {
 
           </div>
 
-          <div style={{
-            ...styles.stylus,
-            transform: playing ? "rotate(18deg)" : "rotate(22deg)"
-          }} />
+          <div
+            style={{
+              ...styles.stylus,
+              transform: playing ? "rotate(18deg)" : "rotate(22deg)"
+            }}
+          />
 
         </div>
       </div>
@@ -325,15 +331,13 @@ export default function App() {
 /* ================= STYLES ================= */
 
 const styles = {
-
-  fontFamily: "Courier New",
-
   auth: {
     height: "100vh",
     background: "#0b0b0b",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    fontFamily: "Courier New"
   },
 
   glassBox: {
@@ -349,11 +353,11 @@ const styles = {
 
   glassBtn: {
     padding: "10px 14px",
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.15)",
+    borderRadius: 14,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
     color: "white",
-    borderRadius: 12,
-    backdropFilter: "blur(12px)",
+    backdropFilter: "blur(18px)",
     cursor: "pointer"
   },
 
@@ -361,15 +365,13 @@ const styles = {
     background: "none",
     border: "none",
     color: "white",
-    opacity: 0.6,
-    cursor: "pointer"
+    opacity: 0.6
   },
 
-  input: {
-    padding: 10,
-    background: "transparent",
-    border: "1px solid #333",
-    color: "white"
+  smallText: {
+    fontSize: 11,
+    opacity: 0.4,
+    textAlign: "center"
   },
 
   home: {
@@ -394,16 +396,16 @@ const styles = {
   sub: { opacity: 0.4 },
 
   projectGrid: {
-    marginTop: 40,
     display: "flex",
     justifyContent: "center",
-    gap: 10
+    gap: 10,
+    marginTop: 40
   },
 
   projectCard: {
     padding: 16,
     background: "rgba(255,255,255,0.05)",
-    borderRadius: 12,
+    borderRadius: 14,
     cursor: "pointer"
   },
 
