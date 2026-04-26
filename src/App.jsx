@@ -10,7 +10,7 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
 
   const [vinylColor, setVinylColor] = useState("#111");
-  const [volume, setVolume] = useState(0.8);
+  const [vinylStyle, setVinylStyle] = useState("classic");
 
   const audioRef = useRef(null);
   const current = tracks[index];
@@ -28,8 +28,6 @@ export default function App() {
     if (!email) return;
     localStorage.setItem(storageKey, JSON.stringify(projects));
   }, [projects, email]);
-
-  const [name, setName] = useState("");
 
   /* LOGIN */
   if (!email) {
@@ -54,30 +52,19 @@ export default function App() {
     );
   }
 
-  /* CREATE */
-  function createProject() {
-    if (!name.trim()) return;
-
-    setProjects({
-      ...projects,
-      [name]: { artist: "", tracks: [] }
-    });
-
-    setName("");
-  }
-
+  /* PROJECT */
   function openProject(p) {
     setActive(p);
     setTracks(projects[p]?.tracks || []);
     setIndex(0);
   }
 
-  function update(updatedTracks) {
+  function update(updated) {
     setProjects({
       ...projects,
       [active]: {
-        artist: projects[active]?.artist || "",
-        tracks: updatedTracks
+        ...projects[active],
+        tracks: updated
       }
     });
   }
@@ -90,7 +77,7 @@ export default function App() {
       id: Date.now() + Math.random(),
       name: f.name.replace(/\.[^/.]+$/, ""),
       url: URL.createObjectURL(f),
-      bpm: Math.floor(Math.random() * 50 + 90),
+      bpm: Math.floor(Math.random() * 40 + 90),
       cover: null
     }));
 
@@ -118,7 +105,6 @@ export default function App() {
 
     setTimeout(() => {
       audioRef.current.src = tracks[i].url;
-      audioRef.current.volume = volume;
       audioRef.current.play();
     }, 50);
   }
@@ -143,6 +129,23 @@ export default function App() {
     if (index > 0) play(index - 1);
   }
 
+  /* AUTO NEXT */
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    const onEnd = () => {
+      if (index < tracks.length - 1) {
+        play(index + 1);
+      } else {
+        setPlaying(false);
+      }
+    };
+
+    el.addEventListener("ended", onEnd);
+    return () => el.removeEventListener("ended", onEnd);
+  }, [index, tracks]);
+
   /* HOME */
   if (!active) {
     return (
@@ -150,17 +153,6 @@ export default function App() {
         <div style={styles.logo}>AURAE</div>
 
         <div style={styles.sub}>hardware music system</div>
-
-        <input
-          style={styles.input}
-          placeholder="new project"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        <button style={styles.btn} onClick={createProject}>
-          create
-        </button>
 
         <div style={styles.grid}>
           {Object.keys(projects).map((p) => (
@@ -177,9 +169,8 @@ export default function App() {
   return (
     <div style={styles.app}>
 
-      {/* LEFT */}
+      {/* SIDEBAR */}
       <div style={styles.sidebar}>
-
         <div style={styles.title}>{active}</div>
 
         <label style={styles.upload}>
@@ -192,20 +183,21 @@ export default function App() {
           <input type="file" hidden onChange={uploadCover} />
         </label>
 
-        <div style={styles.knobWrap}>
-          <div style={styles.knobLabel}>VOL</div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={volume}
-            onChange={(e) => {
-              setVolume(e.target.value);
-              if (audioRef.current) audioRef.current.volume = e.target.value;
-            }}
-          />
-        </div>
+        <input
+          type="color"
+          value={vinylColor}
+          onChange={(e) => setVinylColor(e.target.value)}
+          style={{ width: "100%", marginTop: 10 }}
+        />
+
+        <select
+          style={styles.btn}
+          onChange={(e) => setVinylStyle(e.target.value)}
+        >
+          <option value="classic">classic</option>
+          <option value="dark">dark</option>
+          <option value="neon">neon</option>
+        </select>
 
         <button style={styles.btn} onClick={() => setActive(null)}>
           home
@@ -218,48 +210,49 @@ export default function App() {
             </div>
           ))}
         </div>
-
       </div>
 
       {/* VINYL */}
       <div style={styles.center}>
-
         <div style={styles.vinylWrap}>
 
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 70%)`,
-              transform: playing
-                ? "rotate(360deg)"
-                : "rotate(0deg)",
+              background:
+                vinylStyle === "neon"
+                  ? `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 70%)`
+                  : vinylStyle === "dark"
+                  ? "#111"
+                  : `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 75%)`,
+              transform: playing ? "rotate(360deg)" : "rotate(0deg)",
               transition: playing ? "6s linear infinite" : "0.4s"
             }}
           >
 
+            {/* GROOVES (REALISTIC) */}
             <div style={styles.grooves} />
-            <div style={styles.innerRing} />
 
+            {/* LABEL */}
             {current?.cover ? (
               <img src={current.cover} style={styles.label} />
             ) : (
-              <div style={styles.labelFallback}>{current?.name}</div>
+              <div style={styles.labelFallback}>
+                {current?.name || "No Track"}
+              </div>
             )}
-
           </div>
 
-          {/* STYLUS REALISM */}
+          {/* STYLUS REAL */}
           <div
             style={{
               ...styles.stylus,
               transform: playing
-                ? "rotate(20deg) translateY(1px)"
-                : "rotate(25deg)"
+                ? "rotate(18deg)"
+                : "rotate(22deg)"
             }}
           />
-
         </div>
-
       </div>
 
       {/* PLAYER */}
@@ -274,41 +267,53 @@ export default function App() {
 
         <audio ref={audioRef} />
       </div>
-
     </div>
   );
 }
 
-/* ===== STYLES ===== */
+/* ================= STYLES ================= */
 const styles = {
 
-  fontFamily: "'Courier New', monospace",
+  login: {
+    height: "100vh",
+    background: "#0b0b0b",
+    color: "white",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    fontFamily: "Courier New"
+  },
+
+  logo: { fontSize: 44 },
 
   home: {
     padding: 80,
     background: "#0b0b0b",
     color: "white",
     minHeight: "100vh",
-    textAlign: "center"
+    textAlign: "center",
+    fontFamily: "Courier New"
   },
 
-  logo: { fontSize: 44, letterSpacing: 4 },
-
-  sub: { opacity: 0.4, marginBottom: 20 },
+  sub: { opacity: 0.5 },
 
   input: {
     padding: 10,
     background: "transparent",
-    border: "1px solid #444",
+    border: "1px solid #333",
     color: "white"
   },
 
   btn: {
-    padding: 10,
-    background: "#eaeaea",
-    border: "none",
+    padding: "10px 14px",
+    background: "rgba(255,255,255,0.08)",
+    color: "white",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 10,
     marginTop: 10,
-    boxShadow: "0 6px 20px rgba(0,0,0,0.6)"
+    cursor: "pointer",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.4)"
   },
 
   grid: {
@@ -328,7 +333,7 @@ const styles = {
     height: "100vh",
     background: "#0b0b0b",
     color: "white",
-    fontFamily: "'Courier New', monospace"
+    fontFamily: "Courier New"
   },
 
   sidebar: {
@@ -375,18 +380,8 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.03) 0px, transparent 3px)"
-  },
-
-  innerRing: {
-    position: "absolute",
-    width: 70,
-    height: 70,
-    borderRadius: "50%",
-    background: "rgba(255,255,255,0.08)",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.04) 0px, transparent 2px)",
+    opacity: 0.9
   },
 
   label: {
@@ -415,14 +410,14 @@ const styles = {
 
   stylus: {
     position: "absolute",
-    width: 140,
+    width: 150,
     height: 6,
     background: "linear-gradient(to right, #aaa, #fff)",
     top: "52%",
-    right: -70,
+    right: -75,
     transformOrigin: "left center",
     borderRadius: 10,
-    boxShadow: "0 10px 25px rgba(0,0,0,0.6)"
+    boxShadow: "0 12px 30px rgba(0,0,0,0.7)"
   },
 
   player: {
