@@ -13,20 +13,31 @@ export default function App() {
   const [vinylStyle, setVinylStyle] = useState("classic");
 
   const audioRef = useRef(null);
-  const current = tracks[index];
 
-  const storageKey = `aurae_${email}`;
+  const current = tracks?.[index] || null;
 
-  /* LOAD */
+  const storageKey = `aurae_${email || "guest"}`;
+
+  /* SAFE LOAD */
   useEffect(() => {
     if (!email) return;
-    const saved = localStorage.getItem(storageKey);
-    if (saved) setProjects(JSON.parse(saved));
+
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) setProjects(JSON.parse(saved));
+    } catch (e) {
+      console.warn("storage error");
+    }
   }, [email]);
 
   useEffect(() => {
     if (!email) return;
-    localStorage.setItem(storageKey, JSON.stringify(projects));
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(projects));
+    } catch (e) {
+      console.warn("save error");
+    }
   }, [projects, email]);
 
   /* LOGIN */
@@ -39,7 +50,7 @@ export default function App() {
           style={styles.input}
           placeholder="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value || "")}
         />
 
         <button
@@ -52,60 +63,72 @@ export default function App() {
     );
   }
 
-  /* PROJECT */
-  function openProject(p) {
-    setActive(p);
-    setTracks(projects[p]?.tracks || []);
+  /* OPEN PROJECT SAFE */
+  function openProject(name) {
+    const p = projects?.[name];
+
+    setActive(name);
+    setTracks(Array.isArray(p?.tracks) ? p.tracks : []);
     setIndex(0);
+    setPlaying(false);
   }
 
-  function update(updated) {
-    setProjects({
-      ...projects,
+  function updateTracks(updated) {
+    if (!active) return;
+
+    setTracks(updated);
+
+    setProjects((prev) => ({
+      ...prev,
       [active]: {
-        ...projects[active],
+        ...(prev?.[active] || {}),
         tracks: updated
       }
-    });
+    }));
   }
 
-  /* UPLOAD */
+  /* UPLOAD SAFE */
   function upload(e) {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
 
     const newTracks = files.map((f) => ({
       id: Date.now() + Math.random(),
-      name: f.name.replace(/\.[^/.]+$/, ""),
+      name: f?.name?.replace(/\.[^/.]+$/, "") || "track",
       url: URL.createObjectURL(f),
       bpm: Math.floor(Math.random() * 40 + 90),
       cover: null
     }));
 
     const updated = [...tracks, ...newTracks];
-    setTracks(updated);
-    update(updated);
+    updateTracks(updated);
   }
 
   function uploadCover(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files?.[0];
+    if (!file || !tracks?.length) return;
 
     const updated = [...tracks];
     if (updated[index]) {
-      updated[index].cover = URL.createObjectURL(file);
-      setTracks(updated);
-      update(updated);
+      updated[index] = {
+        ...updated[index],
+        cover: URL.createObjectURL(file)
+      };
+      updateTracks(updated);
     }
   }
 
-  /* PLAYER */
+  /* PLAYER SAFE */
   function play(i) {
+    if (!tracks?.length) return;
+
     setIndex(i);
     setPlaying(true);
 
     setTimeout(() => {
+      if (!audioRef.current || !tracks[i]) return;
+
       audioRef.current.src = tracks[i].url;
-      audioRef.current.play();
+      audioRef.current.play().catch(() => {});
     }, 50);
   }
 
@@ -116,7 +139,7 @@ export default function App() {
       audioRef.current.pause();
       setPlaying(false);
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch(() => {});
       setPlaying(true);
     }
   }
@@ -129,7 +152,7 @@ export default function App() {
     if (index > 0) play(index - 1);
   }
 
-  /* AUTO NEXT */
+  /* AUTO NEXT SAFE */
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
@@ -152,10 +175,8 @@ export default function App() {
       <div style={styles.home}>
         <div style={styles.logo}>AURAE</div>
 
-        <div style={styles.sub}>hardware music system</div>
-
         <div style={styles.grid}>
-          {Object.keys(projects).map((p) => (
+          {Object.keys(projects || {}).map((p) => (
             <div key={p} style={styles.card} onClick={() => openProject(p)}>
               {p}
             </div>
@@ -165,7 +186,7 @@ export default function App() {
     );
   }
 
-  /* APP */
+  /* MAIN */
   return (
     <div style={styles.app}>
 
@@ -186,8 +207,7 @@ export default function App() {
         <input
           type="color"
           value={vinylColor}
-          onChange={(e) => setVinylColor(e.target.value)}
-          style={{ width: "100%", marginTop: 10 }}
+          onChange={(e) => setVinylColor(e.target.value || "#111")}
         />
 
         <select
@@ -206,7 +226,7 @@ export default function App() {
         <div style={styles.list}>
           {tracks.map((t, i) => (
             <div key={t.id} style={styles.track} onClick={() => play(i)}>
-              {t.name} <span style={styles.bpm}>{t.bpm}</span>
+              {t?.name || "track"}
             </div>
           ))}
         </div>
@@ -230,26 +250,21 @@ export default function App() {
             }}
           >
 
-            {/* GROOVES (REALISTIC) */}
             <div style={styles.grooves} />
 
-            {/* LABEL */}
             {current?.cover ? (
               <img src={current.cover} style={styles.label} />
             ) : (
               <div style={styles.labelFallback}>
-                {current?.name || "No Track"}
+                {current?.name || "no track"}
               </div>
             )}
           </div>
 
-          {/* STYLUS REAL */}
           <div
             style={{
               ...styles.stylus,
-              transform: playing
-                ? "rotate(18deg)"
-                : "rotate(22deg)"
+              transform: playing ? "rotate(18deg)" : "rotate(22deg)"
             }}
           />
         </div>
@@ -271,7 +286,7 @@ export default function App() {
   );
 }
 
-/* ================= STYLES ================= */
+/* ===== SAFE STYLES ===== */
 const styles = {
 
   login: {
@@ -285,18 +300,15 @@ const styles = {
     fontFamily: "Courier New"
   },
 
-  logo: { fontSize: 44 },
+  logo: { fontSize: 42 },
 
   home: {
     padding: 80,
     background: "#0b0b0b",
     color: "white",
     minHeight: "100vh",
-    textAlign: "center",
     fontFamily: "Courier New"
   },
-
-  sub: { opacity: 0.5 },
 
   input: {
     padding: 10,
@@ -306,21 +318,17 @@ const styles = {
   },
 
   btn: {
-    padding: "10px 14px",
+    padding: 10,
     background: "rgba(255,255,255,0.08)",
     color: "white",
     border: "1px solid rgba(255,255,255,0.12)",
     borderRadius: 10,
-    marginTop: 10,
-    cursor: "pointer",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.4)"
+    marginTop: 10
   },
 
   grid: {
-    marginTop: 40,
     display: "flex",
-    gap: 10,
-    justifyContent: "center"
+    gap: 10
   },
 
   card: {
@@ -356,8 +364,6 @@ const styles = {
 
   track: { padding: 6, cursor: "pointer" },
 
-  bpm: { marginLeft: 8, opacity: 0.5 },
-
   center: {
     flex: 1,
     display: "flex",
@@ -371,8 +377,7 @@ const styles = {
     width: 340,
     height: 340,
     borderRadius: "50%",
-    position: "relative",
-    boxShadow: "0 60px 140px rgba(0,0,0,0.9)"
+    position: "relative"
   },
 
   grooves: {
@@ -380,8 +385,7 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.04) 0px, transparent 2px)",
-    opacity: 0.9
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.04) 0px, transparent 2px)"
   },
 
   label: {
@@ -410,14 +414,13 @@ const styles = {
 
   stylus: {
     position: "absolute",
-    width: 150,
+    width: 140,
     height: 6,
-    background: "linear-gradient(to right, #aaa, #fff)",
+    background: "#fff",
     top: "52%",
-    right: -75,
+    right: -70,
     transformOrigin: "left center",
-    borderRadius: 10,
-    boxShadow: "0 12px 30px rgba(0,0,0,0.7)"
+    borderRadius: 10
   },
 
   player: {
