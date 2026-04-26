@@ -2,34 +2,25 @@ import React, { useRef, useState, useEffect } from "react";
 
 export default function App() {
   const [projects, setProjects] = useState({});
-  const [screen, setScreen] = useState("home");
+  const [active, setActive] = useState(null);
 
-  const [project, setProject] = useState(null);
   const [tracks, setTracks] = useState([]);
-
-  const [a, setA] = useState(0);
-  const [b, setB] = useState(1);
-
-  const [playingA, setPlayingA] = useState(false);
-  const [playingB, setPlayingB] = useState(false);
-
-  const [crossfade, setCrossfade] = useState(0.5);
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
 
   const [vinylColor, setVinylColor] = useState("#111111");
 
-  const audioA = useRef(null);
-  const audioB = useRef(null);
-
-  const current = tracks[a];
+  const audioRef = useRef(null);
+  const current = tracks[index];
 
   /* STORAGE */
   useEffect(() => {
-    const s = localStorage.getItem("neural_os_v4");
-    if (s) setProjects(JSON.parse(s));
+    const saved = localStorage.getItem("music_os_final");
+    if (saved) setProjects(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("neural_os_v4", JSON.stringify(projects));
+    localStorage.setItem("music_os_final", JSON.stringify(projects));
   }, [projects]);
 
   const [name, setName] = useState("");
@@ -40,64 +31,75 @@ export default function App() {
     setName("");
   }
 
-  function openProject(n) {
-    setProject(n);
-    setTracks(projects[n] || []);
-    setScreen("studio");
+  function openProject(p) {
+    setActive(p);
+    setTracks(projects[p] || []);
+    setIndex(0);
   }
 
-  /* AUDIO */
-  function play(deck, i) {
-    const audio = deck === "A" ? audioA.current : audioB.current;
-    const setPlaying = deck === "A" ? setPlayingA : setPlayingB;
-    const setIndex = deck === "A" ? setA : setB;
+  /* UPLOAD */
+  function upload(e) {
+    const files = Array.from(e.target.files);
 
-    const t = tracks[i];
-    if (!t) return;
+    const newTracks = files.map((f) => ({
+      id: Date.now() + Math.random(),
+      name: f.name.replace(/\.[^/.]+$/, ""),
+      url: URL.createObjectURL(f),
+      cover: null
+    }));
 
+    const updated = [...tracks, ...newTracks];
+    setTracks(updated);
+    setProjects({ ...projects, [active]: updated });
+  }
+
+  /* PLAY */
+  function play(i) {
     setIndex(i);
-
-    audio.src = t.url;
-    audio.volume = deck === "A" ? crossfade : 1 - crossfade;
-    audio.play();
-
     setPlaying(true);
+
+    setTimeout(() => {
+      audioRef.current.src = tracks[i].url;
+      audioRef.current.play();
+    }, 50);
   }
 
-  function toggle(deck) {
-    const audio = deck === "A" ? audioA.current : audioB.current;
-    const playing = deck === "A" ? playingA : playingB;
-    const setPlaying = deck === "A" ? setPlayingA : setPlayingB;
+  function toggle() {
+    if (!audioRef.current) return;
 
     if (playing) {
-      audio.pause();
+      audioRef.current.pause();
       setPlaying(false);
     } else {
-      audio.play();
+      audioRef.current.play();
       setPlaying(true);
     }
   }
 
-  /* SCRATCH FEEL */
-  function scratch(deck, e) {
-    const audio = deck === "A" ? audioA.current : audioB.current;
-    if (!audio) return;
+  function next() {
+    if (index < tracks.length - 1) play(index + 1);
+  }
 
-    const delta = (e.movementX + e.movementY) * 0.01;
-    audio.currentTime = Math.max(0, audio.currentTime + delta);
+  function prev() {
+    if (index > 0) play(index - 1);
   }
 
   /* HOME */
-  if (screen === "home") {
+  if (!active) {
     return (
       <div style={styles.home}>
-        <div style={styles.logo}>NEURAL OS v4</div>
+
+        <div style={styles.logo}>MUSIC OS</div>
+
+        <div style={styles.sub}>
+          Clean music workspace inspired by modern audio tools
+        </div>
 
         <div style={styles.row}>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Project name"
+            placeholder="New project..."
             style={styles.input}
           />
           <button style={styles.btn} onClick={createProject}>
@@ -106,102 +108,133 @@ export default function App() {
         </div>
 
         <div style={styles.grid}>
+
+          {Object.keys(projects).length === 0 && (
+            <div style={styles.empty}>
+              No projects yet — create your first music space.
+            </div>
+          )}
+
           {Object.keys(projects).map((p) => (
             <div key={p} style={styles.card} onClick={() => openProject(p)}>
-              {p}
+              <div style={styles.cardTitle}>{p}</div>
+              <div style={styles.cardSub}>
+                {projects[p]?.length || 0} tracks
+              </div>
             </div>
           ))}
+
         </div>
+
       </div>
     );
   }
 
-  /* STUDIO */
+  /* APP */
   return (
     <div style={styles.app}>
 
-      {/* LEFT */}
+      {/* SIDEBAR */}
       <div style={styles.sidebar}>
-        <div>{project}</div>
+
+        <div style={styles.title}>{active}</div>
+
+        <label style={styles.upload}>
+          Upload tracks
+          <input type="file" multiple hidden onChange={upload} />
+        </label>
 
         <input
           type="color"
           value={vinylColor}
           onChange={(e) => setVinylColor(e.target.value)}
-          style={{ marginTop: 10 }}
+          style={styles.color}
         />
+
+        <button style={styles.back} onClick={() => setActive(null)}>
+          Home
+        </button>
 
         <div style={styles.list}>
           {tracks.map((t, i) => (
-            <div key={i} style={styles.track}>
+            <div key={t.id} style={styles.track} onClick={() => play(i)}>
               {t.name}
-              <button onClick={() => play("A", i)}>A</button>
-              <button onClick={() => play("B", i)}>B</button>
             </div>
           ))}
         </div>
+
       </div>
 
-      {/* CENTER */}
+      {/* CENTER VINYL */}
       <div style={styles.center}>
 
-        {/* DECK A */}
-        <div style={styles.deck}>
-          <div
-            style={{
-              ...styles.vinyl,
-              background: `radial-gradient(circle at center, ${vinylColor}, #000)`
-            }}
-            onMouseMove={(e) => scratch("A", e)}
-            onClick={() => toggle("A")}
-          >
-            <div style={styles.label} />
-          </div>
+        <div
+          style={{
+            ...styles.vinyl,
+            background: `radial-gradient(circle at center,
+              ${vinylColor},
+              #000 70%)`,
+            animation: playing ? "spin 4s linear infinite" : "none"
+          }}
+        >
 
-          <audio ref={audioA} />
-        </div>
+          {/* GROOVES */}
+          <div style={styles.grooves} />
 
-        {/* MIXER */}
-        <div style={styles.mixer}>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={crossfade}
-            onChange={(e) => setCrossfade(+e.target.value)}
-          />
-        </div>
+          {/* INNER RING */}
+          <div style={styles.innerRing} />
 
-        {/* DECK B */}
-        <div style={styles.deck}>
-          <div
-            style={{
-              ...styles.vinyl,
-              background: `radial-gradient(circle at center, ${vinylColor}, #000)`
-            }}
-            onMouseMove={(e) => scratch("B", e)}
-            onClick={() => toggle("B")}
-          >
-            <div style={styles.label} />
-          </div>
+          {/* LABEL */}
+          {current?.cover ? (
+            <img src={current.cover} style={styles.label} />
+          ) : (
+            <div style={styles.labelFallback}>
+              {current?.name || "NO TRACK"}
+            </div>
+          )}
 
-          <audio ref={audioB} />
         </div>
 
       </div>
+
+      {/* PLAYER BAR */}
+      <div style={styles.player}>
+
+        <div style={styles.now}>
+          {current?.name || "No track selected"}
+        </div>
+
+        <div style={styles.controls}>
+          <button onClick={prev}>⏮</button>
+          <button onClick={toggle}>
+            {playing ? "Pause" : "Play"}
+          </button>
+          <button onClick={next}>⏭</button>
+        </div>
+
+        <audio ref={audioRef} />
+
+      </div>
+
+      {/* ANIMATION */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
 
     </div>
   );
 }
 
-/* 🎛 NEURAL UI SYSTEM */
+/* 🎨 CLEAN UNTITLED-STYLE UI + REAL VINYL */
 const styles = {
 
   app: {
-    display: "flex",
     height: "100vh",
-    background: "#0a0a0a",
+    display: "flex",
+    background: "#0b0b0b",
     color: "white",
     fontFamily: "Inter"
   },
@@ -212,19 +245,25 @@ const styles = {
   },
 
   logo: {
-    fontSize: 44,
+    fontSize: 42,
     letterSpacing: 2
+  },
+
+  sub: {
+    opacity: 0.5,
+    marginTop: 10
   },
 
   row: {
     display: "flex",
     justifyContent: "center",
-    gap: 10
+    gap: 10,
+    marginTop: 30
   },
 
   input: {
     padding: 10,
-    border: "1px solid white",
+    border: "1px solid rgba(255,255,255,0.2)",
     background: "transparent",
     color: "white"
   },
@@ -236,65 +275,157 @@ const styles = {
   },
 
   grid: {
-    marginTop: 50,
+    marginTop: 60,
     display: "flex",
     gap: 16,
-    justifyContent: "center"
+    justifyContent: "center",
+    flexWrap: "wrap"
+  },
+
+  empty: {
+    opacity: 0.4
   },
 
   card: {
     padding: 18,
-    background: "rgba(255,255,255,0.05)"
+    background: "rgba(255,255,255,0.05)",
+    borderRadius: 12,
+    cursor: "pointer",
+    minWidth: 160
+  },
+
+  cardTitle: {
+    fontSize: 14
+  },
+
+  cardSub: {
+    fontSize: 12,
+    opacity: 0.5
   },
 
   sidebar: {
     width: 260,
     padding: 16,
-    borderRight: "1px solid #222"
+    borderRight: "1px solid rgba(255,255,255,0.08)"
   },
 
-  list: { marginTop: 20 },
+  title: {
+    opacity: 0.6,
+    marginBottom: 20
+  },
+
+  upload: {
+    display: "block",
+    padding: 10,
+    background: "white",
+    color: "black",
+    borderRadius: 10,
+    textAlign: "center"
+  },
+
+  color: {
+    marginTop: 10,
+    width: "100%"
+  },
+
+  back: {
+    marginTop: 10,
+    padding: 8,
+    border: "1px solid white",
+    background: "transparent",
+    color: "white"
+  },
+
+  list: {
+    marginTop: 20
+  },
 
   track: {
-    display: "flex",
-    gap: 6,
-    padding: 6
+    padding: 6,
+    cursor: "pointer"
   },
 
   center: {
     flex: 1,
-    display: "flex",
-    justifyContent: "space-around",
-    alignItems: "center"
-  },
-
-  deck: {
-    width: 260,
-    height: 260,
-    background: "#111",
-    borderRadius: 20,
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
   },
 
   vinyl: {
-    width: 200,
-    height: 200,
+    width: 300,
+    height: 300,
     borderRadius: "50%",
-    cursor: "pointer"
+    position: "relative",
+    boxShadow: "0 40px 100px rgba(0,0,0,0.8)"
+  },
+
+  grooves: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "50%",
+    background:
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.04) 0px, transparent 2px, transparent 6px)"
+  },
+
+  innerRing: {
+    position: "absolute",
+    width: 60,
+    height: 60,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.08)",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)"
   },
 
   label: {
-    width: 80,
-    height: 80,
+    position: "absolute",
+    width: 120,
+    height: 120,
     borderRadius: "50%",
-    background: "white",
-    margin: "auto",
-    marginTop: 60
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    objectFit: "cover"
   },
 
-  mixer: {
-    width: 200
+  labelFallback: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: "50%",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    background: "#111",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 10,
+    opacity: 0.6
+  },
+
+  player: {
+    position: "fixed",
+    bottom: 0,
+    left: 260,
+    right: 0,
+    height: 70,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    background: "rgba(255,255,255,0.05)",
+    backdropFilter: "blur(20px)"
+  },
+
+  now: {
+    opacity: 0.7
+  },
+
+  controls: {
+    display: "flex",
+    gap: 10
   }
 };
