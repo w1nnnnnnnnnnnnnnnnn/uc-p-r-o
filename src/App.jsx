@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
-  const [mode, setMode] = useState("auth"); // auth | home | app
+  const [mode, setMode] = useState("auth");
   const [authMode, setAuthMode] = useState("login");
 
   const [users, setUsers] = useState(() =>
@@ -27,18 +27,14 @@ export default function App() {
   const audioRef = useRef(null);
   const current = tracks?.[index];
 
-  /* ================= AUTH ================= */
-
+  /* AUTH */
   function signup() {
     if (!email || !password) return;
 
-    const updated = {
-      ...users,
-      [email]: { password }
-    };
-
+    const updated = { ...users, [email]: { password } };
     setUsers(updated);
     localStorage.setItem("aurae_users", JSON.stringify(updated));
+
     setAuthMode("login");
   }
 
@@ -59,8 +55,7 @@ export default function App() {
     setMode("auth");
   }
 
-  /* ================= PROJECT ================= */
-
+  /* PROJECTS */
   function openProject(name) {
     const p = projects?.[name];
 
@@ -82,6 +77,17 @@ export default function App() {
     }));
   }
 
+  function createProject() {
+    const name = prompt("project name");
+    if (!name) return;
+
+    setProjects((prev) => ({
+      ...prev,
+      [name]: { tracks: [] }
+    }));
+  }
+
+  /* UPLOAD */
   function upload(e) {
     const files = Array.from(e.target.files || []);
 
@@ -106,8 +112,7 @@ export default function App() {
     }
   }
 
-  /* ================= PLAYER ================= */
-
+  /* PLAYER */
   function play(i) {
     if (!tracks?.length) return;
 
@@ -159,52 +164,36 @@ export default function App() {
     return () => a.removeEventListener("ended", onEnd);
   }, [index, tracks]);
 
-  /* ================= AUTH SCREEN ================= */
+  /* ================= AUTH ================= */
 
   if (mode === "auth") {
     return (
       <div style={styles.auth}>
+        <div style={styles.box}>
+          <h1>AURAE</h1>
 
-        <div style={styles.glassBox}>
-          <div style={styles.logo}>AURAE</div>
-
+          <input placeholder="email" onChange={(e) => setEmail(e.target.value)} />
           <input
-            style={styles.input}
-            placeholder="email"
-            onChange={(e) => setEmail(e.target.value)}
-          />
-
-          <input
-            style={styles.input}
             type="password"
             placeholder="password"
             onChange={(e) => setPassword(e.target.value)}
           />
 
           {authMode === "login" ? (
-            <button style={styles.glassBtn} onClick={login}>
-              login
-            </button>
+            <button onClick={login} style={styles.btn}>login</button>
           ) : (
-            <button style={styles.glassBtn} onClick={signup}>
-              sign up
-            </button>
+            <button onClick={signup} style={styles.btn}>sign up</button>
           )}
 
           <button
-            style={styles.textBtn}
+            style={styles.link}
             onClick={() =>
               setAuthMode(authMode === "login" ? "signup" : "login")
             }
           >
             switch mode
           </button>
-
-          <div style={styles.smallText}>
-            no login = nothing is stored locally
-          </div>
         </div>
-
       </div>
     );
   }
@@ -214,30 +203,27 @@ export default function App() {
   if (mode === "home") {
     return (
       <div style={styles.home}>
-
         <div style={styles.topRight}>
-          <button style={styles.glassBtn} onClick={logout}>
-            logout
-          </button>
+          <button style={styles.btn} onClick={logout}>logout</button>
         </div>
 
-        <div style={styles.homeCenter}>
-          <div style={styles.logo}>AURAE</div>
-          <div style={styles.sub}>music OS</div>
+        <h1>AURAE</h1>
 
-          <div style={styles.projectGrid}>
-            {Object.keys(projects || {}).map((p) => (
-              <div
-                key={p}
-                style={styles.projectCard}
-                onClick={() => openProject(p)}
-              >
-                {p}
-              </div>
-            ))}
-          </div>
+        <button style={styles.btn} onClick={createProject}>
+          + create project
+        </button>
+
+        <div style={styles.grid}>
+          {Object.keys(projects || {}).map((p) => (
+            <div
+              key={p}
+              style={styles.card}
+              onClick={() => openProject(p)}
+            >
+              {p}
+            </div>
+          ))}
         </div>
-
       </div>
     );
   }
@@ -246,17 +232,16 @@ export default function App() {
 
   return (
     <div style={styles.app}>
-
       <div style={styles.sidebar}>
-        <div style={styles.title}>{active}</div>
+        <h3>{active}</h3>
 
-        <label style={styles.glassBtn}>
+        <label style={styles.btn}>
           add tracks
           <input type="file" multiple hidden onChange={upload} />
         </label>
 
-        <label style={styles.glassBtn}>
-          cover art
+        <label style={styles.btn}>
+          add cover
           <input type="file" hidden onChange={uploadCover} />
         </label>
 
@@ -266,64 +251,40 @@ export default function App() {
           onChange={(e) => setVinylColor(e.target.value)}
         />
 
-        <button style={styles.glassBtn} onClick={() => setMode("home")}>
+        <button style={styles.btn} onClick={() => setMode("home")}>
           home
         </button>
 
-        <div>
-          {tracks.map((t, i) => (
-            <div key={t.id} onClick={() => play(i)} style={styles.track}>
-              {t.name}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* VINYL */}
-      <div style={styles.center}>
-        <div style={styles.vinylWrap}>
-
-          <div
-            style={{
-              ...styles.vinyl,
-              background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 75%)`,
-              animation: playing ? "spin 4s linear infinite" : "none"
-            }}
-          >
-
-            <div style={styles.grooves} />
-
-            {current?.cover ? (
-              <img src={current.cover} style={styles.label} />
-            ) : (
-              <div style={styles.labelFallback}>
-                {current?.name || "no track"}
-              </div>
-            )}
-
+        {tracks.map((t, i) => (
+          <div key={t.id} onClick={() => play(i)}>
+            {t.name}
           </div>
+        ))}
+      </div>
 
-          <div
-            style={{
-              ...styles.stylus,
-              transform: playing ? "rotate(18deg)" : "rotate(22deg)"
-            }}
-          />
-
+      <div style={styles.center}>
+        <div
+          style={{
+            ...styles.vinyl,
+            background: vinylColor,
+            animation: playing ? "spin 4s linear infinite" : "none"
+          }}
+        >
+          <div style={styles.label}>
+            {current?.name || "no track"}
+          </div>
         </div>
       </div>
 
-      {/* PLAYER */}
       <div style={styles.player}>
-        <button style={styles.glassBtn} onClick={prev}>⏮</button>
-        <button style={styles.glassBtn} onClick={toggle}>
+        <button style={styles.btn} onClick={prev}>⏮</button>
+        <button style={styles.btn} onClick={toggle}>
           {playing ? "pause" : "play"}
         </button>
-        <button style={styles.glassBtn} onClick={next}>⏭</button>
+        <button style={styles.btn} onClick={next}>⏭</button>
 
         <audio ref={audioRef} />
       </div>
-
     </div>
   );
 }
@@ -333,51 +294,39 @@ export default function App() {
 const styles = {
   auth: {
     height: "100vh",
-    background: "#0b0b0b",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    fontFamily: "Courier New"
+    background: "#111",
+    color: "white",
+    fontFamily: "monospace"
   },
 
-  glassBox: {
-    padding: 30,
-    borderRadius: 20,
-    background: "rgba(255,255,255,0.05)",
-    backdropFilter: "blur(20px)",
+  box: {
     display: "flex",
     flexDirection: "column",
-    gap: 10,
-    color: "white"
+    gap: 10
   },
 
-  glassBtn: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
+  btn: {
+    padding: 10,
+    background: "#222",
     color: "white",
-    backdropFilter: "blur(18px)",
+    border: "1px solid #444",
     cursor: "pointer"
   },
 
-  textBtn: {
+  link: {
     background: "none",
     border: "none",
-    color: "white",
-    opacity: 0.6
-  },
-
-  smallText: {
-    fontSize: 11,
-    opacity: 0.4,
-    textAlign: "center"
+    color: "gray"
   },
 
   home: {
-    height: "100vh",
-    background: "#0b0b0b",
-    color: "white"
+    padding: 40,
+    background: "#111",
+    color: "white",
+    minHeight: "100vh"
   },
 
   topRight: {
@@ -386,44 +335,29 @@ const styles = {
     right: 20
   },
 
-  homeCenter: {
-    textAlign: "center",
-    paddingTop: 120
-  },
-
-  logo: { fontSize: 42 },
-
-  sub: { opacity: 0.4 },
-
-  projectGrid: {
+  grid: {
     display: "flex",
-    justifyContent: "center",
     gap: 10,
-    marginTop: 40
+    marginTop: 20
   },
 
-  projectCard: {
-    padding: 16,
-    background: "rgba(255,255,255,0.05)",
-    borderRadius: 14,
+  card: {
+    padding: 20,
+    background: "#222",
     cursor: "pointer"
   },
 
   app: {
     display: "flex",
     height: "100vh",
-    background: "#0b0b0b",
+    background: "#111",
     color: "white"
   },
 
   sidebar: {
-    width: 260,
-    padding: 16
+    width: 220,
+    padding: 10
   },
-
-  title: { opacity: 0.5 },
-
-  track: { padding: 6, cursor: "pointer" },
 
   center: {
     flex: 1,
@@ -432,67 +366,28 @@ const styles = {
     alignItems: "center"
   },
 
-  vinylWrap: { position: "relative" },
-
   vinyl: {
-    width: 340,
-    height: 340,
+    width: 300,
+    height: 300,
     borderRadius: "50%",
     position: "relative"
   },
 
-  grooves: {
-    position: "absolute",
-    inset: 0,
-    borderRadius: "50%",
-    background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.04) 0px, transparent 2px)"
-  },
-
   label: {
     position: "absolute",
-    width: 130,
-    height: 130,
-    borderRadius: "50%",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%, -50%)"
-  },
-
-  labelFallback: {
-    position: "absolute",
-    width: 130,
-    height: 130,
-    borderRadius: "50%",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)",
-    background: "#111",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center"
-  },
-
-  stylus: {
-    position: "absolute",
-    width: 140,
-    height: 6,
-    background: "#fff",
-    right: -70,
-    top: "52%",
-    transformOrigin: "left center",
-    borderRadius: 10
+    transform: "translate(-50%,-50%)"
   },
 
   player: {
     position: "fixed",
     bottom: 0,
-    left: 260,
+    left: 220,
     right: 0,
-    height: 70,
     display: "flex",
     justifyContent: "center",
     gap: 10,
-    alignItems: "center"
+    padding: 10
   }
 };
