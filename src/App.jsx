@@ -1,18 +1,127 @@
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
+  /* ================= AUTH ================= */
+
+  const [view, setView] = useState(() => {
+    return localStorage.getItem("aurae_remember") ? "home" : "auth";
+  });
+
+  const [users, setUsers] = useState(() =>
+    JSON.parse(localStorage.getItem("aurae_users") || "{}")
+  );
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
+
+  /* ================= DATA ================= */
+
+  const [projects, setProjects] = useState(() =>
+    JSON.parse(localStorage.getItem("aurae_projects") || "{}")
+  );
+
+  const [activeProject, setActiveProject] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
   const [vinylColor, setVinylColor] = useState("#111111");
-  const [splatterColor, setSplatterColor] = useState("#ff3366");
 
   const audioRef = useRef(null);
 
   const current = tracks[index];
 
-  /* ================= MULTI TRACK FIX ================= */
+  /* ================= HELPERS ================= */
+
+  function saveProjects(next) {
+    setProjects(next);
+    localStorage.setItem("aurae_projects", JSON.stringify(next));
+  }
+
+  function formatTime(sec = 0) {
+    const mins = Math.floor(sec / 60);
+    const secs = Math.floor(sec % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${mins}:${secs}`;
+  }
+
+  function totalDuration(list = []) {
+    const sum = list.reduce((acc, t) => acc + (t.duration || 0), 0);
+    return formatTime(sum);
+  }
+
+  /* ================= AUTH ================= */
+
+  function signup() {
+    if (!email || !password) return;
+
+    const next = {
+      ...users,
+      [email]: { password }
+    };
+
+    setUsers(next);
+    localStorage.setItem("aurae_users", JSON.stringify(next));
+
+    login();
+  }
+
+  function login() {
+    if (!users[email] || users[email].password !== password) {
+      alert("wrong login");
+      return;
+    }
+
+    if (remember) {
+      localStorage.setItem("aurae_remember", email);
+    }
+
+    setView("home");
+  }
+
+  function logout() {
+    localStorage.removeItem("aurae_remember");
+    setView("auth");
+  }
+
+  /* ================= PROJECTS ================= */
+
+  function createProject() {
+    const name = prompt("project name");
+    if (!name) return;
+
+    const next = {
+      ...projects,
+      [name]: { tracks: [] }
+    };
+
+    saveProjects(next);
+  }
+
+  function openProject(name) {
+    setActiveProject(name);
+    setTracks(projects[name]?.tracks || []);
+    setIndex(0);
+    setPlaying(false);
+    setView("studio");
+  }
+
+  function updateTracks(list) {
+    setTracks(list);
+
+    const next = {
+      ...projects,
+      [activeProject]: {
+        tracks: list
+      }
+    };
+
+    saveProjects(next);
+  }
+
+  /* ================= MULTI TRACK UPLOAD FIX ================= */
 
   async function addTracks(e) {
     const files = Array.from(e.target.files || []);
@@ -22,14 +131,14 @@ export default function App() {
         (file) =>
           new Promise((resolve) => {
             const url = URL.createObjectURL(file);
-            const a = new Audio(url);
+            const probe = new Audio(url);
 
-            a.addEventListener("loadedmetadata", () => {
+            probe.addEventListener("loadedmetadata", () => {
               resolve({
                 id: Date.now() + Math.random(),
                 name: file.name.replace(/\.[^/.]+$/, ""),
                 url,
-                duration: a.duration || 0,
+                duration: probe.duration || 0,
                 cover: null
               });
             });
@@ -37,7 +146,17 @@ export default function App() {
       )
     );
 
-    setTracks((prev) => [...prev, ...loaded]);
+    updateTracks([...tracks, ...loaded]);
+  }
+
+  function addCover(e) {
+    const file = e.target.files?.[0];
+    if (!file || !tracks[index]) return;
+
+    const updated = [...tracks];
+    updated[index].cover = URL.createObjectURL(file);
+
+    updateTracks(updated);
   }
 
   /* ================= PLAYER ================= */
@@ -49,22 +168,25 @@ export default function App() {
     setPlaying(true);
 
     setTimeout(() => {
-      audioRef.current.src = tracks[i].url;
-      audioRef.current.play();
+      const a = audioRef.current;
+      a.src = tracks[i].url;
+      a.play().catch(() => {});
     }, 30);
   }
 
   function toggle() {
-    if (!audioRef.current.src && tracks[0]) {
+    const a = audioRef.current;
+
+    if (!a.src && tracks[0]) {
       play(0);
       return;
     }
 
     if (playing) {
-      audioRef.current.pause();
+      a.pause();
       setPlaying(false);
     } else {
-      audioRef.current.play();
+      a.play().catch(() => {});
       setPlaying(true);
     }
   }
@@ -79,6 +201,7 @@ export default function App() {
 
   useEffect(() => {
     const a = audioRef.current;
+    if (!a) return;
 
     const ended = () => {
       if (index < tracks.length - 1) play(index + 1);
@@ -89,14 +212,110 @@ export default function App() {
     return () => a.removeEventListener("ended", ended);
   }, [index, tracks]);
 
-  /* ================= UI ================= */
+  /* ================= AUTH SCREEN ================= */
+
+  if (view === "auth") {
+    return (
+      <div style={styles.auth}>
+        <div style={styles.panel}>
+          <div style={styles.logo}>AURAE</div>
+
+          <input
+            style={styles.input}
+            placeholder="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+
+          <input
+            style={styles.input}
+            placeholder="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <label style={styles.row}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={() => setRemember(!remember)}
+            />
+            <span>remember me</span>
+          </label>
+
+          <button style={styles.btn} onClick={login}>
+            login
+          </button>
+
+          <button style={styles.btn} onClick={signup}>
+            sign up
+          </button>
+
+          <div style={styles.small}>
+            without account your projects stay local only
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================= HOME SCREEN ================= */
+
+  if (view === "home") {
+    return (
+      <div style={styles.home}>
+        <div style={styles.topRight}>
+          <button style={styles.btn} onClick={logout}>
+            logout
+          </button>
+        </div>
+
+        <div style={styles.centerHome}>
+          <div style={styles.logo}>AURAE OS</div>
+
+          <button style={styles.btn} onClick={createProject}>
+            + new project
+          </button>
+
+          <div style={styles.grid}>
+            {Object.keys(projects).map((name) => {
+              const list = projects[name]?.tracks || [];
+
+              return (
+                <div
+                  key={name}
+                  style={styles.card}
+                  onClick={() => openProject(name)}
+                >
+                  <div style={{ fontSize: 18 }}>{name}</div>
+
+                  <div style={styles.meta}>
+                    {list.length} tracks • {totalDuration(list)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================= STUDIO SCREEN ================= */
 
   return (
     <div style={styles.app}>
-      {/* Sidebar */}
+      {/* LEFT */}
       <div style={styles.sidebar}>
+        <h3 style={{ marginBottom: 4 }}>{activeProject}</h3>
+
+        <div style={styles.meta}>
+          {tracks.length} tracks • {totalDuration(tracks)}
+        </div>
+
         <label style={styles.btn}>
-          Add Tracks
+          add tracks
           <input
             hidden
             multiple
@@ -106,102 +325,106 @@ export default function App() {
           />
         </label>
 
-        <div style={styles.label}>Vinyl Base</div>
+        <label style={styles.btn}>
+          cover art
+          <input
+            hidden
+            type="file"
+            accept=".png,.jpg,.jpeg"
+            onChange={addCover}
+          />
+        </label>
+
+        <div style={styles.section}>vinyl color</div>
+
         <input
           type="color"
           value={vinylColor}
           onChange={(e) => setVinylColor(e.target.value)}
         />
 
-        <div style={styles.label}>Splatter</div>
-        <input
-          type="color"
-          value={splatterColor}
-          onChange={(e) => setSplatterColor(e.target.value)}
-        />
+        <button style={styles.btn} onClick={() => setView("home")}>
+          home
+        </button>
 
-        <div style={{ marginTop: 20 }}>
+        <div style={styles.list}>
           {tracks.map((t, i) => (
             <div
               key={t.id}
               style={styles.track}
               onClick={() => play(i)}
             >
-              {t.name}
+              <span>{t.name}</span>
+              <span style={styles.trackTime}>
+                {formatTime(t.duration)}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Vinyl */}
-      <div style={styles.center}>
+      {/* CENTER */}
+      <div style={styles.stage}>
         <div style={styles.turntable}>
+          <div style={styles.plinth} />
+
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle, ${vinylColor}, #000 78%)`,
+              background: `radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)`,
               animation: playing
-                ? "spin 1.8s linear infinite"
+                ? "spin 1.55s linear infinite"
                 : "none"
             }}
           >
-            {/* Grooves */}
             <div style={styles.grooves} />
 
-            {/* Shine Point = rotation visible */}
-            <div style={styles.shine} />
+            {/* sichtbar rotierender punkt */}
+            <div style={styles.spinDot} />
 
-            {/* Sweetart Splatter */}
-            <div
-              style={{
-                ...styles.blob1,
-                background: splatterColor
-              }}
-            />
-            <div
-              style={{
-                ...styles.blob2,
-                background: splatterColor
-              }}
-            />
-            <div
-              style={{
-                ...styles.blob3,
-                background: splatterColor
-              }}
-            />
-            <div
-              style={{
-                ...styles.blob4,
-                background: splatterColor
-              }}
-            />
+            {/* glanz */}
+            <div style={styles.spinShine} />
 
-            {/* Center */}
-            <div style={styles.labelCenter}>
-              {current?.name || "AURAE"}
-            </div>
+            {current?.cover ? (
+              <img src={current.cover} style={styles.labelImg} />
+            ) : (
+              <div style={styles.labelFallback}>
+                {current?.name || "AURAE"}
+              </div>
+            )}
           </div>
 
-          {/* Stylus */}
+          {/* stylus */}
           <div
             style={{
               ...styles.arm,
               transform: playing
                 ? "rotate(18deg)"
-                : "rotate(26deg)"
+                : "rotate(28deg)"
             }}
-          />
+          >
+            <div style={styles.head} />
+          </div>
         </div>
       </div>
 
-      {/* Player */}
+      {/* PLAYER */}
       <div style={styles.player}>
-        <button style={styles.btn} onClick={prev}>⏮</button>
-        <button style={styles.btn} onClick={toggle}>
-          {playing ? "Pause" : "Play"}
+        <button style={styles.btn} onClick={prev}>
+          ⏮
         </button>
-        <button style={styles.btn} onClick={next}>⏭</button>
+
+        <button style={styles.btn} onClick={toggle}>
+          {playing ? "pause" : "play"}
+        </button>
+
+        <button style={styles.btn} onClick={next}>
+          ⏭
+        </button>
+
+        <div style={styles.now}>
+          {current?.name || "no track loaded"}
+        </div>
       </div>
 
       <audio ref={audioRef} />
@@ -209,23 +432,157 @@ export default function App() {
   );
 }
 
-/* ================= STYLE ================= */
+/* ================= STYLES ================= */
 
 const styles = {
   app: {
     display: "flex",
     height: "100vh",
-    background: "#0a0a0a",
+    background: "#090909",
     color: "white",
-    fontFamily: "Courier New"
+    fontFamily: "Courier New, monospace"
+  },
+
+  auth: {
+    height: "100vh",
+    background: "radial-gradient(circle at top, #171717, #090909)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    fontFamily: "Courier New, monospace"
+  },
+
+  panel: {
+    width: 340,
+    padding: 34,
+    borderRadius: 22,
+    background: "rgba(255,255,255,0.06)",
+    backdropFilter: "blur(18px)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12
+  },
+
+  logo: {
+    fontSize: 44,
+    marginBottom: 6,
+    letterSpacing: 2
+  },
+
+  input: {
+    padding: 12,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "#101010",
+    color: "white"
+  },
+
+  row: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    fontSize: 13
+  },
+
+  btn: {
+    padding: "12px 16px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.07)",
+    backdropFilter: "blur(14px)",
+    color: "white",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.25)"
+  },
+
+  small: {
+    opacity: 0.45,
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 4
+  },
+
+  home: {
+    minHeight: "100vh",
+    background: "radial-gradient(circle at top, #151515, #090909)",
+    color: "white",
+    fontFamily: "Courier New, monospace"
+  },
+
+  topRight: {
+    position: "absolute",
+    top: 20,
+    right: 20
+  },
+
+  centerHome: {
+    textAlign: "center",
+    paddingTop: 110
+  },
+
+  grid: {
+    display: "flex",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 14,
+    padding: 24
+  },
+
+  card: {
+    minWidth: 240,
+    padding: 18,
+    borderRadius: 18,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.09)",
+    cursor: "pointer",
+    boxShadow: "0 18px 40px rgba(0,0,0,0.25)"
+  },
+
+  meta: {
+    marginTop: 6,
+    fontSize: 12,
+    opacity: 0.55
   },
 
   sidebar: {
-    width: 260,
-    padding: 20
+    width: 290,
+    padding: 20,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    borderRight: "1px solid rgba(255,255,255,0.05)",
+    overflowY: "auto"
   },
 
-  center: {
+  section: {
+    fontSize: 12,
+    opacity: 0.55
+  },
+
+  list: {
+    marginTop: 8,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8
+  },
+
+  track: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    background: "rgba(255,255,255,0.03)",
+    cursor: "pointer"
+  },
+
+  trackTime: {
+    fontSize: 12,
+    opacity: 0.55
+  },
+
+  stage: {
     flex: 1,
     display: "flex",
     justifyContent: "center",
@@ -233,16 +590,33 @@ const styles = {
   },
 
   turntable: {
-    position: "relative"
+    position: "relative",
+    width: 560,
+    height: 560,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center"
+  },
+
+  plinth: {
+    position: "absolute",
+    width: 520,
+    height: 520,
+    borderRadius: 28,
+    background:
+      "linear-gradient(145deg,#f7f7f7,#d9d9d9)",
+    boxShadow:
+      "0 40px 80px rgba(0,0,0,0.35)"
   },
 
   vinyl: {
-    width: 420,
-    height: 420,
+    width: 390,
+    height: 390,
     borderRadius: "50%",
     position: "relative",
+    zIndex: 2,
     boxShadow:
-      "0 50px 120px rgba(0,0,0,0.9)"
+      "0 25px 60px rgba(0,0,0,0.8), inset 0 0 25px rgba(255,255,255,0.06)"
   },
 
   grooves: {
@@ -250,112 +624,122 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.06) 0px, transparent 2px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.07) 0px, transparent 2px)"
   },
 
-  shine: {
+  spinDot: {
     position: "absolute",
-    width: 120,
-    height: 40,
+    width: 18,
+    height: 18,
     borderRadius: "50%",
-    top: 30,
-    left: 140,
-    background:
-      "rgba(255,255,255,0.12)",
+    background: "#fff",
+    top: 36,
+    left: "50%",
+    transform: "translateX(-50%)",
+    boxShadow: "0 0 14px rgba(255,255,255,0.55)"
+  },
+
+  spinShine: {
+    position: "absolute",
+    width: 140,
+    height: 34,
+    borderRadius: "50%",
+    top: 22,
+    left: 125,
+    background: "rgba(255,255,255,0.10)",
     filter: "blur(10px)"
   },
 
-  blob1: {
+  labelImg: {
     position: "absolute",
-    width: 100,
-    height: 60,
-    borderRadius: "60% 40% 50% 70%",
-    top: 60,
-    left: 90
-  },
-
-  blob2: {
-    position: "absolute",
-    width: 70,
-    height: 90,
-    borderRadius: "60% 50% 70% 30%",
-    top: 210,
-    left: 260
-  },
-
-  blob3: {
-    position: "absolute",
-    width: 80,
-    height: 55,
+    width: 150,
+    height: 150,
     borderRadius: "50%",
-    top: 300,
-    left: 130
+    objectFit: "cover",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)"
   },
 
-  blob4: {
+  labelFallback: {
     position: "absolute",
-    width: 50,
-    height: 50,
-    borderRadius: "50%",
-    top: 140,
-    left: 300
-  },
-
-  labelCenter: {
-    position: "absolute",
-    width: 130,
-    height: 130,
+    width: 150,
+    height: 150,
     borderRadius: "50%",
     background: "#111",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%,-50%)",
+    transform: "translate(-50%, -50%)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    fontSize: 12
+    fontSize: 12,
+    textAlign: "center",
+    padding: 10
   },
 
   arm: {
     position: "absolute",
     width: 180,
-    height: 6,
-    background: "white",
-    top: 215,
-    right: -100,
-    transformOrigin: "left center",
+    height: 8,
+    background: "#f4f4f4",
+    top: 270,
+    right: 62,
     borderRadius: 10,
-    transition: "0.5s"
+    transformOrigin: "12px center",
+    transition: "0.5s ease",
+    zIndex: 5,
+    boxShadow: "0 8px 20px rgba(0,0,0,0.3)"
+  },
+
+  head: {
+    position: "absolute",
+    right: -8,
+    top: -4,
+    width: 22,
+    height: 16,
+    borderRadius: 4,
+    background: "#ffffff"
   },
 
   player: {
     position: "fixed",
-    bottom: 20,
-    left: "50%",
-    transform: "translateX(-50%)",
+    left: 290,
+    right: 0,
+    bottom: 0,
+    height: 78,
     display: "flex",
-    gap: 10
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    background: "rgba(0,0,0,0.45)",
+    backdropFilter: "blur(16px)"
   },
 
-  btn: {
-    padding: "10px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.15)",
-    background: "rgba(255,255,255,0.08)",
-    color: "white",
-    cursor: "pointer"
-  },
-
-  label: {
-    marginTop: 15,
-    marginBottom: 6,
-    fontSize: 12,
-    opacity: 0.6
-  },
-
-  track: {
-    padding: 8,
-    cursor: "pointer",
-    opacity: 0.8
+  now: {
+    marginLeft: 12,
+    maxWidth: 280,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+    opacity: 0.65
   }
 };
+
+/* ================= KEYFRAMES ================= */
+
+const style = document.createElement("style");
+style.innerHTML = `
+@keyframes spin{
+  from{transform:rotate(0deg);}
+  to{transform:rotate(360deg);}
+}
+body{
+  margin:0;
+  overflow:hidden;
+}
+*{
+  box-sizing:border-box;
+}
+`;
+document.head.appendChild(style);
