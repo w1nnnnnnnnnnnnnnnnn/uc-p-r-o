@@ -6,30 +6,27 @@ export default function App() {
 
   const [active, setActive] = useState(null);
   const [tracks, setTracks] = useState([]);
-  const [queue, setQueue] = useState([]);
   const [index, setIndex] = useState(0);
 
   const [playing, setPlaying] = useState(false);
-  const [vinylColor, setVinylColor] = useState("#121212");
+
+  const [vinylColor, setVinylColor] = useState("#111111");
+  const [stylusDown, setStylusDown] = useState(false);
 
   const audioRef = useRef(null);
-  const canvasRef = useRef(null);
-  const analyserRef = useRef(null);
-  const dataRef = useRef(null);
 
-  const current = queue[index];
+  const current = tracks[index];
 
   /* LOAD */
   useEffect(() => {
-    const saved = localStorage.getItem("uc_hybrid");
+    const saved = localStorage.getItem("uc_vinyl");
     if (saved) setProjects(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("uc_hybrid", JSON.stringify(projects));
+    localStorage.setItem("uc_vinyl", JSON.stringify(projects));
   }, [projects]);
 
-  /* PROJECT */
   function createProject() {
     const name = prompt("Project name");
     if (!name) return;
@@ -39,41 +36,21 @@ export default function App() {
   function openProject(name) {
     setActive(name);
     setTracks(projects[name] || []);
-    setQueue(projects[name] || []);
     setIndex(0);
     setView("project");
   }
 
-  function upload(e) {
-    const files = Array.from(e.target.files);
+  /* AUDIO */
+  function play(i) {
+    if (!stylusDown) return; // 🔥 stylus must be down
 
-    const newTracks = files.map((f) => ({
-      id: Date.now() + Math.random(),
-      name: f.name.replace(/\.[^/.]+$/, ""),
-      url: URL.createObjectURL(f),
-      cover: URL.createObjectURL(f)
-    }));
-
-    const updated = [...tracks, ...newTracks];
-    setTracks(updated);
-    setQueue(updated);
-  }
-
-  useEffect(() => {
-    if (!active) return;
-    setProjects((p) => ({ ...p, [active]: tracks }));
-  }, [tracks]);
-
-  /* PLAYER */
-  function playAt(i) {
     setIndex(i);
     setPlaying(true);
 
     setTimeout(() => {
-      audioRef.current.src = queue[i].url;
+      audioRef.current.src = tracks[i].url;
       audioRef.current.play();
-      initAudio();
-    }, 60);
+    }, 50);
   }
 
   function toggle() {
@@ -89,70 +66,45 @@ export default function App() {
   }
 
   function next() {
-    if (index < queue.length - 1) playAt(index + 1);
+    if (index < tracks.length - 1) play(index + 1);
   }
 
   function prev() {
-    if (index > 0) playAt(index - 1);
+    if (index > 0) play(index - 1);
   }
 
-  /* AUDIO VISUALIZER (APPLE FIELD + SPOTIFY ENERGY) */
-  function initAudio() {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
+  /* TRACK UPLOAD */
+  function uploadAudio(e) {
+    const files = Array.from(e.target.files);
 
-    const source = ctx.createMediaElementSource(audioRef.current);
-    const analyser = ctx.createAnalyser();
+    const newTracks = files.map((f) => ({
+      id: Date.now() + Math.random(),
+      name: f.name.replace(/\.[^/.]+$/, ""),
+      url: URL.createObjectURL(f),
+      cover: null
+    }));
 
-    analyser.fftSize = 128;
-
-    source.connect(analyser);
-    analyser.connect(ctx.destination);
-
-    analyserRef.current = analyser;
-    dataRef.current = new Uint8Array(analyser.frequencyBinCount);
-
-    draw();
+    setTracks([...tracks, ...newTracks]);
   }
 
-  function draw() {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+  /* COVER UPLOAD */
+  function uploadCover(e) {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    const loop = () => {
-      requestAnimationFrame(loop);
-      if (!analyserRef.current) return;
+    const url = URL.createObjectURL(file);
 
-      analyserRef.current.getByteFrequencyData(dataRef.current);
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
-
-      ctx.save();
-      ctx.translate(cx, cy);
-
-      dataRef.current.forEach((v, i) => {
-        const angle = (i / dataRef.current.length) * Math.PI * 2;
-
-        const radius = 80 + v * 0.4;
-
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-
-        ctx.fillStyle = `rgba(255,255,255,${v / 255})`;
-
-        ctx.beginPath();
-        ctx.arc(x, y, 1.6, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      ctx.restore();
-    };
-
-    loop();
+    const updated = [...tracks];
+    if (updated[index]) {
+      updated[index].cover = url;
+      setTracks(updated);
+    }
   }
+
+  useEffect(() => {
+    if (!active) return;
+    setProjects((p) => ({ ...p, [active]: tracks }));
+  }, [tracks]);
 
   /* HOME */
   if (view === "home") {
@@ -160,14 +112,14 @@ export default function App() {
       <div style={styles.home}>
         <div style={styles.logo}>UC</div>
 
-        <button style={styles.primary} onClick={createProject}>
-          New Project
+        <button style={styles.button} onClick={createProject}>
+          + New Project
         </button>
 
         <div style={styles.grid}>
           {Object.keys(projects).map((p) => (
             <div key={p} style={styles.card} onClick={() => openProject(p)}>
-              <div>{p}</div>
+              {p}
             </div>
           ))}
         </div>
@@ -178,21 +130,22 @@ export default function App() {
   return (
     <div style={styles.app}>
 
-      {/* SIDEBAR (SPOTIFY STRUCTURE) */}
+      {/* SIDEBAR */}
       <div style={styles.sidebar}>
         <div style={styles.title}>{active}</div>
 
-        <input
-          type="file"
-          multiple
-          accept="audio/*"
-          hidden
-          id="file"
-          onChange={upload}
-        />
+        <label style={styles.button}>
+          Upload Audio
+          <input type="file" multiple accept="audio/*" hidden onChange={uploadAudio} />
+        </label>
 
-        <button style={styles.btn} onClick={() => document.getElementById("file").click()}>
-          Upload
+        <label style={styles.buttonSecondary}>
+          Upload Cover
+          <input type="file" accept="image/*" hidden onChange={uploadCover} />
+        </label>
+
+        <button style={styles.smallBtn} onClick={() => setView("home")}>
+          Home
         </button>
 
         <input
@@ -204,52 +157,53 @@ export default function App() {
 
         <div style={styles.list}>
           {tracks.map((t, i) => (
-            <div
-              key={t.id}
-              onClick={() => playAt(i)}
-              style={{
-                ...styles.track,
-                opacity: i === index ? 1 : 0.5,
-                transform: i === index ? "translateX(6px)" : "none"
-              }}
-            >
+            <div key={t.id} style={styles.track} onClick={() => play(i)}>
               {t.name}
             </div>
           ))}
         </div>
       </div>
 
-      {/* MAIN (APPLE VISUAL CORE) */}
+      {/* MAIN */}
       <div style={styles.main}>
-
-        {/* VISUALIZER */}
-        <div style={styles.visual}>
-          <canvas ref={canvasRef} width={340} height={340} />
-        </div>
 
         {/* VINYL */}
         <div style={styles.vinylWrap}>
+
+          {/* STYLUS */}
+          <div
+            onClick={() => setStylusDown(!stylusDown)}
+            style={{
+              ...styles.stylus,
+              transform: stylusDown
+                ? "rotate(25deg) translate(10px, 10px)"
+                : "rotate(-25deg)"
+            }}
+          />
+
+          {/* COVER */}
           {current?.cover && (
             <img src={current.cover} style={styles.cover} />
           )}
 
+          {/* VINYL DISC */}
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 70%)`,
-              transform: playing ? "rotate(360deg)" : "rotate(0deg)",
-              transition: "transform 8s linear"
+              background: `radial-gradient(circle at center, ${vinylColor}, #000 70%)`,
+              animation: playing ? "spin 4s linear infinite" : "none"
             }}
           >
-            <div style={styles.glow} />
-            <div style={styles.center} />
+            {/* GROOVES */}
+            <div style={styles.grooves} />
           </div>
         </div>
+
       </div>
 
-      {/* PLAYER (SPOTIFY BOTTOM BAR + APPLE BLUR) */}
+      {/* PLAYER */}
       <div style={styles.player}>
-        <div style={styles.now}>{current?.name || "Nothing playing"}</div>
+        <div style={styles.now}>{current?.name || "No track"}</div>
 
         <div style={styles.controls}>
           <button onClick={prev}>⏮</button>
@@ -260,18 +214,27 @@ export default function App() {
         <audio ref={audioRef} />
       </div>
 
+      {/* ANIMATION */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+
     </div>
   );
 }
 
-/* 🎨 HYBRID DESIGN SYSTEM */
+/* 🎨 NEW POLISHED UI */
 const styles = {
+
   app: {
     display: "flex",
     height: "100vh",
-    background: "radial-gradient(circle at top, #151515, #000)",
+    background: "radial-gradient(circle at top, #111, #000)",
     color: "white",
-    fontFamily: "-apple-system, Inter, sans-serif"
+    fontFamily: "-apple-system, Inter"
   },
 
   home: {
@@ -280,17 +243,8 @@ const styles = {
   },
 
   logo: {
-    fontSize: 54,
+    fontSize: 52,
     fontWeight: 500
-  },
-
-  primary: {
-    marginTop: 20,
-    padding: "10px 14px",
-    background: "white",
-    color: "black",
-    border: "none",
-    borderRadius: 12
   },
 
   grid: {
@@ -301,11 +255,10 @@ const styles = {
   },
 
   card: {
-    padding: 18,
-    borderRadius: 16,
-    background: "rgba(255,255,255,0.04)",
+    padding: 20,
+    borderRadius: 14,
+    background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.08)",
-    backdropFilter: "blur(20px)",
     cursor: "pointer"
   },
 
@@ -317,13 +270,45 @@ const styles = {
 
   title: { fontSize: 12, opacity: 0.6, marginBottom: 20 },
 
+  button: {
+    display: "block",
+    width: "100%",
+    padding: 10,
+    marginBottom: 10,
+    background: "white",
+    color: "black",
+    border: "none",
+    borderRadius: 10,
+    cursor: "pointer"
+  },
+
+  buttonSecondary: {
+    display: "block",
+    width: "100%",
+    padding: 10,
+    marginBottom: 10,
+    background: "rgba(255,255,255,0.1)",
+    color: "white",
+    border: "1px solid rgba(255,255,255,0.2)",
+    borderRadius: 10,
+    cursor: "pointer"
+  },
+
+  smallBtn: {
+    width: "100%",
+    padding: 8,
+    background: "transparent",
+    border: "1px solid rgba(255,255,255,0.2)",
+    color: "white",
+    borderRadius: 8
+  },
+
   list: { marginTop: 20 },
 
   track: {
     padding: 10,
     fontSize: 13,
-    cursor: "pointer",
-    transition: "0.2s"
+    cursor: "pointer"
   },
 
   color: { width: "100%", marginTop: 10 },
@@ -332,53 +317,48 @@ const styles = {
     flex: 1,
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    position: "relative"
-  },
-
-  visual: {
-    position: "absolute",
-    opacity: 0.75
+    justifyContent: "center"
   },
 
   vinylWrap: {
-    width: 240,
-    height: 240,
-    position: "relative"
+    position: "relative",
+    width: 260,
+    height: 260
   },
 
   vinyl: {
-    width: 240,
-    height: 240,
+    width: 260,
+    height: 260,
     borderRadius: "50%",
     position: "absolute",
     boxShadow: "0 40px 120px rgba(0,0,0,0.8)"
   },
 
-  glow: {
+  grooves: {
     position: "absolute",
-    inset: 0,
+    inset: 10,
     borderRadius: "50%",
-    background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1), transparent 60%)"
+    background:
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.05) 0px, transparent 2px, transparent 6px)"
   },
 
-  center: {
-    width: 18,
-    height: 18,
-    background: "#000",
-    borderRadius: "50%",
+  stylus: {
     position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%,-50%)"
+    width: 120,
+    height: 6,
+    background: "white",
+    top: -40,
+    left: 160,
+    transformOrigin: "left center",
+    transition: "0.4s"
   },
 
   cover: {
     position: "absolute",
     width: 140,
     height: 140,
-    top: 50,
-    left: 50,
+    top: 60,
+    left: 60,
     borderRadius: 10
   },
 
@@ -392,18 +372,11 @@ const styles = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "0 16px",
-    background: "rgba(10,10,10,0.6)",
+    background: "rgba(0,0,0,0.6)",
     backdropFilter: "blur(30px)"
   },
 
-  now: {
-    width: 200,
-    fontSize: 12,
-    opacity: 0.7
-  },
+  now: { fontSize: 12, opacity: 0.7 },
 
-  controls: {
-    display: "flex",
-    gap: 10
-  }
+  controls: { display: "flex", gap: 10 }
 };
