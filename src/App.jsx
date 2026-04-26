@@ -116,7 +116,20 @@ export default function App() {
     const next = {
       ...projects,
       [name]: { tracks: [], cover: null }
-    };
+    };function updateTracks(list) {
+  setTracks(list);
+
+  const next = {
+    ...projects,
+    [activeProject]: {
+      ...projects[activeProject],
+      tracks: list,
+      cover: projects[activeProject]?.cover || null
+    }
+  };
+
+  saveProjects(next);
+}
 
     saveProjects(next);
   }
