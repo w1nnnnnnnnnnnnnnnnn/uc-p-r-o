@@ -6,28 +6,30 @@ export default function App() {
 
   const [active, setActive] = useState(null);
   const [tracks, setTracks] = useState([]);
+  const [queue, setQueue] = useState([]);
   const [index, setIndex] = useState(0);
 
   const [playing, setPlaying] = useState(false);
-  const [vinylColor, setVinylColor] = useState("#111111");
+  const [vinylColor, setVinylColor] = useState("#121212");
 
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
   const dataRef = useRef(null);
 
-  const current = tracks[index];
+  const current = queue[index];
 
   /* LOAD */
   useEffect(() => {
-    const saved = localStorage.getItem("uc_apple");
+    const saved = localStorage.getItem("uc_hybrid");
     if (saved) setProjects(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("uc_apple", JSON.stringify(projects));
+    localStorage.setItem("uc_hybrid", JSON.stringify(projects));
   }, [projects]);
 
+  /* PROJECT */
   function createProject() {
     const name = prompt("Project name");
     if (!name) return;
@@ -37,6 +39,7 @@ export default function App() {
   function openProject(name) {
     setActive(name);
     setTracks(projects[name] || []);
+    setQueue(projects[name] || []);
     setIndex(0);
     setView("project");
   }
@@ -51,7 +54,9 @@ export default function App() {
       cover: URL.createObjectURL(f)
     }));
 
-    setTracks([...tracks, ...newTracks]);
+    const updated = [...tracks, ...newTracks];
+    setTracks(updated);
+    setQueue(updated);
   }
 
   useEffect(() => {
@@ -59,19 +64,19 @@ export default function App() {
     setProjects((p) => ({ ...p, [active]: tracks }));
   }, [tracks]);
 
-  /* AUDIO */
-  function playTrack(i) {
+  /* PLAYER */
+  function playAt(i) {
     setIndex(i);
     setPlaying(true);
 
     setTimeout(() => {
-      audioRef.current.src = tracks[i].url;
+      audioRef.current.src = queue[i].url;
       audioRef.current.play();
       initAudio();
-    }, 50);
+    }, 60);
   }
 
-  function togglePlay() {
+  function toggle() {
     if (!audioRef.current) return;
 
     if (playing) {
@@ -84,14 +89,14 @@ export default function App() {
   }
 
   function next() {
-    if (index < tracks.length - 1) playTrack(index + 1);
+    if (index < queue.length - 1) playAt(index + 1);
   }
 
   function prev() {
-    if (index > 0) playTrack(index - 1);
+    if (index > 0) playAt(index - 1);
   }
 
-  /* VISUALIZER (smooth Apple-like radial field) */
+  /* AUDIO VISUALIZER (APPLE FIELD + SPOTIFY ENERGY) */
   function initAudio() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const ctx = new AudioCtx();
@@ -131,14 +136,15 @@ export default function App() {
       dataRef.current.forEach((v, i) => {
         const angle = (i / dataRef.current.length) * Math.PI * 2;
 
-        const radius = 70 + v * 0.5;
+        const radius = 80 + v * 0.4;
 
         const x = Math.cos(angle) * radius;
         const y = Math.sin(angle) * radius;
 
         ctx.fillStyle = `rgba(255,255,255,${v / 255})`;
+
         ctx.beginPath();
-        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.arc(x, y, 1.6, 0, Math.PI * 2);
         ctx.fill();
       });
 
@@ -148,21 +154,20 @@ export default function App() {
     loop();
   }
 
-  /* HOME (Apple centered grid feel) */
+  /* HOME */
   if (view === "home") {
     return (
       <div style={styles.home}>
         <div style={styles.logo}>UC</div>
 
-        <button style={styles.primaryBtn} onClick={createProject}>
+        <button style={styles.primary} onClick={createProject}>
           New Project
         </button>
 
         <div style={styles.grid}>
           {Object.keys(projects).map((p) => (
             <div key={p} style={styles.card} onClick={() => openProject(p)}>
-              <div style={styles.cardTitle}>{p}</div>
-              <div style={styles.cardSub}>Project</div>
+              <div>{p}</div>
             </div>
           ))}
         </div>
@@ -173,7 +178,7 @@ export default function App() {
   return (
     <div style={styles.app}>
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR (SPOTIFY STRUCTURE) */}
       <div style={styles.sidebar}>
         <div style={styles.title}>{active}</div>
 
@@ -201,12 +206,12 @@ export default function App() {
           {tracks.map((t, i) => (
             <div
               key={t.id}
+              onClick={() => playAt(i)}
               style={{
                 ...styles.track,
                 opacity: i === index ? 1 : 0.5,
-                transform: i === index ? "translateX(4px)" : "none"
+                transform: i === index ? "translateX(6px)" : "none"
               }}
-              onClick={() => playTrack(i)}
             >
               {t.name}
             </div>
@@ -214,15 +219,15 @@ export default function App() {
         </div>
       </div>
 
-      {/* MAIN */}
+      {/* MAIN (APPLE VISUAL CORE) */}
       <div style={styles.main}>
 
-        {/* VISUALIZER (SOFT FLOATING APPLE STYLE) */}
-        <div style={styles.visualWrap}>
-          <canvas ref={canvasRef} width={320} height={320} />
+        {/* VISUALIZER */}
+        <div style={styles.visual}>
+          <canvas ref={canvasRef} width={340} height={340} />
         </div>
 
-        {/* VINYL (REALISTIC LAYERED DEPTH) */}
+        {/* VINYL */}
         <div style={styles.vinylWrap}>
           {current?.cover && (
             <img src={current.cover} style={styles.cover} />
@@ -233,41 +238,40 @@ export default function App() {
               ...styles.vinyl,
               background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 70%)`,
               transform: playing ? "rotate(360deg)" : "rotate(0deg)",
-              transition: "transform 6s linear"
+              transition: "transform 8s linear"
             }}
           >
-            <div style={styles.reflection} />
+            <div style={styles.glow} />
             <div style={styles.center} />
           </div>
         </div>
       </div>
 
-      {/* APPLE PLAYER BAR */}
-      <div style={styles.playbar}>
+      {/* PLAYER (SPOTIFY BOTTOM BAR + APPLE BLUR) */}
+      <div style={styles.player}>
         <div style={styles.now}>{current?.name || "Nothing playing"}</div>
 
         <div style={styles.controls}>
-          <button onClick={prev} style={styles.ctrl}>⏮</button>
-          <button onClick={togglePlay} style={styles.play}>
-            {playing ? "Pause" : "Play"}
-          </button>
-          <button onClick={next} style={styles.ctrl}>⏭</button>
+          <button onClick={prev}>⏮</button>
+          <button onClick={toggle}>{playing ? "Pause" : "Play"}</button>
+          <button onClick={next}>⏭</button>
         </div>
 
         <audio ref={audioRef} />
       </div>
+
     </div>
   );
 }
 
-/* 🍏 APPLE STYLE SYSTEM */
+/* 🎨 HYBRID DESIGN SYSTEM */
 const styles = {
   app: {
     display: "flex",
     height: "100vh",
     background: "radial-gradient(circle at top, #151515, #000)",
     color: "white",
-    fontFamily: "-apple-system, BlinkMacSystemFont, Inter, sans-serif"
+    fontFamily: "-apple-system, Inter, sans-serif"
   },
 
   home: {
@@ -276,19 +280,17 @@ const styles = {
   },
 
   logo: {
-    fontSize: 52,
-    fontWeight: 500,
-    letterSpacing: "-0.04em"
+    fontSize: 54,
+    fontWeight: 500
   },
 
-  primaryBtn: {
-    marginTop: 24,
+  primary: {
+    marginTop: 20,
     padding: "10px 14px",
-    borderRadius: 12,
-    border: "none",
     background: "white",
     color: "black",
-    cursor: "pointer"
+    border: "none",
+    borderRadius: 12
   },
 
   grid: {
@@ -304,12 +306,8 @@ const styles = {
     background: "rgba(255,255,255,0.04)",
     border: "1px solid rgba(255,255,255,0.08)",
     backdropFilter: "blur(20px)",
-    cursor: "pointer",
-    transition: "0.2s"
+    cursor: "pointer"
   },
-
-  cardTitle: { fontSize: 14 },
-  cardSub: { fontSize: 12, opacity: 0.5 },
 
   sidebar: {
     width: 260,
@@ -328,35 +326,25 @@ const styles = {
     transition: "0.2s"
   },
 
-  color: {
-    width: "100%",
-    marginTop: 10,
-    border: "none",
-    background: "transparent"
-  },
+  color: { width: "100%", marginTop: 10 },
 
   main: {
     flex: 1,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "column",
     position: "relative"
   },
 
-  visualWrap: {
+  visual: {
     position: "absolute",
-    width: 320,
-    height: 320,
-    opacity: 0.7,
-    filter: "blur(0.2px)"
+    opacity: 0.75
   },
 
   vinylWrap: {
-    position: "relative",
     width: 240,
     height: 240,
-    filter: "drop-shadow(0 30px 60px rgba(0,0,0,0.8))"
+    position: "relative"
   },
 
   vinyl: {
@@ -364,23 +352,21 @@ const styles = {
     height: 240,
     borderRadius: "50%",
     position: "absolute",
-    willChange: "transform"
+    boxShadow: "0 40px 120px rgba(0,0,0,0.8)"
   },
 
-  reflection: {
+  glow: {
     position: "absolute",
     inset: 0,
     borderRadius: "50%",
-    background:
-      "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08), transparent 60%)"
+    background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1), transparent 60%)"
   },
 
   center: {
     width: 18,
     height: 18,
-    borderRadius: "50%",
     background: "#000",
-    border: "1px solid rgba(255,255,255,0.2)",
+    borderRadius: "50%",
     position: "absolute",
     top: "50%",
     left: "50%",
@@ -396,7 +382,7 @@ const styles = {
     borderRadius: 10
   },
 
-  playbar: {
+  player: {
     position: "fixed",
     bottom: 0,
     left: 260,
@@ -418,23 +404,6 @@ const styles = {
 
   controls: {
     display: "flex",
-    gap: 12
-  },
-
-  play: {
-    padding: "6px 12px",
-    borderRadius: 8,
-    border: "none",
-    background: "white",
-    color: "black",
-    cursor: "pointer"
-  },
-
-  ctrl: {
-    background: "transparent",
-    border: "none",
-    color: "white",
-    cursor: "pointer",
-    fontSize: 16
+    gap: 10
   }
 };
