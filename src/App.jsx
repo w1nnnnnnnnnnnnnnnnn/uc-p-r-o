@@ -9,8 +9,6 @@ export default function App() {
   const [index, setIndex] = useState(0);
 
   const [playing, setPlaying] = useState(false);
-
-  const [vinylColor, setVinylColor] = useState("#111111");
   const [stylusDown, setStylusDown] = useState(false);
 
   const audioRef = useRef(null);
@@ -19,18 +17,26 @@ export default function App() {
 
   /* LOAD */
   useEffect(() => {
-    const saved = localStorage.getItem("uc_vinyl");
+    const saved = localStorage.getItem("uc_turntable");
     if (saved) setProjects(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("uc_vinyl", JSON.stringify(projects));
+    localStorage.setItem("uc_turntable", JSON.stringify(projects));
   }, [projects]);
 
+  /* CLEAN PROJECT CREATION (NO PROMPT) */
+  const [newProjectName, setNewProjectName] = useState("");
+
   function createProject() {
-    const name = prompt("Project name");
-    if (!name) return;
-    setProjects({ ...projects, [name]: [] });
+    if (!newProjectName.trim()) return;
+
+    setProjects({
+      ...projects,
+      [newProjectName]: []
+    });
+
+    setNewProjectName("");
   }
 
   function openProject(name) {
@@ -42,7 +48,7 @@ export default function App() {
 
   /* AUDIO */
   function play(i) {
-    if (!stylusDown) return; // 🔥 stylus must be down
+    if (!stylusDown) return;
 
     setIndex(i);
     setPlaying(true);
@@ -73,7 +79,7 @@ export default function App() {
     if (index > 0) play(index - 1);
   }
 
-  /* TRACK UPLOAD */
+  /* UPLOAD AUDIO */
   function uploadAudio(e) {
     const files = Array.from(e.target.files);
 
@@ -87,7 +93,7 @@ export default function App() {
     setTracks([...tracks, ...newTracks]);
   }
 
-  /* COVER UPLOAD */
+  /* COVER ART FIX (FORCED VISIBILITY LAYER) */
   function uploadCover(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -112,9 +118,18 @@ export default function App() {
       <div style={styles.home}>
         <div style={styles.logo}>UC</div>
 
-        <button style={styles.button} onClick={createProject}>
-          + New Project
-        </button>
+        {/* CLEAN INPUT (NO PROMPT) */}
+        <div style={styles.createBox}>
+          <input
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+            placeholder="New project name..."
+            style={styles.input}
+          />
+          <button style={styles.button} onClick={createProject}>
+            Create
+          </button>
+        </div>
 
         <div style={styles.grid}>
           {Object.keys(projects).map((p) => (
@@ -127,10 +142,11 @@ export default function App() {
     );
   }
 
+  /* PROJECT VIEW */
   return (
     <div style={styles.app}>
 
-      {/* SIDEBAR */}
+      {/* LEFT */}
       <div style={styles.sidebar}>
         <div style={styles.title}>{active}</div>
 
@@ -148,13 +164,6 @@ export default function App() {
           Home
         </button>
 
-        <input
-          type="color"
-          value={vinylColor}
-          onChange={(e) => setVinylColor(e.target.value)}
-          style={styles.color}
-        />
-
         <div style={styles.list}>
           {tracks.map((t, i) => (
             <div key={t.id} style={styles.track} onClick={() => play(i)}>
@@ -164,38 +173,47 @@ export default function App() {
         </div>
       </div>
 
-      {/* MAIN */}
-      <div style={styles.main}>
+      {/* CENTER TURNTABLE */}
+      <div style={styles.stage}>
 
-        {/* VINYL */}
-        <div style={styles.vinylWrap}>
+        {/* WHITE PLATTER BASE */}
+        <div style={styles.deck}>
 
-          {/* STYLUS */}
+          {/* STYLUS (REAL GATE) */}
           <div
             onClick={() => setStylusDown(!stylusDown)}
             style={{
               ...styles.stylus,
               transform: stylusDown
-                ? "rotate(25deg) translate(10px, 10px)"
+                ? "rotate(20deg) translate(8px, 8px)"
                 : "rotate(-25deg)"
             }}
           />
-
-          {/* COVER */}
-          {current?.cover && (
-            <img src={current.cover} style={styles.cover} />
-          )}
 
           {/* VINYL DISC */}
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle at center, ${vinylColor}, #000 70%)`,
-              animation: playing ? "spin 4s linear infinite" : "none"
+              animation: playing ? "spin 3.5s linear infinite" : "none"
             }}
           >
-            {/* GROOVES */}
-            <div style={styles.grooves} />
+
+            {/* GROOVES = DEPENDS ON SONG COUNT */}
+            <div
+              style={{
+                ...styles.grooves,
+                background: `repeating-radial-gradient(circle,
+                  rgba(255,255,255,0.06) 0px,
+                  rgba(255,255,255,0.02) ${Math.max(2, 40 / tracks.length)}px
+                )`
+              }}
+            />
+
+            {/* COVER ART FIXED LAYER */}
+            {current?.cover && (
+              <img src={current.cover} style={styles.cover} />
+            )}
+
           </div>
         </div>
 
@@ -214,7 +232,6 @@ export default function App() {
         <audio ref={audioRef} />
       </div>
 
-      {/* ANIMATION */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -226,13 +243,13 @@ export default function App() {
   );
 }
 
-/* 🎨 NEW POLISHED UI */
+/* 🎨 CLEAN DEVICE DESIGN */
 const styles = {
 
   app: {
     display: "flex",
     height: "100vh",
-    background: "radial-gradient(circle at top, #111, #000)",
+    background: "#0a0a0a",
     color: "white",
     fontFamily: "-apple-system, Inter"
   },
@@ -243,8 +260,52 @@ const styles = {
   },
 
   logo: {
-    fontSize: 52,
+    fontSize: 54,
     fontWeight: 500
+  },
+
+  createBox: {
+    marginTop: 20,
+    display: "flex",
+    justifyContent: "center",
+    gap: 10
+  },
+
+  input: {
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.2)",
+    background: "transparent",
+    color: "white"
+  },
+
+  button: {
+    padding: 10,
+    background: "white",
+    color: "black",
+    borderRadius: 10,
+    border: "none",
+    cursor: "pointer"
+  },
+
+  buttonSecondary: {
+    padding: 10,
+    background: "rgba(255,255,255,0.1)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    borderRadius: 10,
+    color: "white",
+    cursor: "pointer",
+    display: "block",
+    marginTop: 10
+  },
+
+  smallBtn: {
+    marginTop: 10,
+    padding: 8,
+    border: "1px solid rgba(255,255,255,0.2)",
+    background: "transparent",
+    color: "white",
+    borderRadius: 8
   },
 
   grid: {
@@ -255,10 +316,9 @@ const styles = {
   },
 
   card: {
-    padding: 20,
+    padding: 18,
     borderRadius: 14,
     background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.08)",
     cursor: "pointer"
   },
 
@@ -270,39 +330,6 @@ const styles = {
 
   title: { fontSize: 12, opacity: 0.6, marginBottom: 20 },
 
-  button: {
-    display: "block",
-    width: "100%",
-    padding: 10,
-    marginBottom: 10,
-    background: "white",
-    color: "black",
-    border: "none",
-    borderRadius: 10,
-    cursor: "pointer"
-  },
-
-  buttonSecondary: {
-    display: "block",
-    width: "100%",
-    padding: 10,
-    marginBottom: 10,
-    background: "rgba(255,255,255,0.1)",
-    color: "white",
-    border: "1px solid rgba(255,255,255,0.2)",
-    borderRadius: 10,
-    cursor: "pointer"
-  },
-
-  smallBtn: {
-    width: "100%",
-    padding: 8,
-    background: "transparent",
-    border: "1px solid rgba(255,255,255,0.2)",
-    color: "white",
-    borderRadius: 8
-  },
-
   list: { marginTop: 20 },
 
   track: {
@@ -311,35 +338,37 @@ const styles = {
     cursor: "pointer"
   },
 
-  color: { width: "100%", marginTop: 10 },
-
-  main: {
+  stage: {
     flex: 1,
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    alignItems: "center"
   },
 
-  vinylWrap: {
+  deck: {
+    width: 340,
+    height: 340,
+    background: "#f5f5f5",
+    borderRadius: 20,
     position: "relative",
-    width: 260,
-    height: 260
+    boxShadow: "0 40px 100px rgba(0,0,0,0.6)"
   },
 
   vinyl: {
     width: 260,
     height: 260,
     borderRadius: "50%",
+    background: "radial-gradient(circle, #111, #000)",
     position: "absolute",
-    boxShadow: "0 40px 120px rgba(0,0,0,0.8)"
+    top: 40,
+    left: 40,
+    boxShadow: "inset 0 0 40px rgba(255,255,255,0.05)"
   },
 
   grooves: {
     position: "absolute",
-    inset: 10,
-    borderRadius: "50%",
-    background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.05) 0px, transparent 2px, transparent 6px)"
+    inset: 0,
+    borderRadius: "50%"
   },
 
   stylus: {
@@ -347,19 +376,19 @@ const styles = {
     width: 120,
     height: 6,
     background: "white",
-    top: -40,
-    left: 160,
+    top: 20,
+    left: 210,
     transformOrigin: "left center",
     transition: "0.4s"
   },
 
   cover: {
     position: "absolute",
-    width: 140,
-    height: 140,
-    top: 60,
-    left: 60,
-    borderRadius: 10
+    width: 120,
+    height: 120,
+    top: 70,
+    left: 70,
+    borderRadius: 8
   },
 
   player: {
@@ -369,10 +398,10 @@ const styles = {
     right: 0,
     height: 70,
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     padding: "0 16px",
-    background: "rgba(0,0,0,0.6)",
+    background: "rgba(255,255,255,0.06)",
     backdropFilter: "blur(30px)"
   },
 
