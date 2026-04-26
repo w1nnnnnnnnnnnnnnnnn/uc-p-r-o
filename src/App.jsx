@@ -6,7 +6,8 @@ export default function App() {
   const [active, setActive] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [current, setCurrent] = useState(null);
-  const [mode, setMode] = useState("vinyl");
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
@@ -14,12 +15,12 @@ export default function App() {
   const dataRef = useRef(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("uc-ultra");
+    const saved = localStorage.getItem("uc-launch");
     if (saved) setProjects(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("uc-ultra", JSON.stringify(projects));
+    localStorage.setItem("uc-launch", JSON.stringify(projects));
   }, [projects]);
 
   function createProject() {
@@ -36,12 +37,15 @@ export default function App() {
 
   function upload(e) {
     const files = Array.from(e.target.files);
+
     const newTracks = files.map(f => ({
       id: Date.now() + Math.random(),
       name: f.name.replace(/\.[^/.]+$/, ""),
-      url: URL.createObjectURL(f)
+      url: URL.createObjectURL(f),
+      cover: URL.createObjectURL(f)
     }));
-    setTracks([...newTracks, ...tracks]);
+
+    setTracks([...tracks, ...newTracks]);
   }
 
   useEffect(() => {
@@ -51,9 +55,24 @@ export default function App() {
 
   function play(track) {
     setCurrent(track);
+    setPlaying(true);
+
     audioRef.current.src = track.url;
     audioRef.current.play();
+
     initAudio();
+  }
+
+  function togglePlay() {
+    if (!audioRef.current) return;
+
+    if (playing) {
+      audioRef.current.pause();
+      setPlaying(false);
+    } else {
+      audioRef.current.play();
+      setPlaying(true);
+    }
   }
 
   function initAudio() {
@@ -80,57 +99,43 @@ export default function App() {
 
     const loop = () => {
       requestAnimationFrame(loop);
-
       if (!analyserRef.current) return;
 
       analyserRef.current.getByteFrequencyData(dataRef.current);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const avg =
-        dataRef.current.reduce((a, b) => a + b, 0) /
-        dataRef.current.length;
+      dataRef.current.forEach((v, i) => {
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.fillRect(i * 6, 110 - v, 3, v);
+      });
 
-      if (mode === "visualizer") {
-        dataRef.current.forEach((v, i) => {
-          ctx.fillStyle = "rgba(255,255,255,0.8)";
-          ctx.fillRect(i * 6, 120 - v, 3, v);
-        });
-      }
-
-      if (mode === "vinyl") {
-        ctx.beginPath();
-        ctx.arc(200, 120, 60 + avg / 15, 0, Math.PI * 2);
-        ctx.fillStyle = "#111";
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(200, 120, 18, 0, Math.PI * 2);
-        ctx.fillStyle = "#000";
-        ctx.fill();
-
-        ctx.strokeStyle = "rgba(255,255,255,0.15)";
-        ctx.stroke();
+      // progress simulation
+      if (audioRef.current && current) {
+        const p =
+          audioRef.current.currentTime / audioRef.current.duration || 0;
+        setProgress(p);
       }
     };
 
     loop();
   }
 
-  // HOME
+  /* HOME */
   if (view === "home") {
     return (
       <div style={styles.home}>
-        <div style={styles.title}>UC</div>
+        <div style={styles.logo}>UC</div>
 
-        <button style={styles.btn} onClick={createProject}>
+        <button style={styles.primaryBtn} onClick={createProject}>
           New Project
         </button>
 
         <div style={styles.grid}>
           {Object.keys(projects).map(p => (
             <div key={p} style={styles.card} onClick={() => openProject(p)}>
-              {p}
+              <div style={styles.cardTitle}>{p}</div>
+              <div style={styles.cardSub}>Project</div>
             </div>
           ))}
         </div>
@@ -138,6 +143,7 @@ export default function App() {
     );
   }
 
+  /* APP */
   return (
     <div style={styles.app}>
 
@@ -162,10 +168,6 @@ export default function App() {
           Home
         </button>
 
-        <button style={styles.btn} onClick={() => setMode(mode === "vinyl" ? "visualizer" : "vinyl")}>
-          Mode
-        </button>
-
         <div style={styles.list}>
           {tracks.map(t => (
             <div key={t.id} style={styles.track} onClick={() => play(t)}>
@@ -177,29 +179,52 @@ export default function App() {
 
       {/* MAIN */}
       <div style={styles.main}>
-        <canvas ref={canvasRef} width={420} height={240} />
+        <canvas ref={canvasRef} width={420} height={200} />
 
+        {/* VINYL */}
         <div style={styles.vinylWrap}>
-          <div style={{
-            ...styles.vinyl,
-            animation: current ? "spin 3.5s linear infinite" : "none"
-          }} />
+          {current?.cover && (
+            <img src={current.cover} style={styles.cover} />
+          )}
+
+          <div
+            style={{
+              ...styles.vinyl,
+              animation: playing ? "spin 3.8s linear infinite" : "none"
+            }}
+          >
+            <div style={styles.center} />
+          </div>
         </div>
       </div>
 
-      {/* PLAYBAR */}
+      {/* PLAYER */}
       <div style={styles.playbar}>
-        <div style={styles.now}>
-          {current?.name || "Nothing playing"}
+
+        <div style={styles.left}>
+          <div style={styles.trackName}>
+            {current?.name || "Nothing playing"}
+          </div>
+
+          {/* PROGRESS BAR */}
+          <div style={styles.progressOuter}>
+            <div style={{ ...styles.progressInner, width: `${progress * 100}%` }} />
+          </div>
         </div>
 
-        <audio ref={audioRef} controls style={{ flex: 1 }} />
+        <div style={styles.controls}>
+          <button style={styles.playBtn} onClick={togglePlay}>
+            {playing ? "Pause" : "Play"}
+          </button>
+        </div>
+
+        <audio ref={audioRef} />
+
       </div>
 
     </div>
   );
 }
-
 const styles = {
   app: {
     display: "flex",
@@ -210,39 +235,42 @@ const styles = {
   },
 
   home: {
-    padding: 60,
-    background: "#0a0a0a",
-    color: "white",
-    minHeight: "100vh"
+    padding: 80
   },
 
-  title: {
-    fontSize: 42,
+  logo: {
+    fontSize: 44,
     fontWeight: 500,
-    letterSpacing: "-0.03em"
+    letterSpacing: "-0.04em"
+  },
+
+  primaryBtn: {
+    marginTop: 24,
+    padding: "10px 14px",
+    background: "white",
+    color: "black",
+    borderRadius: 10,
+    border: "none",
+    cursor: "pointer"
   },
 
   grid: {
-    marginTop: 40,
+    marginTop: 50,
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
     gap: 16
   },
 
   card: {
-    padding: 20,
+    padding: 18,
+    borderRadius: 12,
     background: "rgba(255,255,255,0.03)",
     border: "1px solid rgba(255,255,255,0.06)",
-    borderRadius: 10,
     cursor: "pointer"
   },
 
-  app: {
-    display: "flex",
-    height: "100vh",
-    background: "#0a0a0a",
-    color: "white"
-  },
+  cardTitle: { fontSize: 14 },
+  cardSub: { fontSize: 12, opacity: 0.5 },
 
   sidebar: {
     width: 260,
@@ -251,22 +279,19 @@ const styles = {
   },
 
   projectTitle: {
-    fontSize: 14,
+    fontSize: 13,
     opacity: 0.6,
     marginBottom: 20
   },
 
   list: {
-    marginTop: 20,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8
+    marginTop: 20
   },
 
   track: {
     padding: 10,
     fontSize: 13,
-    opacity: 0.7,
+    opacity: 0.75,
     cursor: "pointer"
   },
 
@@ -279,16 +304,42 @@ const styles = {
   },
 
   vinylWrap: {
+    position: "relative",
+    width: 220,
+    height: 220,
     marginTop: 20
   },
 
   vinyl: {
-    width: 200,
-    height: 200,
+    width: 220,
+    height: 220,
     borderRadius: "50%",
     background:
-      "radial-gradient(circle, #111 0%, #000 60%, #111 100%)",
-    border: "1px solid rgba(255,255,255,0.08)"
+      "radial-gradient(circle at center, #111 0%, #000 60%, #111 100%)",
+    boxShadow: "0 40px 100px rgba(0,0,0,0.7)",
+    position: "absolute"
+  },
+
+  center: {
+    width: 18,
+    height: 18,
+    borderRadius: "50%",
+    background: "#000",
+    border: "1px solid rgba(255,255,255,0.1)",
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%,-50%)"
+  },
+
+  cover: {
+    position: "absolute",
+    width: 130,
+    height: 130,
+    top: 45,
+    left: 45,
+    borderRadius: 8,
+    objectFit: "cover"
   },
 
   playbar: {
@@ -296,29 +347,46 @@ const styles = {
     bottom: 0,
     left: 260,
     right: 0,
-    height: 60,
+    height: 70,
     display: "flex",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "space-between",
     padding: "0 16px",
-    background: "rgba(10,10,10,0.7)",
-    backdropFilter: "blur(20px)",
+    background: "rgba(10,10,10,0.75)",
+    backdropFilter: "blur(24px)",
     borderTop: "1px solid rgba(255,255,255,0.06)"
   },
 
-  now: {
-    width: 200,
-    fontSize: 12,
-    opacity: 0.6
+  left: {
+    width: 250
   },
 
-  btn: {
-    width: "100%",
-    marginTop: 10,
-    padding: 8,
-    background: "transparent",
-    border: "1px solid rgba(255,255,255,0.08)",
-    color: "white",
+  trackName: {
+    fontSize: 12,
+    opacity: 0.7
+  },
+
+  progressOuter: {
+    height: 2,
+    background: "rgba(255,255,255,0.1)",
+    marginTop: 8
+  },
+
+  progressInner: {
+    height: 2,
+    background: "white"
+  },
+
+  controls: {
+    display: "flex"
+  },
+
+  playBtn: {
+    padding: "6px 12px",
+    background: "white",
+    color: "black",
+    border: "none",
+    borderRadius: 8,
     cursor: "pointer"
   }
 };
