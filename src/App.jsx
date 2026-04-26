@@ -2,84 +2,146 @@ import React, { useRef, useState, useEffect } from "react";
 
 export default function App() {
   const [projects, setProjects] = useState({});
-  const [view, setView] = useState("home");
+  const [screen, setScreen] = useState("home");
 
-  const [active, setActive] = useState(null);
+  const [activeProject, setActiveProject] = useState(null);
   const [tracks, setTracks] = useState([]);
-  const [index, setIndex] = useState(0);
+  const [i, setI] = useState(0);
 
   const [playing, setPlaying] = useState(false);
-  const [stylusDown, setStylusDown] = useState(false);
+
+  const [stylusEngaged, setStylusEngaged] = useState(false);
+  const [stylus, setStylus] = useState({ x: 0, y: 0 });
+
+  const [volume, setVolume] = useState(0.7);
 
   const audioRef = useRef(null);
+  const vinylRef = useRef(null);
 
-  const current = tracks[index];
+  const current = tracks[i];
 
-  /* LOAD */
+  /* STORAGE */
   useEffect(() => {
-    const saved = localStorage.getItem("uc_turntable");
-    if (saved) setProjects(JSON.parse(saved));
+    const s = localStorage.getItem("product_os_v2");
+    if (s) setProjects(JSON.parse(s));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("uc_turntable", JSON.stringify(projects));
+    localStorage.setItem("product_os_v2", JSON.stringify(projects));
   }, [projects]);
 
-  /* CLEAN PROJECT CREATION (NO PROMPT) */
-  const [newProjectName, setNewProjectName] = useState("");
+  const [newProject, setNewProject] = useState("");
 
   function createProject() {
-    if (!newProjectName.trim()) return;
+    if (!newProject.trim()) return;
 
     setProjects({
       ...projects,
-      [newProjectName]: []
+      [newProject]: []
     });
 
-    setNewProjectName("");
+    setNewProject("");
   }
 
   function openProject(name) {
-    setActive(name);
+    setActiveProject(name);
     setTracks(projects[name] || []);
-    setIndex(0);
-    setView("project");
+    setI(0);
+    setScreen("project");
   }
 
-  /* AUDIO */
-  function play(i) {
-    if (!stylusDown) return;
+  /* AUDIO CORE */
+  function playTrack(index) {
+    if (!stylusEngaged) return;
 
-    setIndex(i);
+    setI(index);
     setPlaying(true);
 
-    setTimeout(() => {
-      audioRef.current.src = tracks[i].url;
+    requestAnimationFrame(() => {
+      audioRef.current.src = tracks[index].url;
+      audioRef.current.volume = volume;
       audioRef.current.play();
-    }, 50);
+    });
   }
 
-  function toggle() {
+  function togglePlay() {
     if (!audioRef.current) return;
 
     if (playing) {
       audioRef.current.pause();
       setPlaying(false);
-    } else {
+    } else if (stylusEngaged) {
       audioRef.current.play();
       setPlaying(true);
     }
   }
 
   function next() {
-    if (index < tracks.length - 1) play(index + 1);
+    if (i < tracks.length - 1) playTrack(i + 1);
   }
 
   function prev() {
-    if (index > 0) play(index - 1);
+    if (i > 0) playTrack(i - 1);
   }
 
-  /* UPLOAD AUDIO */
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  /* VINYL PHYSICS (INERTIA SIMULATION) */
+  const rotationRef = useRef(0);
+  const velocityRef = useRef(0);
+  const animRef = useRef();
+
+  useEffect(() => {
+    function animate() {
+      if (playing && stylusEngaged) {
+        velocityRef.current = 0.08;
+      } else {
+        velocityRef.current *= 0.96; // inertia slowdown
+      }
+
+      rotationRef.current += velocityRef.current;
+
+      if (vinylRef.current) {
+        vinylRef.current.style.transform = `rotate(${rotationRef.current}deg)`;
+      }
+
+      animRef.current = requestAnimationFrame(animate);
+    }
+
+    animate();
+    return () => cancelAnimationFrame(animRef.current);
+  }, [playing, stylusEngaged]);
+
+  /* STYLUS SNAP SYSTEM */
+  function moveStylus(e) {
+    const rect = vinylRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+
+    const dx = x - cx;
+    const dy = y - cy;
+
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    setStylus({ x, y });
+
+    if (dist < 110) {
+      setStylusEngaged(true);
+    } else {
+      setStylusEngaged(false);
+      setPlaying(false);
+      audioRef.current?.pause();
+    }
+  }
+
+  /* AUDIO UPLOAD */
   function uploadAudio(e) {
     const files = Array.from(e.target.files);
 
@@ -93,7 +155,7 @@ export default function App() {
     setTracks([...tracks, ...newTracks]);
   }
 
-  /* COVER ART FIX (FORCED VISIBILITY LAYER) */
+  /* COVER */
   function uploadCover(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -101,32 +163,31 @@ export default function App() {
     const url = URL.createObjectURL(file);
 
     const updated = [...tracks];
-    if (updated[index]) {
-      updated[index].cover = url;
+    if (updated[i]) {
+      updated[i].cover = url;
       setTracks(updated);
     }
   }
 
   useEffect(() => {
-    if (!active) return;
-    setProjects((p) => ({ ...p, [active]: tracks }));
+    if (!activeProject) return;
+    setProjects((p) => ({ ...p, [activeProject]: tracks }));
   }, [tracks]);
 
   /* HOME */
-  if (view === "home") {
+  if (screen === "home") {
     return (
       <div style={styles.home}>
-        <div style={styles.logo}>UC</div>
+        <div style={styles.logo}>PRODUCT OS v2</div>
 
-        {/* CLEAN INPUT (NO PROMPT) */}
-        <div style={styles.createBox}>
+        <div style={styles.row}>
           <input
-            value={newProjectName}
-            onChange={(e) => setNewProjectName(e.target.value)}
-            placeholder="New project name..."
+            value={newProject}
+            onChange={(e) => setNewProject(e.target.value)}
+            placeholder="New project..."
             style={styles.input}
           />
-          <button style={styles.button} onClick={createProject}>
+          <button style={styles.btn} onClick={createProject}>
             Create
           </button>
         </div>
@@ -142,108 +203,105 @@ export default function App() {
     );
   }
 
-  /* PROJECT VIEW */
+  /* APP */
   return (
     <div style={styles.app}>
 
-      {/* LEFT */}
+      {/* SIDEBAR */}
       <div style={styles.sidebar}>
-        <div style={styles.title}>{active}</div>
+        <div style={styles.title}>{activeProject}</div>
 
-        <label style={styles.button}>
+        <label style={styles.btn}>
           Upload Audio
-          <input type="file" multiple accept="audio/*" hidden onChange={uploadAudio} />
+          <input type="file" multiple hidden onChange={uploadAudio} />
         </label>
 
-        <label style={styles.buttonSecondary}>
+        <label style={styles.btnSecondary}>
           Upload Cover
-          <input type="file" accept="image/*" hidden onChange={uploadCover} />
+          <input type="file" hidden accept="image/*" onChange={uploadCover} />
         </label>
 
-        <button style={styles.smallBtn} onClick={() => setView("home")}>
+        <button style={styles.smallBtn} onClick={() => setScreen("home")}>
           Home
         </button>
 
         <div style={styles.list}>
-          {tracks.map((t, i) => (
-            <div key={t.id} style={styles.track} onClick={() => play(i)}>
+          {tracks.map((t, idx) => (
+            <div key={t.id} style={styles.track} onClick={() => playTrack(idx)}>
               {t.name}
             </div>
           ))}
         </div>
       </div>
 
-      {/* CENTER TURNTABLE */}
+      {/* TURNTABLE */}
       <div style={styles.stage}>
 
-        {/* WHITE PLATTER BASE */}
         <div style={styles.deck}>
 
-          {/* STYLUS (REAL GATE) */}
+          {/* STYLUS */}
           <div
-            onClick={() => setStylusDown(!stylusDown)}
+            onMouseMove={moveStylus}
             style={{
               ...styles.stylus,
-              transform: stylusDown
-                ? "rotate(20deg) translate(8px, 8px)"
-                : "rotate(-25deg)"
+              left: stylus.x,
+              top: stylus.y,
+              background: stylusEngaged ? "lime" : "white"
             }}
           />
 
-          {/* VINYL DISC */}
-          <div
-            style={{
-              ...styles.vinyl,
-              animation: playing ? "spin 3.5s linear infinite" : "none"
-            }}
-          >
+          {/* VINYL */}
+          <div ref={vinylRef} style={styles.vinylWrap}>
 
-            {/* GROOVES = DEPENDS ON SONG COUNT */}
-            <div
-              style={{
-                ...styles.grooves,
-                background: `repeating-radial-gradient(circle,
-                  rgba(255,255,255,0.06) 0px,
-                  rgba(255,255,255,0.02) ${Math.max(2, 40 / tracks.length)}px
-                )`
-              }}
-            />
+            <div style={styles.vinyl}>
 
-            {/* COVER ART FIXED LAYER */}
-            {current?.cover && (
-              <img src={current.cover} style={styles.cover} />
-            )}
+              {/* GROOVES */}
+              <div style={styles.grooves} />
 
+              {/* LABEL */}
+              {current?.cover && (
+                <img src={current.cover} style={styles.label} />
+              )}
+
+            </div>
           </div>
+
+          {/* KNOB */}
+          <div style={styles.knob}>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={(e) => setVolume(+e.target.value)}
+            />
+          </div>
+
         </div>
 
       </div>
 
       {/* PLAYER */}
       <div style={styles.player}>
-        <div style={styles.now}>{current?.name || "No track"}</div>
+        <div>{current?.name || "No track"}</div>
 
         <div style={styles.controls}>
           <button onClick={prev}>⏮</button>
-          <button onClick={toggle}>{playing ? "Pause" : "Play"}</button>
+          <button onClick={togglePlay}>
+            {playing ? "Pause" : "Play"}
+          </button>
           <button onClick={next}>⏭</button>
         </div>
 
         <audio ref={audioRef} />
       </div>
 
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-
     </div>
   );
 }
 
-/* 🎨 CLEAN DEVICE DESIGN */
+/* 🎛 V2 PRO UI */
 const styles = {
 
   app: {
@@ -251,7 +309,7 @@ const styles = {
     height: "100vh",
     background: "#0a0a0a",
     color: "white",
-    fontFamily: "-apple-system, Inter"
+    fontFamily: "Inter"
   },
 
   home: {
@@ -259,84 +317,51 @@ const styles = {
     textAlign: "center"
   },
 
-  logo: {
-    fontSize: 54,
-    fontWeight: 500
-  },
+  logo: { fontSize: 42 },
 
-  createBox: {
-    marginTop: 20,
-    display: "flex",
-    justifyContent: "center",
-    gap: 10
-  },
+  row: { display: "flex", justifyContent: "center", gap: 10 },
 
   input: {
     padding: 10,
     borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.2)",
     background: "transparent",
+    border: "1px solid white",
     color: "white"
   },
 
-  button: {
+  btn: {
     padding: 10,
     background: "white",
     color: "black",
-    borderRadius: 10,
-    border: "none",
-    cursor: "pointer"
+    borderRadius: 10
   },
 
-  buttonSecondary: {
+  btnSecondary: {
     padding: 10,
-    background: "rgba(255,255,255,0.1)",
-    border: "1px solid rgba(255,255,255,0.2)",
+    border: "1px solid white",
     borderRadius: 10,
-    color: "white",
-    cursor: "pointer",
-    display: "block",
     marginTop: 10
   },
 
-  smallBtn: {
-    marginTop: 10,
-    padding: 8,
-    border: "1px solid rgba(255,255,255,0.2)",
-    background: "transparent",
-    color: "white",
-    borderRadius: 8
-  },
-
-  grid: {
-    marginTop: 60,
-    display: "flex",
-    justifyContent: "center",
-    gap: 16
-  },
+  grid: { marginTop: 60, display: "flex", gap: 16, justifyContent: "center" },
 
   card: {
     padding: 18,
     borderRadius: 14,
-    background: "rgba(255,255,255,0.05)",
-    cursor: "pointer"
+    background: "rgba(255,255,255,0.05)"
   },
 
   sidebar: {
     width: 260,
     padding: 16,
-    borderRight: "1px solid rgba(255,255,255,0.06)"
+    borderRight: "1px solid rgba(255,255,255,0.1)"
   },
 
-  title: { fontSize: 12, opacity: 0.6, marginBottom: 20 },
+  title: { opacity: 0.6, marginBottom: 20 },
 
   list: { marginTop: 20 },
 
-  track: {
-    padding: 10,
-    fontSize: 13,
-    cursor: "pointer"
-  },
+  track: { padding: 8, cursor: "pointer" },
 
   stage: {
     flex: 1,
@@ -346,49 +371,55 @@ const styles = {
   },
 
   deck: {
-    width: 340,
-    height: 340,
+    width: 360,
+    height: 360,
     background: "#f5f5f5",
-    borderRadius: 20,
-    position: "relative",
-    boxShadow: "0 40px 100px rgba(0,0,0,0.6)"
+    borderRadius: 24,
+    position: "relative"
+  },
+
+  vinylWrap: {
+    position: "absolute",
+    top: 60,
+    left: 60
   },
 
   vinyl: {
-    width: 260,
-    height: 260,
+    width: 240,
+    height: 240,
     borderRadius: "50%",
-    background: "radial-gradient(circle, #111, #000)",
-    position: "absolute",
-    top: 40,
-    left: 40,
-    boxShadow: "inset 0 0 40px rgba(255,255,255,0.05)"
+    background: "radial-gradient(circle, #111, #000)"
   },
 
   grooves: {
     position: "absolute",
     inset: 0,
-    borderRadius: "50%"
+    borderRadius: "50%",
+    background:
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.05) 0px, transparent 2px)"
+  },
+
+  label: {
+    width: 110,
+    height: 110,
+    borderRadius: "50%",
+    position: "absolute",
+    top: 65,
+    left: 65
   },
 
   stylus: {
     position: "absolute",
-    width: 120,
-    height: 6,
-    background: "white",
-    top: 20,
-    left: 210,
-    transformOrigin: "left center",
-    transition: "0.4s"
+    width: 20,
+    height: 20,
+    borderRadius: "50%",
+    cursor: "pointer"
   },
 
-  cover: {
+  knob: {
     position: "absolute",
-    width: 120,
-    height: 120,
-    top: 70,
-    left: 70,
-    borderRadius: 8
+    bottom: 20,
+    right: 20
   },
 
   player: {
@@ -400,12 +431,9 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "0 16px",
-    background: "rgba(255,255,255,0.06)",
-    backdropFilter: "blur(30px)"
+    padding: 16,
+    background: "rgba(255,255,255,0.05)"
   },
-
-  now: { fontSize: 12, opacity: 0.7 },
 
   controls: { display: "flex", gap: 10 }
 };
