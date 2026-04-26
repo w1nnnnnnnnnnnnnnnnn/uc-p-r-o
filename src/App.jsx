@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
-  const [mode, setMode] = useState("auth");
-  const [authMode, setAuthMode] = useState("login");
+  const [view, setView] = useState("auth"); // auth | home | studio
 
   const [users, setUsers] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
@@ -12,16 +11,16 @@ export default function App() {
   const [password, setPassword] = useState("");
 
   const [projects, setProjects] = useState({});
-  const [active, setActive] = useState(null);
+  const [activeProject, setActiveProject] = useState(null);
 
   const [tracks, setTracks] = useState([]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
-  const [vinylColor, setVinylColor] = useState("#0a0a0a");
+  const [vinylColor, setVinylColor] = useState("#0b0b0b");
 
   const audioRef = useRef(null);
-  const current = tracks?.[index];
+  const current = tracks[index];
 
   /* ================= AUTH ================= */
 
@@ -32,60 +31,51 @@ export default function App() {
     setUsers(updated);
     localStorage.setItem("aurae_users", JSON.stringify(updated));
 
-    setAuthMode("login");
+    setView("home");
   }
 
   function login() {
     if (!users[email] || users[email].password !== password) {
-      alert("wrong credentials");
+      alert("wrong login");
       return;
     }
 
-    localStorage.setItem("aurae_session", email);
-    setMode("home");
+    setView("home");
   }
 
-  function logout() {
-    localStorage.removeItem("aurae_session");
-    setMode("auth");
-  }
-
-  /* ================= PROJECT ================= */
+  /* ================= PROJECTS ================= */
 
   function createProject() {
     const name = prompt("project name");
     if (!name) return;
 
-    setProjects((prev) => ({
-      ...prev,
+    setProjects((p) => ({
+      ...p,
       [name]: { tracks: [] }
     }));
   }
 
   function openProject(name) {
-    const p = projects[name];
-
-    setActive(name);
-    setTracks(p?.tracks || []);
+    setActiveProject(name);
+    setTracks(projects[name]?.tracks || []);
     setIndex(0);
-    setMode("app");
+    setView("studio");
   }
 
-  function updateTracks(updated) {
-    setTracks(updated);
+  function updateTracks(list) {
+    setTracks(list);
 
-    setProjects((prev) => ({
-      ...prev,
-      [active]: {
-        ...(prev?.[active] || {}),
-        tracks: updated
+    setProjects((p) => ({
+      ...p,
+      [activeProject]: {
+        tracks: list
       }
     }));
   }
 
   /* ================= FILES ================= */
 
-  function upload(e) {
+  function addTracks(e) {
     const files = Array.from(e.target.files || []);
 
     const newTracks = files.map((f) => ({
@@ -98,14 +88,14 @@ export default function App() {
     updateTracks([...tracks, ...newTracks]);
   }
 
-  function uploadCover(e) {
+  function addCover(e) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const updated = [...tracks];
-    if (updated[index]) {
-      updated[index].cover = URL.createObjectURL(file);
-      updateTracks(updated);
+    const copy = [...tracks];
+    if (copy[index]) {
+      copy[index].cover = URL.createObjectURL(file);
+      updateTracks(copy);
     }
   }
 
@@ -160,48 +150,32 @@ export default function App() {
     return () => a.removeEventListener("ended", end);
   }, [index, tracks]);
 
-  /* ================= AUTH ================= */
+  /* ================= AUTH VIEW ================= */
 
-  if (mode === "auth") {
+  if (view === "auth") {
     return (
       <div style={styles.auth}>
-        <div style={styles.box}>
+        <div style={styles.panel}>
           <div style={styles.logo}>AURAE</div>
 
           <input
-            placeholder="email"
             style={styles.input}
+            placeholder="email"
             onChange={(e) => setEmail(e.target.value)}
           />
 
           <input
+            style={styles.input}
             type="password"
             placeholder="password"
-            style={styles.input}
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {authMode === "login" ? (
-            <button style={styles.btn} onClick={login}>
-              login
-            </button>
-          ) : (
-            <button style={styles.btn} onClick={signup}>
-              sign up
-            </button>
-          )}
-
-          <button
-            style={styles.link}
-            onClick={() =>
-              setAuthMode(authMode === "login" ? "signup" : "login")
-            }
-          >
-            switch mode
-          </button>
+          <button style={styles.btn} onClick={login}>login</button>
+          <button style={styles.btn} onClick={signup}>sign up</button>
 
           <div style={styles.small}>
-            no login = nothing saved locally
+            no login = no storage
           </div>
         </div>
       </div>
@@ -210,18 +184,20 @@ export default function App() {
 
   /* ================= HOME ================= */
 
-  if (mode === "home") {
+  if (view === "home") {
     return (
       <div style={styles.home}>
         <div style={styles.topRight}>
-          <button style={styles.btn} onClick={logout}>logout</button>
+          <button style={styles.btn} onClick={() => setView("auth")}>
+            logout
+          </button>
         </div>
 
-        <div style={styles.centerHome}>
-          <div style={styles.logo}>AURAE</div>
+        <div style={styles.center}>
+          <div style={styles.logo}>AURAE OS</div>
 
           <button style={styles.btn} onClick={createProject}>
-            + create project
+            + new project
           </button>
 
           <div style={styles.grid}>
@@ -240,12 +216,14 @@ export default function App() {
     );
   }
 
-  /* ================= APP ================= */
+  /* ================= STUDIO ================= */
 
   return (
     <div style={styles.app}>
+
+      {/* SIDEBAR */}
       <div style={styles.sidebar}>
-        <h3>{active}</h3>
+        <h3>{activeProject}</h3>
 
         <label style={styles.btn}>
           add tracks
@@ -254,7 +232,7 @@ export default function App() {
             multiple
             accept=".mp3,.wav"
             hidden
-            onChange={upload}
+            onChange={addTracks}
           />
         </label>
 
@@ -264,7 +242,7 @@ export default function App() {
             type="file"
             accept=".png,.jpg,.jpeg"
             hidden
-            onChange={uploadCover}
+            onChange={addCover}
           />
         </label>
 
@@ -274,11 +252,11 @@ export default function App() {
           onChange={(e) => setVinylColor(e.target.value)}
         />
 
-        <button style={styles.btn} onClick={() => setMode("home")}>
+        <button style={styles.btn} onClick={() => setView("home")}>
           home
         </button>
 
-        <div style={styles.trackList}>
+        <div style={styles.list}>
           {tracks.map((t, i) => (
             <div key={t.id} onClick={() => play(i)} style={styles.track}>
               {t.name}
@@ -288,13 +266,14 @@ export default function App() {
       </div>
 
       {/* VINYL */}
-      <div style={styles.center}>
+      <div style={styles.centerStage}>
         <div style={styles.vinylWrap}>
+
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 80%)`,
-              animation: playing ? "spin 3s linear infinite" : "none"
+              background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 85%)`,
+              animation: playing ? "spin 3.2s linear infinite" : "none"
             }}
           >
             <div style={styles.grooves} />
@@ -308,12 +287,14 @@ export default function App() {
             )}
           </div>
 
+          {/* STYLUS REAL FEEL */}
           <div
             style={{
               ...styles.stylus,
-              transform: playing ? "rotate(20deg)" : "rotate(24deg)"
+              transform: playing ? "rotate(18deg)" : "rotate(24deg)"
             }}
           />
+
         </div>
       </div>
 
@@ -327,6 +308,7 @@ export default function App() {
 
         <audio ref={audioRef} />
       </div>
+
     </div>
   );
 }
@@ -336,23 +318,28 @@ export default function App() {
 const styles = {
   auth: {
     height: "100vh",
-    background: "#0b0b0b",
+    background: "#0a0a0a",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     fontFamily: "Courier New"
   },
 
-  box: {
+  panel: {
     padding: 40,
     background: "rgba(255,255,255,0.06)",
+    backdropFilter: "blur(20px)",
     borderRadius: 20,
     display: "flex",
     flexDirection: "column",
     gap: 12,
-    minWidth: 280,
-    backdropFilter: "blur(18px)",
-    color: "white"
+    color: "white",
+    minWidth: 300
+  },
+
+  logo: {
+    fontSize: 42,
+    marginBottom: 10
   },
 
   input: {
@@ -372,12 +359,6 @@ const styles = {
     fontFamily: "Courier New"
   },
 
-  link: {
-    background: "none",
-    border: "none",
-    color: "gray"
-  },
-
   small: {
     fontSize: 11,
     opacity: 0.4,
@@ -386,7 +367,7 @@ const styles = {
 
   home: {
     height: "100vh",
-    background: "#0b0b0b",
+    background: "radial-gradient(circle at top, #151515, #0a0a0a)",
     color: "white",
     fontFamily: "Courier New"
   },
@@ -397,14 +378,9 @@ const styles = {
     right: 20
   },
 
-  centerHome: {
+  center: {
     textAlign: "center",
     paddingTop: 120
-  },
-
-  logo: {
-    fontSize: 44,
-    marginBottom: 20
   },
 
   grid: {
@@ -417,7 +393,6 @@ const styles = {
   card: {
     padding: 16,
     background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
     borderRadius: 14,
     cursor: "pointer"
   },
@@ -425,7 +400,7 @@ const styles = {
   app: {
     display: "flex",
     height: "100vh",
-    background: "#0b0b0b",
+    background: "#0a0a0a",
     color: "white",
     fontFamily: "Courier New"
   },
@@ -438,25 +413,28 @@ const styles = {
     gap: 12
   },
 
-  trackList: { marginTop: 20 },
+  list: { marginTop: 20 },
 
   track: { padding: 6, opacity: 0.8, cursor: "pointer" },
 
-  center: {
+  centerStage: {
     flex: 1,
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
   },
 
-  vinylWrap: { position: "relative" },
+  vinylWrap: {
+    position: "relative"
+  },
 
   vinyl: {
-    width: 360,
-    height: 360,
+    width: 380,
+    height: 380,
     borderRadius: "50%",
     position: "relative",
-    boxShadow: "0 50px 100px rgba(0,0,0,0.9)"
+    boxShadow:
+      "0 60px 120px rgba(0,0,0,0.9), inset 0 0 40px rgba(255,255,255,0.06)"
   },
 
   grooves: {
@@ -464,27 +442,28 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.05) 0px, transparent 2px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.05) 0px, transparent 2px)",
+    opacity: 0.7
   },
 
   label: {
     position: "absolute",
-    width: 140,
-    height: 140,
+    width: 150,
+    height: 150,
     borderRadius: "50%",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%,-50%)"
+    transform: "translate(-50%, -50%)"
   },
 
   labelFallback: {
     position: "absolute",
-    width: 140,
-    height: 140,
+    width: 150,
+    height: 150,
     borderRadius: "50%",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%,-50%)",
+    transform: "translate(-50%, -50%)",
     background: "#111",
     display: "flex",
     alignItems: "center",
@@ -493,13 +472,14 @@ const styles = {
 
   stylus: {
     position: "absolute",
-    width: 150,
+    width: 160,
     height: 6,
     background: "#fff",
-    right: -80,
+    right: -90,
     top: "52%",
+    borderRadius: 10,
     transformOrigin: "left center",
-    borderRadius: 10
+    boxShadow: "0 10px 20px rgba(0,0,0,0.6)"
   },
 
   player: {
@@ -507,9 +487,10 @@ const styles = {
     bottom: 0,
     left: 260,
     right: 0,
+    height: 70,
     display: "flex",
     justifyContent: "center",
     gap: 10,
-    padding: 10
+    alignItems: "center"
   }
 };
