@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 
 export default function App() {
+  const [email, setEmail] = useState(localStorage.getItem("aurae_email") || "");
   const [projects, setProjects] = useState({});
   const [active, setActive] = useState(null);
 
@@ -9,40 +10,66 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  const [vinylColor, setVinylColor] = useState("#111");
+  const [vinylColor, setVinylColor] = useState("#111111");
   const [artist, setArtist] = useState("");
 
   const audioRef = useRef(null);
   const current = tracks[index];
 
-  /* STORAGE */
-  useEffect(() => {
-    const saved = localStorage.getItem("music_os_v5");
-    if (saved) setProjects(JSON.parse(saved));
-  }, []);
+  /* STORAGE (EMAIL BASED CLOUD SIM) */
+  const storageKey = `aurae_${email}`;
 
   useEffect(() => {
-    localStorage.setItem("music_os_v5", JSON.stringify(projects));
-  }, [projects]);
+    if (!email) return;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) setProjects(JSON.parse(saved));
+  }, [email]);
+
+  useEffect(() => {
+    if (!email) return;
+    localStorage.setItem(storageKey, JSON.stringify(projects));
+  }, [projects, email]);
 
   const [name, setName] = useState("");
 
+  /* LOGIN SCREEN */
+  if (!email) {
+    return (
+      <div style={styles.home}>
+        <div style={styles.logo}>AURAE</div>
+
+        <div style={styles.sub}>Music OS · Projects · Vinyl · Studio</div>
+
+        <input
+          style={styles.input}
+          placeholder="Enter email to continue"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <button
+          style={styles.btn}
+          onClick={() => localStorage.setItem("aurae_email", email)}
+        >
+          Continue
+        </button>
+      </div>
+    );
+  }
+
+  /* CREATE PROJECT */
   function createProject() {
     if (!name.trim()) return;
 
     setProjects({
       ...projects,
-      [name]: {
-        artist: "",
-        tracks: []
-      }
+      [name]: { artist: "", tracks: [] }
     });
 
     setName("");
   }
 
+  /* OPEN PROJECT */
   function openProject(p) {
     setActive(p);
     setTracks(projects[p]?.tracks || []);
@@ -50,7 +77,8 @@ export default function App() {
     setIndex(0);
   }
 
-  function updateProjectData(updatedTracks, newArtist) {
+  /* UPDATE PROJECT */
+  function updateProject(updatedTracks, newArtist) {
     setProjects({
       ...projects,
       [active]: {
@@ -61,11 +89,11 @@ export default function App() {
   }
 
   /* SEARCH */
-  const filteredProjects = Object.keys(projects).filter((p) =>
+  const filtered = Object.keys(projects).filter((p) =>
     p.toLowerCase().includes(search.toLowerCase())
   );
 
-  /* UPLOAD */
+  /* UPLOAD TRACKS */
   function upload(e) {
     const files = Array.from(e.target.files);
 
@@ -73,27 +101,25 @@ export default function App() {
       id: Date.now() + Math.random(),
       name: f.name.replace(/\.[^/.]+$/, ""),
       url: URL.createObjectURL(f),
-      bpm: Math.floor(Math.random() * 80 + 80),
+      bpm: Math.floor(Math.random() * 60 + 80),
       cover: null
     }));
 
     const updated = [...tracks, ...newTracks];
     setTracks(updated);
-    updateProjectData(updated, artist);
+    updateProject(updated, artist);
   }
 
-  /* COVER */
+  /* COVER UPLOAD */
   function uploadCover(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    const url = URL.createObjectURL(file);
     const updated = [...tracks];
-
     if (updated[index]) {
-      updated[index].cover = url;
+      updated[index].cover = URL.createObjectURL(file);
       setTracks(updated);
-      updateProjectData(updated, artist);
+      updateProject(updated, artist);
     }
   }
 
@@ -133,13 +159,10 @@ export default function App() {
     return (
       <div style={styles.home}>
 
-        <div style={styles.logo}>MUSIC OS</div>
+        <div style={styles.logo}>AURAE</div>
 
-        <div style={styles.sub}>
-          Projects · Search · Customize · Play
-        </div>
+        <div style={styles.sub}>Your personal music workspace</div>
 
-        {/* SEARCH */}
         <input
           style={styles.search}
           placeholder="Search projects..."
@@ -147,28 +170,24 @@ export default function App() {
           onChange={(e) => setSearch(e.target.value)}
         />
 
-        {/* CREATE */}
-        <div style={styles.createBox}>
+        <div style={styles.create}>
           <input
+            style={styles.input}
+            placeholder="New project"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="New project name"
-            style={styles.input}
           />
           <button style={styles.btn} onClick={createProject}>
             Create
           </button>
         </div>
 
-        {/* PROJECTS */}
         <div style={styles.grid}>
-          {filteredProjects.length === 0 && (
-            <div style={styles.empty}>
-              No projects found
-            </div>
+          {filtered.length === 0 && (
+            <div style={{ opacity: 0.4 }}>No projects</div>
           )}
 
-          {filteredProjects.map((p) => (
+          {filtered.map((p) => (
             <div key={p} style={styles.card} onClick={() => openProject(p)}>
               <div>{p}</div>
               <div style={{ opacity: 0.5, fontSize: 12 }}>
@@ -178,27 +197,11 @@ export default function App() {
           ))}
         </div>
 
-        {/* SETTINGS */}
-        <button style={styles.settingsBtn} onClick={() => setSettingsOpen(!settingsOpen)}>
-          ⚙ Settings
-        </button>
-
-        {settingsOpen && (
-          <div style={styles.settings}>
-            <div>Vinyl Color</div>
-            <input
-              type="color"
-              value={vinylColor}
-              onChange={(e) => setVinylColor(e.target.value)}
-            />
-          </div>
-        )}
-
       </div>
     );
   }
 
-  /* APP */
+  /* MAIN APP */
   return (
     <div style={styles.app}>
 
@@ -208,13 +211,13 @@ export default function App() {
         <div style={styles.title}>{active}</div>
 
         <input
+          style={styles.input}
           value={artist}
           onChange={(e) => {
             setArtist(e.target.value);
-            updateProjectData(tracks, e.target.value);
+            updateProject(tracks, e.target.value);
           }}
           placeholder="Artist name"
-          style={styles.input}
         />
 
         <label style={styles.upload}>
@@ -227,16 +230,21 @@ export default function App() {
           <input type="file" hidden onChange={uploadCover} />
         </label>
 
+        <input
+          type="color"
+          value={vinylColor}
+          onChange={(e) => setVinylColor(e.target.value)}
+          style={{ width: "100%", marginTop: 10 }}
+        />
+
         <button style={styles.back} onClick={() => setActive(null)}>
           Home
         </button>
 
-        {/* TRACKLIST */}
         <div style={styles.list}>
           {tracks.map((t, i) => (
             <div key={t.id} style={styles.track} onClick={() => play(i)}>
-              {t.name}
-              <span style={styles.bpm}>{t.bpm} BPM</span>
+              {t.name} <span style={styles.bpm}>{t.bpm} BPM</span>
             </div>
           ))}
         </div>
@@ -262,12 +270,13 @@ export default function App() {
             {current?.cover ? (
               <img src={current.cover} style={styles.label} />
             ) : (
-              <div style={styles.labelFallback}>{current?.name}</div>
+              <div style={styles.labelFallback}>
+                {current?.name || "No Track"}
+              </div>
             )}
 
           </div>
 
-          {/* STYLUS */}
           <div style={playing ? styles.stylusActive : styles.stylus} />
 
         </div>
@@ -301,14 +310,14 @@ export default function App() {
   );
 }
 
-/* 🎨 STYLES */
+/* STYLES */
 const styles = {
 
   home: {
     padding: 80,
     textAlign: "center",
-    color: "white",
     background: "#0b0b0b",
+    color: "white",
     minHeight: "100vh"
   },
 
@@ -316,17 +325,13 @@ const styles = {
 
   sub: { opacity: 0.5, marginBottom: 20 },
 
-  search: {
-    padding: 10,
-    width: 300,
-    marginBottom: 20
-  },
+  search: { padding: 10, width: 300 },
 
-  createBox: {
+  create: {
     display: "flex",
     justifyContent: "center",
     gap: 10,
-    marginBottom: 40
+    marginTop: 20
   },
 
   input: {
@@ -342,6 +347,7 @@ const styles = {
   },
 
   grid: {
+    marginTop: 40,
     display: "flex",
     gap: 10,
     justifyContent: "center",
@@ -351,17 +357,8 @@ const styles = {
   card: {
     padding: 20,
     background: "rgba(255,255,255,0.05)",
-    cursor: "pointer",
-    borderRadius: 10
-  },
-
-  settingsBtn: {
-    marginTop: 30,
-    padding: 10
-  },
-
-  settings: {
-    marginTop: 10
+    borderRadius: 10,
+    cursor: "pointer"
   },
 
   app: {
@@ -377,7 +374,7 @@ const styles = {
     borderRight: "1px solid #222"
   },
 
-  title: { marginBottom: 10, opacity: 0.6 },
+  title: { opacity: 0.6, marginBottom: 10 },
 
   upload: {
     display: "block",
@@ -402,9 +399,7 @@ const styles = {
     alignItems: "center"
   },
 
-  vinylWrap: {
-    position: "relative"
-  },
+  vinylWrap: { position: "relative" },
 
   vinyl: {
     width: 320,
@@ -454,28 +449,27 @@ const styles = {
     background: "#111",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    fontSize: 12
+    justifyContent: "center"
   },
 
   stylus: {
     position: "absolute",
-    width: 60,
-    height: 4,
-    background: "#888",
-    top: 40,
-    right: -20,
-    transform: "rotate(30deg)"
+    width: 120,
+    height: 6,
+    background: "#aaa",
+    top: "50%",
+    right: -60,
+    transform: "rotate(25deg)"
   },
 
   stylusActive: {
     position: "absolute",
-    width: 60,
-    height: 4,
+    width: 120,
+    height: 6,
     background: "white",
-    top: 40,
-    right: -20,
-    transform: "rotate(20deg)"
+    top: "50%",
+    right: -60,
+    transform: "rotate(18deg)"
   },
 
   player: {
