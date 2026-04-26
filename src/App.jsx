@@ -398,7 +398,9 @@ export default function App() {
           <div
             style={{
               ...styles.arm,
-             transform: `rotate(${32 - projectProgress * 18}deg)`
+              transform: playing
+                ? "rotate(18deg)"
+                : "rotate(28deg)"
             }}
           >
             <div style={styles.head} />
