@@ -9,16 +9,15 @@ export default function App() {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
-  const [search, setSearch] = useState("");
-  const [vinylColor, setVinylColor] = useState("#111111");
-  const [artist, setArtist] = useState("");
+  const [vinylColor, setVinylColor] = useState("#111");
+  const [volume, setVolume] = useState(0.8);
 
   const audioRef = useRef(null);
   const current = tracks[index];
 
-  /* STORAGE (EMAIL BASED CLOUD SIM) */
   const storageKey = `aurae_${email}`;
 
+  /* LOAD */
   useEffect(() => {
     if (!email) return;
     const saved = localStorage.getItem(storageKey);
@@ -32,17 +31,15 @@ export default function App() {
 
   const [name, setName] = useState("");
 
-  /* LOGIN SCREEN */
+  /* LOGIN */
   if (!email) {
     return (
-      <div style={styles.home}>
+      <div style={styles.login}>
         <div style={styles.logo}>AURAE</div>
-
-        <div style={styles.sub}>Music OS · Projects · Vinyl · Studio</div>
 
         <input
           style={styles.input}
-          placeholder="Enter email to continue"
+          placeholder="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -51,13 +48,13 @@ export default function App() {
           style={styles.btn}
           onClick={() => localStorage.setItem("aurae_email", email)}
         >
-          Continue
+          enter
         </button>
       </div>
     );
   }
 
-  /* CREATE PROJECT */
+  /* CREATE */
   function createProject() {
     if (!name.trim()) return;
 
@@ -69,31 +66,23 @@ export default function App() {
     setName("");
   }
 
-  /* OPEN PROJECT */
   function openProject(p) {
     setActive(p);
     setTracks(projects[p]?.tracks || []);
-    setArtist(projects[p]?.artist || "");
     setIndex(0);
   }
 
-  /* UPDATE PROJECT */
-  function updateProject(updatedTracks, newArtist) {
+  function update(updatedTracks) {
     setProjects({
       ...projects,
       [active]: {
-        artist: newArtist ?? artist,
+        artist: projects[active]?.artist || "",
         tracks: updatedTracks
       }
     });
   }
 
-  /* SEARCH */
-  const filtered = Object.keys(projects).filter((p) =>
-    p.toLowerCase().includes(search.toLowerCase())
-  );
-
-  /* UPLOAD TRACKS */
+  /* UPLOAD */
   function upload(e) {
     const files = Array.from(e.target.files);
 
@@ -101,16 +90,15 @@ export default function App() {
       id: Date.now() + Math.random(),
       name: f.name.replace(/\.[^/.]+$/, ""),
       url: URL.createObjectURL(f),
-      bpm: Math.floor(Math.random() * 60 + 80),
+      bpm: Math.floor(Math.random() * 50 + 90),
       cover: null
     }));
 
     const updated = [...tracks, ...newTracks];
     setTracks(updated);
-    updateProject(updated, artist);
+    update(updated);
   }
 
-  /* COVER UPLOAD */
   function uploadCover(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -119,7 +107,7 @@ export default function App() {
     if (updated[index]) {
       updated[index].cover = URL.createObjectURL(file);
       setTracks(updated);
-      updateProject(updated, artist);
+      update(updated);
     }
   }
 
@@ -130,6 +118,7 @@ export default function App() {
 
     setTimeout(() => {
       audioRef.current.src = tracks[i].url;
+      audioRef.current.volume = volume;
       audioRef.current.play();
     }, 50);
   }
@@ -158,93 +147,74 @@ export default function App() {
   if (!active) {
     return (
       <div style={styles.home}>
-
         <div style={styles.logo}>AURAE</div>
 
-        <div style={styles.sub}>Your personal music workspace</div>
+        <div style={styles.sub}>hardware music system</div>
 
         <input
-          style={styles.search}
-          placeholder="Search projects..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          style={styles.input}
+          placeholder="new project"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
         />
 
-        <div style={styles.create}>
-          <input
-            style={styles.input}
-            placeholder="New project"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button style={styles.btn} onClick={createProject}>
-            Create
-          </button>
-        </div>
+        <button style={styles.btn} onClick={createProject}>
+          create
+        </button>
 
         <div style={styles.grid}>
-          {filtered.length === 0 && (
-            <div style={{ opacity: 0.4 }}>No projects</div>
-          )}
-
-          {filtered.map((p) => (
+          {Object.keys(projects).map((p) => (
             <div key={p} style={styles.card} onClick={() => openProject(p)}>
-              <div>{p}</div>
-              <div style={{ opacity: 0.5, fontSize: 12 }}>
-                {projects[p].tracks.length} tracks · {projects[p].artist || "No artist"}
-              </div>
+              {p}
             </div>
           ))}
         </div>
-
       </div>
     );
   }
 
-  /* MAIN APP */
+  /* APP */
   return (
     <div style={styles.app}>
 
-      {/* SIDEBAR */}
+      {/* LEFT */}
       <div style={styles.sidebar}>
 
         <div style={styles.title}>{active}</div>
 
-        <input
-          style={styles.input}
-          value={artist}
-          onChange={(e) => {
-            setArtist(e.target.value);
-            updateProject(tracks, e.target.value);
-          }}
-          placeholder="Artist name"
-        />
-
         <label style={styles.upload}>
-          Upload tracks
+          tracks
           <input type="file" multiple hidden onChange={upload} />
         </label>
 
         <label style={styles.upload}>
-          Upload cover
+          cover
           <input type="file" hidden onChange={uploadCover} />
         </label>
 
-        <input
-          type="color"
-          value={vinylColor}
-          onChange={(e) => setVinylColor(e.target.value)}
-          style={{ width: "100%", marginTop: 10 }}
-        />
+        <div style={styles.knobWrap}>
+          <div style={styles.knobLabel}>VOL</div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            onChange={(e) => {
+              setVolume(e.target.value);
+              if (audioRef.current) audioRef.current.volume = e.target.value;
+            }}
+          />
+        </div>
 
-        <button style={styles.back} onClick={() => setActive(null)}>
-          Home
+        <button style={styles.btn} onClick={() => setActive(null)}>
+          home
         </button>
 
         <div style={styles.list}>
           {tracks.map((t, i) => (
             <div key={t.id} style={styles.track} onClick={() => play(i)}>
-              {t.name} <span style={styles.bpm}>{t.bpm} BPM</span>
+              {t.name} <span style={styles.bpm}>{t.bpm}</span>
             </div>
           ))}
         </div>
@@ -259,8 +229,11 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle, ${vinylColor}, #000 70%)`,
-              animation: playing ? "spin 4s linear infinite" : "none"
+              background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 70%)`,
+              transform: playing
+                ? "rotate(360deg)"
+                : "rotate(0deg)",
+              transition: playing ? "6s linear infinite" : "0.4s"
             }}
           >
 
@@ -270,14 +243,20 @@ export default function App() {
             {current?.cover ? (
               <img src={current.cover} style={styles.label} />
             ) : (
-              <div style={styles.labelFallback}>
-                {current?.name || "No Track"}
-              </div>
+              <div style={styles.labelFallback}>{current?.name}</div>
             )}
 
           </div>
 
-          <div style={playing ? styles.stylusActive : styles.stylus} />
+          {/* STYLUS REALISM */}
+          <div
+            style={{
+              ...styles.stylus,
+              transform: playing
+                ? "rotate(20deg) translateY(1px)"
+                : "rotate(25deg)"
+            }}
+          />
 
         </div>
 
@@ -285,87 +264,71 @@ export default function App() {
 
       {/* PLAYER */}
       <div style={styles.player}>
-
-        <div>{current?.name || "No track"}</div>
+        <div>{current?.name || "no track"}</div>
 
         <div style={styles.controls}>
           <button onClick={prev}>⏮</button>
-          <button onClick={toggle}>{playing ? "Pause" : "Play"}</button>
+          <button onClick={toggle}>{playing ? "pause" : "play"}</button>
           <button onClick={next}>⏭</button>
         </div>
 
         <audio ref={audioRef} />
-
       </div>
-
-      {/* ANIMATION */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
 
     </div>
   );
 }
 
-/* STYLES */
+/* ===== STYLES ===== */
 const styles = {
+
+  fontFamily: "'Courier New', monospace",
 
   home: {
     padding: 80,
-    textAlign: "center",
     background: "#0b0b0b",
     color: "white",
-    minHeight: "100vh"
+    minHeight: "100vh",
+    textAlign: "center"
   },
 
-  logo: { fontSize: 42 },
+  logo: { fontSize: 44, letterSpacing: 4 },
 
-  sub: { opacity: 0.5, marginBottom: 20 },
-
-  search: { padding: 10, width: 300 },
-
-  create: {
-    display: "flex",
-    justifyContent: "center",
-    gap: 10,
-    marginTop: 20
-  },
+  sub: { opacity: 0.4, marginBottom: 20 },
 
   input: {
     padding: 10,
     background: "transparent",
-    border: "1px solid white",
+    border: "1px solid #444",
     color: "white"
   },
 
   btn: {
     padding: 10,
-    background: "white"
+    background: "#eaeaea",
+    border: "none",
+    marginTop: 10,
+    boxShadow: "0 6px 20px rgba(0,0,0,0.6)"
   },
 
   grid: {
     marginTop: 40,
     display: "flex",
     gap: 10,
-    justifyContent: "center",
-    flexWrap: "wrap"
+    justifyContent: "center"
   },
 
   card: {
     padding: 20,
-    background: "rgba(255,255,255,0.05)",
-    borderRadius: 10,
-    cursor: "pointer"
+    background: "rgba(255,255,255,0.05)"
   },
 
   app: {
     display: "flex",
     height: "100vh",
     background: "#0b0b0b",
-    color: "white"
+    color: "white",
+    fontFamily: "'Courier New', monospace"
   },
 
   sidebar: {
@@ -374,23 +337,21 @@ const styles = {
     borderRight: "1px solid #222"
   },
 
-  title: { opacity: 0.6, marginBottom: 10 },
+  title: { opacity: 0.5 },
 
   upload: {
     display: "block",
     padding: 10,
-    background: "white",
-    color: "black",
+    background: "#fff",
+    color: "#000",
     marginTop: 10
   },
-
-  back: { marginTop: 10 },
 
   list: { marginTop: 20 },
 
   track: { padding: 6, cursor: "pointer" },
 
-  bpm: { marginLeft: 10, opacity: 0.5, fontSize: 12 },
+  bpm: { marginLeft: 8, opacity: 0.5 },
 
   center: {
     flex: 1,
@@ -402,10 +363,11 @@ const styles = {
   vinylWrap: { position: "relative" },
 
   vinyl: {
-    width: 320,
-    height: 320,
+    width: 340,
+    height: 340,
     borderRadius: "50%",
-    position: "relative"
+    position: "relative",
+    boxShadow: "0 60px 140px rgba(0,0,0,0.9)"
   },
 
   grooves: {
@@ -418,8 +380,8 @@ const styles = {
 
   innerRing: {
     position: "absolute",
-    width: 60,
-    height: 60,
+    width: 70,
+    height: 70,
     borderRadius: "50%",
     background: "rgba(255,255,255,0.08)",
     top: "50%",
@@ -429,19 +391,18 @@ const styles = {
 
   label: {
     position: "absolute",
-    width: 120,
-    height: 120,
+    width: 130,
+    height: 130,
     borderRadius: "50%",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%, -50%)",
-    objectFit: "cover"
+    transform: "translate(-50%, -50%)"
   },
 
   labelFallback: {
     position: "absolute",
-    width: 120,
-    height: 120,
+    width: 130,
+    height: 130,
     borderRadius: "50%",
     top: "50%",
     left: "50%",
@@ -454,22 +415,14 @@ const styles = {
 
   stylus: {
     position: "absolute",
-    width: 120,
+    width: 140,
     height: 6,
-    background: "#aaa",
-    top: "50%",
-    right: -60,
-    transform: "rotate(25deg)"
-  },
-
-  stylusActive: {
-    position: "absolute",
-    width: 120,
-    height: 6,
-    background: "white",
-    top: "50%",
-    right: -60,
-    transform: "rotate(18deg)"
+    background: "linear-gradient(to right, #aaa, #fff)",
+    top: "52%",
+    right: -70,
+    transformOrigin: "left center",
+    borderRadius: 10,
+    boxShadow: "0 10px 25px rgba(0,0,0,0.6)"
   },
 
   player: {
