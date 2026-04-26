@@ -3,30 +3,38 @@ import React, { useRef, useState, useEffect } from "react";
 export default function App() {
   const [projects, setProjects] = useState({});
   const [view, setView] = useState("home");
+
   const [active, setActive] = useState(null);
   const [tracks, setTracks] = useState([]);
+
   const [current, setCurrent] = useState(null);
   const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
+
+  const [showModal, setShowModal] = useState(false);
+  const [projectName, setProjectName] = useState("");
+
+  const [vinylColor, setVinylColor] = useState("#111111");
 
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
   const dataRef = useRef(null);
 
+  // LOAD
   useEffect(() => {
-    const saved = localStorage.getItem("uc-launch");
+    const saved = localStorage.getItem("uc");
     if (saved) setProjects(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("uc-launch", JSON.stringify(projects));
+    localStorage.setItem("uc", JSON.stringify(projects));
   }, [projects]);
 
   function createProject() {
-    const name = prompt("Project name");
-    if (!name) return;
-    setProjects({ ...projects, [name]: [] });
+    if (!projectName) return;
+    setProjects({ ...projects, [projectName]: [] });
+    setProjectName("");
+    setShowModal(false);
   }
 
   function openProject(name) {
@@ -38,7 +46,7 @@ export default function App() {
   function upload(e) {
     const files = Array.from(e.target.files);
 
-    const newTracks = files.map(f => ({
+    const newTracks = files.map((f) => ({
       id: Date.now() + Math.random(),
       name: f.name.replace(/\.[^/.]+$/, ""),
       url: URL.createObjectURL(f),
@@ -50,7 +58,7 @@ export default function App() {
 
   useEffect(() => {
     if (!active) return;
-    setProjects(prev => ({ ...prev, [active]: tracks }));
+    setProjects((p) => ({ ...p, [active]: tracks }));
   }, [tracks]);
 
   function play(track) {
@@ -105,48 +113,81 @@ export default function App() {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+
       dataRef.current.forEach((v, i) => {
-        ctx.fillStyle = "rgba(255,255,255,0.8)";
-        ctx.fillRect(i * 6, 110 - v, 3, v);
+        const angle = (i / dataRef.current.length) * Math.PI * 2;
+
+        const x = Math.cos(angle) * (v * 0.6);
+        const y = Math.sin(angle) * (v * 0.6);
+
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.fillRect(x, y, 2, 10);
       });
 
-      // progress simulation
-      if (audioRef.current && current) {
-        const p =
-          audioRef.current.currentTime / audioRef.current.duration || 0;
-        setProgress(p);
-      }
+      ctx.restore();
     };
 
     loop();
   }
 
-  /* HOME */
+  // HOME
   if (view === "home") {
     return (
       <div style={styles.home}>
         <div style={styles.logo}>UC</div>
 
-        <button style={styles.primaryBtn} onClick={createProject}>
+        <button style={styles.primaryBtn} onClick={() => setShowModal(true)}>
           New Project
         </button>
 
         <div style={styles.grid}>
-          {Object.keys(projects).map(p => (
+          {Object.keys(projects).map((p) => (
             <div key={p} style={styles.card} onClick={() => openProject(p)}>
               <div style={styles.cardTitle}>{p}</div>
               <div style={styles.cardSub}>Project</div>
             </div>
           ))}
         </div>
+
+        {/* MODAL */}
+        {showModal && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modal}>
+              <div style={styles.modalTitle}>Create Project</div>
+
+              <input
+                style={styles.input}
+                placeholder="Project name"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+              />
+
+              <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                <button style={styles.modalBtn} onClick={createProject}>
+                  Create
+                </button>
+
+                <button
+                  style={styles.modalCancel}
+                  onClick={() => setShowModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  /* APP */
   return (
     <div style={styles.app}>
-
       {/* SIDEBAR */}
       <div style={styles.sidebar}>
         <div style={styles.projectTitle}>{active}</div>
@@ -168,8 +209,16 @@ export default function App() {
           Home
         </button>
 
+        {/* COLOR PICKER */}
+        <input
+          type="color"
+          value={vinylColor}
+          onChange={(e) => setVinylColor(e.target.value)}
+          style={{ width: "100%", marginTop: 10 }}
+        />
+
         <div style={styles.list}>
-          {tracks.map(t => (
+          {tracks.map((t) => (
             <div key={t.id} style={styles.track} onClick={() => play(t)}>
               {t.name}
             </div>
@@ -179,7 +228,7 @@ export default function App() {
 
       {/* MAIN */}
       <div style={styles.main}>
-        <canvas ref={canvasRef} width={420} height={200} />
+        <canvas ref={canvasRef} width={320} height={320} />
 
         {/* VINYL */}
         <div style={styles.vinylWrap}>
@@ -190,6 +239,7 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
+              background: `radial-gradient(circle at center, ${vinylColor} 0%, #000 70%)`,
               animation: playing ? "spin 3.8s linear infinite" : "none"
             }}
           >
@@ -200,31 +250,29 @@ export default function App() {
 
       {/* PLAYER */}
       <div style={styles.playbar}>
-
         <div style={styles.left}>
-          <div style={styles.trackName}>
-            {current?.name || "Nothing playing"}
-          </div>
-
-          {/* PROGRESS BAR */}
-          <div style={styles.progressOuter}>
-            <div style={{ ...styles.progressInner, width: `${progress * 100}%` }} />
-          </div>
+          {current?.name || "Nothing playing"}
         </div>
 
-        <div style={styles.controls}>
-          <button style={styles.playBtn} onClick={togglePlay}>
-            {playing ? "Pause" : "Play"}
-          </button>
-        </div>
+        <button style={styles.playBtn} onClick={togglePlay}>
+          {playing ? "Pause" : "Play"}
+        </button>
 
         <audio ref={audioRef} />
-
       </div>
 
+      {/* ANIMATION STYLE */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
+
+/* STYLES */
 const styles = {
   app: {
     display: "flex",
@@ -240,12 +288,11 @@ const styles = {
 
   logo: {
     fontSize: 44,
-    fontWeight: 500,
-    letterSpacing: "-0.04em"
+    fontWeight: 500
   },
 
   primaryBtn: {
-    marginTop: 24,
+    marginTop: 20,
     padding: "10px 14px",
     background: "white",
     color: "black",
@@ -263,9 +310,9 @@ const styles = {
 
   card: {
     padding: 18,
-    borderRadius: 12,
     background: "rgba(255,255,255,0.03)",
     border: "1px solid rgba(255,255,255,0.06)",
+    borderRadius: 12,
     cursor: "pointer"
   },
 
@@ -274,8 +321,8 @@ const styles = {
 
   sidebar: {
     width: 260,
-    borderRight: "1px solid rgba(255,255,255,0.06)",
-    padding: 16
+    padding: 16,
+    borderRight: "1px solid rgba(255,255,255,0.06)"
   },
 
   projectTitle: {
@@ -284,9 +331,7 @@ const styles = {
     marginBottom: 20
   },
 
-  list: {
-    marginTop: 20
-  },
+  list: { marginTop: 20 },
 
   track: {
     padding: 10,
@@ -314,10 +359,8 @@ const styles = {
     width: 220,
     height: 220,
     borderRadius: "50%",
-    background:
-      "radial-gradient(circle at center, #111 0%, #000 60%, #111 100%)",
-    boxShadow: "0 40px 100px rgba(0,0,0,0.7)",
-    position: "absolute"
+    position: "absolute",
+    boxShadow: "0 40px 100px rgba(0,0,0,0.7)"
   },
 
   center: {
@@ -325,7 +368,6 @@ const styles = {
     height: 18,
     borderRadius: "50%",
     background: "#000",
-    border: "1px solid rgba(255,255,255,0.1)",
     position: "absolute",
     top: "50%",
     left: "50%",
@@ -338,8 +380,7 @@ const styles = {
     height: 130,
     top: 45,
     left: 45,
-    borderRadius: 8,
-    objectFit: "cover"
+    borderRadius: 8
   },
 
   playbar: {
@@ -347,38 +388,19 @@ const styles = {
     bottom: 0,
     left: 260,
     right: 0,
-    height: 70,
+    height: 64,
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     padding: "0 16px",
     background: "rgba(10,10,10,0.75)",
-    backdropFilter: "blur(24px)",
-    borderTop: "1px solid rgba(255,255,255,0.06)"
+    backdropFilter: "blur(24px)"
   },
 
   left: {
-    width: 250
-  },
-
-  trackName: {
+    width: 200,
     fontSize: 12,
     opacity: 0.7
-  },
-
-  progressOuter: {
-    height: 2,
-    background: "rgba(255,255,255,0.1)",
-    marginTop: 8
-  },
-
-  progressInner: {
-    height: 2,
-    background: "white"
-  },
-
-  controls: {
-    display: "flex"
   },
 
   playBtn: {
@@ -388,5 +410,50 @@ const styles = {
     border: "none",
     borderRadius: 8,
     cursor: "pointer"
+  },
+
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  modal: {
+    background: "#111",
+    padding: 20,
+    borderRadius: 12,
+    width: 300
+  },
+
+  modalTitle: {
+    fontSize: 14,
+    marginBottom: 10
+  },
+
+  input: {
+    width: "100%",
+    padding: 10,
+    background: "#000",
+    border: "1px solid rgba(255,255,255,0.1)",
+    color: "white"
+  },
+
+  modalBtn: {
+    flex: 1,
+    padding: 8,
+    background: "white",
+    color: "black",
+    border: "none"
+  },
+
+  modalCancel: {
+    flex: 1,
+    padding: 8,
+    background: "transparent",
+    border: "1px solid rgba(255,255,255,0.2)",
+    color: "white"
   }
 };
