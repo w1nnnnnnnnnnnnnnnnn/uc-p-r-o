@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
-  const [view, setView] = useState("auth"); // auth | home | studio
+  /* ================= AUTH ================= */
+
+  const [view, setView] = useState(() => {
+    const remembered = localStorage.getItem("aurae_remember_session");
+    return remembered ? "home" : "auth";
+  });
 
   const [users, setUsers] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
@@ -9,29 +14,61 @@ export default function App() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
 
-  const [projects, setProjects] = useState({});
+  /* ================= DATA ================= */
+
+  const [projects, setProjects] = useState(() =>
+    JSON.parse(localStorage.getItem("aurae_projects") || "{}")
+  );
+
   const [activeProject, setActiveProject] = useState(null);
-
   const [tracks, setTracks] = useState([]);
+
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
   const [vinylColor, setVinylColor] = useState("#0b0b0b");
+  const [splatterColor, setSplatterColor] = useState("#ff3355");
+  const [splatterOn, setSplatterOn] = useState(false);
 
   const audioRef = useRef(null);
   const current = tracks[index];
+
+  /* ================= HELPERS ================= */
+
+  function saveProjects(next) {
+    setProjects(next);
+    localStorage.setItem("aurae_projects", JSON.stringify(next));
+  }
+
+  function formatTime(sec = 0) {
+    const mins = Math.floor(sec / 60);
+    const secs = Math.floor(sec % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${mins}:${secs}`;
+  }
+
+  function projectDuration(list = []) {
+    const total = list.reduce((sum, t) => sum + (t.duration || 0), 0);
+    return formatTime(total);
+  }
 
   /* ================= AUTH ================= */
 
   function signup() {
     if (!email || !password) return;
 
-    const updated = { ...users, [email]: { password } };
+    const updated = {
+      ...users,
+      [email]: { password }
+    };
+
     setUsers(updated);
     localStorage.setItem("aurae_users", JSON.stringify(updated));
 
-    setView("home");
+    login();
   }
 
   function login() {
@@ -40,7 +77,18 @@ export default function App() {
       return;
     }
 
+    if (remember) {
+      localStorage.setItem("aurae_remember_session", email);
+    } else {
+      localStorage.removeItem("aurae_remember_session");
+    }
+
     setView("home");
+  }
+
+  function logout() {
+    localStorage.removeItem("aurae_remember_session");
+    setView("auth");
   }
 
   /* ================= PROJECTS ================= */
@@ -49,28 +97,33 @@ export default function App() {
     const name = prompt("project name");
     if (!name) return;
 
-    setProjects((p) => ({
-      ...p,
+    const next = {
+      ...projects,
       [name]: { tracks: [] }
-    }));
+    };
+
+    saveProjects(next);
   }
 
   function openProject(name) {
     setActiveProject(name);
     setTracks(projects[name]?.tracks || []);
     setIndex(0);
+    setPlaying(false);
     setView("studio");
   }
 
   function updateTracks(list) {
     setTracks(list);
 
-    setProjects((p) => ({
-      ...p,
+    const next = {
+      ...projects,
       [activeProject]: {
         tracks: list
       }
-    }));
+    };
+
+    saveProjects(next);
   }
 
   /* ================= FILES ================= */
@@ -78,25 +131,34 @@ export default function App() {
   function addTracks(e) {
     const files = Array.from(e.target.files || []);
 
-    const newTracks = files.map((f) => ({
-      id: Date.now() + Math.random(),
-      name: f.name,
-      url: URL.createObjectURL(f),
-      cover: null
-    }));
+    files.forEach((file) => {
+      const url = URL.createObjectURL(file);
 
-    updateTracks([...tracks, ...newTracks]);
+      const probe = new Audio();
+      probe.src = url;
+
+      probe.addEventListener("loadedmetadata", () => {
+        const track = {
+          id: Date.now() + Math.random(),
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          url,
+          duration: probe.duration || 0,
+          cover: null
+        };
+
+        const updated = [...tracks, track];
+        updateTracks(updated);
+      });
+    });
   }
 
   function addCover(e) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !tracks[index]) return;
 
-    const copy = [...tracks];
-    if (copy[index]) {
-      copy[index].cover = URL.createObjectURL(file);
-      updateTracks(copy);
-    }
+    const updated = [...tracks];
+    updated[index].cover = URL.createObjectURL(file);
+    updateTracks(updated);
   }
 
   /* ================= PLAYER ================= */
@@ -109,11 +171,11 @@ export default function App() {
 
     setTimeout(() => {
       const a = audioRef.current;
-      if (!a || !tracks[i]) return;
+      if (!a) return;
 
       a.src = tracks[i].url;
       a.play().catch(() => {});
-    }, 50);
+    }, 40);
   }
 
   function toggle() {
@@ -141,13 +203,13 @@ export default function App() {
     const a = audioRef.current;
     if (!a) return;
 
-    const end = () => {
+    const ended = () => {
       if (index < tracks.length - 1) play(index + 1);
       else setPlaying(false);
     };
 
-    a.addEventListener("ended", end);
-    return () => a.removeEventListener("ended", end);
+    a.addEventListener("ended", ended);
+    return () => a.removeEventListener("ended", ended);
   }, [index, tracks]);
 
   /* ================= AUTH VIEW ================= */
@@ -171,11 +233,25 @@ export default function App() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          <button style={styles.btn} onClick={login}>login</button>
-          <button style={styles.btn} onClick={signup}>sign up</button>
+          <label style={styles.rememberRow}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={() => setRemember(!remember)}
+            />
+            <span>remember me</span>
+          </label>
+
+          <button style={styles.btn} onClick={login}>
+            login
+          </button>
+
+          <button style={styles.btn} onClick={signup}>
+            sign up
+          </button>
 
           <div style={styles.small}>
-            no login = no storage
+            if enabled, login stays saved on this device
           </div>
         </div>
       </div>
@@ -188,7 +264,7 @@ export default function App() {
     return (
       <div style={styles.home}>
         <div style={styles.topRight}>
-          <button style={styles.btn} onClick={() => setView("auth")}>
+          <button style={styles.btn} onClick={logout}>
             logout
           </button>
         </div>
@@ -201,15 +277,22 @@ export default function App() {
           </button>
 
           <div style={styles.grid}>
-            {Object.keys(projects).map((p) => (
-              <div
-                key={p}
-                style={styles.card}
-                onClick={() => openProject(p)}
-              >
-                {p}
-              </div>
-            ))}
+            {Object.keys(projects).map((name) => {
+              const list = projects[name]?.tracks || [];
+
+              return (
+                <div
+                  key={name}
+                  style={styles.card}
+                  onClick={() => openProject(name)}
+                >
+                  <div>{name}</div>
+                  <div style={styles.meta}>
+                    {list.length} tracks • {projectDuration(list)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -220,8 +303,6 @@ export default function App() {
 
   return (
     <div style={styles.app}>
-
-      {/* SIDEBAR */}
       <div style={styles.sidebar}>
         <h3>{activeProject}</h3>
 
@@ -246,10 +327,28 @@ export default function App() {
           />
         </label>
 
+        <div style={styles.sectionTitle}>vinyl color</div>
         <input
           type="color"
           value={vinylColor}
           onChange={(e) => setVinylColor(e.target.value)}
+        />
+
+        <div style={styles.sectionTitle}>splatter</div>
+
+        <label style={styles.rememberRow}>
+          <input
+            type="checkbox"
+            checked={splatterOn}
+            onChange={() => setSplatterOn(!splatterOn)}
+          />
+          <span>enable</span>
+        </label>
+
+        <input
+          type="color"
+          value={splatterColor}
+          onChange={(e) => setSplatterColor(e.target.value)}
         />
 
         <button style={styles.btn} onClick={() => setView("home")}>
@@ -258,28 +357,63 @@ export default function App() {
 
         <div style={styles.list}>
           {tracks.map((t, i) => (
-            <div key={t.id} onClick={() => play(i)} style={styles.track}>
-              {t.name}
+            <div
+              key={t.id}
+              style={styles.track}
+              onClick={() => play(i)}
+            >
+              <span>{t.name}</span>
+              <span style={styles.trackTime}>
+                {formatTime(t.duration)}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* VINYL */}
+      {/* CENTER */}
       <div style={styles.centerStage}>
         <div style={styles.vinylWrap}>
-
           <div
             style={{
               ...styles.vinyl,
               background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 85%)`,
-              animation: playing ? "spin 3.2s linear infinite" : "none"
+              animation: playing ? "spin 1.9s linear infinite" : "none"
             }}
           >
             <div style={styles.grooves} />
 
+            {splatterOn && (
+              <>
+                <div
+                  style={{
+                    ...styles.splatter,
+                    background: splatterColor,
+                    top: "18%",
+                    left: "26%"
+                  }}
+                />
+                <div
+                  style={{
+                    ...styles.splatter,
+                    background: splatterColor,
+                    top: "58%",
+                    left: "70%"
+                  }}
+                />
+                <div
+                  style={{
+                    ...styles.splatter,
+                    background: splatterColor,
+                    top: "68%",
+                    left: "34%"
+                  }}
+                />
+              </>
+            )}
+
             {current?.cover ? (
-              <img src={current.cover} style={styles.label} />
+              <img src={current.cover} style={styles.labelImg} />
             ) : (
               <div style={styles.labelFallback}>
                 {current?.name || "no track"}
@@ -287,28 +421,37 @@ export default function App() {
             )}
           </div>
 
-          {/* STYLUS REAL FEEL */}
           <div
             style={{
               ...styles.stylus,
-              transform: playing ? "rotate(18deg)" : "rotate(24deg)"
+              transform: playing
+                ? "rotate(18deg)"
+                : "rotate(24deg)"
             }}
           />
-
         </div>
       </div>
 
       {/* PLAYER */}
       <div style={styles.player}>
-        <button style={styles.btn} onClick={prev}>⏮</button>
+        <button style={styles.btn} onClick={prev}>
+          ⏮
+        </button>
+
         <button style={styles.btn} onClick={toggle}>
           {playing ? "pause" : "play"}
         </button>
-        <button style={styles.btn} onClick={next}>⏭</button>
+
+        <button style={styles.btn} onClick={next}>
+          ⏭
+        </button>
+
+        <div style={styles.nowPlaying}>
+          {current?.name || "no track loaded"}
+        </div>
 
         <audio ref={audioRef} />
       </div>
-
     </div>
   );
 }
@@ -327,19 +470,19 @@ const styles = {
 
   panel: {
     padding: 40,
-    background: "rgba(255,255,255,0.06)",
-    backdropFilter: "blur(20px)",
-    borderRadius: 20,
+    minWidth: 320,
     display: "flex",
     flexDirection: "column",
     gap: 12,
+    borderRadius: 20,
     color: "white",
-    minWidth: 300
+    background: "rgba(255,255,255,0.06)",
+    backdropFilter: "blur(18px)"
   },
 
   logo: {
     fontSize: 42,
-    marginBottom: 10
+    marginBottom: 8
   },
 
   input: {
@@ -359,14 +502,21 @@ const styles = {
     fontFamily: "Courier New"
   },
 
+  rememberRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13
+  },
+
   small: {
     fontSize: 11,
-    opacity: 0.4,
+    opacity: 0.45,
     textAlign: "center"
   },
 
   home: {
-    height: "100vh",
+    minHeight: "100vh",
     background: "radial-gradient(circle at top, #151515, #0a0a0a)",
     color: "white",
     fontFamily: "Courier New"
@@ -380,21 +530,31 @@ const styles = {
 
   center: {
     textAlign: "center",
-    paddingTop: 120
+    paddingTop: 110
   },
 
   grid: {
     display: "flex",
     justifyContent: "center",
-    gap: 10,
-    marginTop: 30
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 30,
+    padding: "0 20px"
   },
 
   card: {
+    minWidth: 220,
     padding: 16,
+    borderRadius: 16,
+    cursor: "pointer",
     background: "rgba(255,255,255,0.05)",
-    borderRadius: 14,
-    cursor: "pointer"
+    border: "1px solid rgba(255,255,255,0.1)"
+  },
+
+  meta: {
+    marginTop: 8,
+    fontSize: 12,
+    opacity: 0.55
   },
 
   app: {
@@ -406,16 +566,41 @@ const styles = {
   },
 
   sidebar: {
-    width: 260,
+    width: 280,
     padding: 20,
     display: "flex",
     flexDirection: "column",
-    gap: 12
+    gap: 12,
+    overflowY: "auto"
   },
 
-  list: { marginTop: 20 },
+  sectionTitle: {
+    fontSize: 12,
+    opacity: 0.55,
+    marginTop: 4
+  },
 
-  track: { padding: 6, opacity: 0.8, cursor: "pointer" },
+  list: {
+    marginTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8
+  },
+
+  track: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: 8,
+    borderRadius: 10,
+    background: "rgba(255,255,255,0.03)",
+    cursor: "pointer"
+  },
+
+  trackTime: {
+    opacity: 0.6,
+    fontSize: 12
+  },
 
   centerStage: {
     flex: 1,
@@ -429,8 +614,8 @@ const styles = {
   },
 
   vinyl: {
-    width: 380,
-    height: 380,
+    width: 390,
+    height: 390,
     borderRadius: "50%",
     position: "relative",
     boxShadow:
@@ -442,18 +627,27 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.05) 0px, transparent 2px)",
-    opacity: 0.7
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.06) 0px, transparent 2px)"
   },
 
-  label: {
+  splatter: {
+    position: "absolute",
+    width: 44,
+    height: 24,
+    borderRadius: "50% 45% 60% 40%",
+    opacity: 0.9,
+    filter: "blur(0.2px)"
+  },
+
+  labelImg: {
     position: "absolute",
     width: 150,
     height: 150,
     borderRadius: "50%",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%, -50%)"
+    transform: "translate(-50%, -50%)",
+    objectFit: "cover"
   },
 
   labelFallback: {
@@ -466,31 +660,45 @@ const styles = {
     transform: "translate(-50%, -50%)",
     background: "#111",
     display: "flex",
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "center"
+    fontSize: 12,
+    padding: 12,
+    textAlign: "center"
   },
 
   stylus: {
     position: "absolute",
-    width: 160,
+    width: 170,
     height: 6,
     background: "#fff",
-    right: -90,
+    right: -95,
     top: "52%",
     borderRadius: 10,
     transformOrigin: "left center",
-    boxShadow: "0 10px 20px rgba(0,0,0,0.6)"
+    boxShadow: "0 10px 20px rgba(0,0,0,0.55)"
   },
 
   player: {
     position: "fixed",
-    bottom: 0,
-    left: 260,
+    left: 280,
     right: 0,
-    height: 70,
+    bottom: 0,
+    height: 74,
     display: "flex",
+    alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    alignItems: "center"
+    background: "rgba(0,0,0,0.45)",
+    backdropFilter: "blur(14px)"
+  },
+
+  nowPlaying: {
+    marginLeft: 10,
+    opacity: 0.7,
+    maxWidth: 280,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis"
   }
 };
