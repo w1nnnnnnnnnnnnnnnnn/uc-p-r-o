@@ -8,10 +8,6 @@ export default function App() {
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
   );
 
-  const [session, setSession] = useState(
-    localStorage.getItem("aurae_session") || null
-  );
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -46,20 +42,28 @@ export default function App() {
     }
 
     localStorage.setItem("aurae_session", email);
-    setSession(email);
     setMode("home");
   }
 
   function logout() {
     localStorage.removeItem("aurae_session");
-    setSession(null);
     setMode("auth");
   }
 
   /* ================= PROJECT ================= */
 
+  function createProject() {
+    const name = prompt("project name");
+    if (!name) return;
+
+    setProjects((prev) => ({
+      ...prev,
+      [name]: { tracks: [] }
+    }));
+  }
+
   function openProject(name) {
-    const p = projects?.[name];
+    const p = projects[name];
 
     setActive(name);
     setTracks(p?.tracks || []);
@@ -79,17 +83,7 @@ export default function App() {
     }));
   }
 
-  function createProject() {
-    const name = prompt("project name");
-    if (!name) return;
-
-    setProjects((prev) => ({
-      ...prev,
-      [name]: { tracks: [] }
-    }));
-  }
-
-  /* ================= UPLOAD ================= */
+  /* ================= FILES ================= */
 
   function upload(e) {
     const files = Array.from(e.target.files || []);
@@ -118,7 +112,7 @@ export default function App() {
   /* ================= PLAYER ================= */
 
   function play(i) {
-    if (!tracks?.length) return;
+    if (!tracks.length) return;
 
     setIndex(i);
     setPlaying(true);
@@ -157,48 +151,48 @@ export default function App() {
     const a = audioRef.current;
     if (!a) return;
 
-    const onEnd = () => {
+    const end = () => {
       if (index < tracks.length - 1) play(index + 1);
       else setPlaying(false);
     };
 
-    a.addEventListener("ended", onEnd);
-    return () => a.removeEventListener("ended", onEnd);
+    a.addEventListener("ended", end);
+    return () => a.removeEventListener("ended", end);
   }, [index, tracks]);
 
-  /* ================= AUTH SCREEN ================= */
+  /* ================= AUTH ================= */
 
   if (mode === "auth") {
     return (
       <div style={styles.auth}>
-        <div style={styles.glassBox}>
+        <div style={styles.box}>
           <div style={styles.logo}>AURAE</div>
 
           <input
-            style={styles.input}
             placeholder="email"
+            style={styles.input}
             onChange={(e) => setEmail(e.target.value)}
           />
 
           <input
-            style={styles.input}
             type="password"
             placeholder="password"
+            style={styles.input}
             onChange={(e) => setPassword(e.target.value)}
           />
 
           {authMode === "login" ? (
-            <button style={styles.glassBtn} onClick={login}>
+            <button style={styles.btn} onClick={login}>
               login
             </button>
           ) : (
-            <button style={styles.glassBtn} onClick={signup}>
+            <button style={styles.btn} onClick={signup}>
               sign up
             </button>
           )}
 
           <button
-            style={styles.textBtn}
+            style={styles.link}
             onClick={() =>
               setAuthMode(authMode === "login" ? "signup" : "login")
             }
@@ -206,8 +200,8 @@ export default function App() {
             switch mode
           </button>
 
-          <div style={styles.smallText}>
-            no login = nothing is saved locally
+          <div style={styles.small}>
+            no login = nothing saved locally
           </div>
         </div>
       </div>
@@ -220,24 +214,21 @@ export default function App() {
     return (
       <div style={styles.home}>
         <div style={styles.topRight}>
-          <button style={styles.glassBtn} onClick={logout}>
-            logout
-          </button>
+          <button style={styles.btn} onClick={logout}>logout</button>
         </div>
 
-        <div style={styles.homeCenter}>
+        <div style={styles.centerHome}>
           <div style={styles.logo}>AURAE</div>
-          <div style={styles.sub}>retro audio workspace</div>
 
-          <button style={styles.glassBtn} onClick={createProject}>
+          <button style={styles.btn} onClick={createProject}>
             + create project
           </button>
 
-          <div style={styles.projectGrid}>
-            {Object.keys(projects || {}).map((p) => (
+          <div style={styles.grid}>
+            {Object.keys(projects).map((p) => (
               <div
                 key={p}
-                style={styles.projectCard}
+                style={styles.card}
                 onClick={() => openProject(p)}
               >
                 {p}
@@ -256,14 +247,25 @@ export default function App() {
       <div style={styles.sidebar}>
         <h3>{active}</h3>
 
-        <label style={styles.glassBtn}>
+        <label style={styles.btn}>
           add tracks
-          <input type="file" multiple hidden onChange={upload} />
+          <input
+            type="file"
+            multiple
+            accept=".mp3,.wav"
+            hidden
+            onChange={upload}
+          />
         </label>
 
-        <label style={styles.glassBtn}>
+        <label style={styles.btn}>
           cover art
-          <input type="file" hidden onChange={uploadCover} />
+          <input
+            type="file"
+            accept=".png,.jpg,.jpeg"
+            hidden
+            onChange={uploadCover}
+          />
         </label>
 
         <input
@@ -272,7 +274,7 @@ export default function App() {
           onChange={(e) => setVinylColor(e.target.value)}
         />
 
-        <button style={styles.glassBtn} onClick={() => setMode("home")}>
+        <button style={styles.btn} onClick={() => setMode("home")}>
           home
         </button>
 
@@ -288,12 +290,11 @@ export default function App() {
       {/* VINYL */}
       <div style={styles.center}>
         <div style={styles.vinylWrap}>
-
           <div
             style={{
               ...styles.vinyl,
               background: `radial-gradient(circle at 30% 30%, ${vinylColor}, #000 80%)`,
-              animation: playing ? "spin 4s linear infinite" : "none"
+              animation: playing ? "spin 3s linear infinite" : "none"
             }}
           >
             <div style={styles.grooves} />
@@ -313,17 +314,16 @@ export default function App() {
               transform: playing ? "rotate(20deg)" : "rotate(24deg)"
             }}
           />
-
         </div>
       </div>
 
       {/* PLAYER */}
       <div style={styles.player}>
-        <button style={styles.glassBtn} onClick={prev}>⏮</button>
-        <button style={styles.glassBtn} onClick={toggle}>
+        <button style={styles.btn} onClick={prev}>⏮</button>
+        <button style={styles.btn} onClick={toggle}>
           {playing ? "pause" : "play"}
         </button>
-        <button style={styles.glassBtn} onClick={next}>⏭</button>
+        <button style={styles.btn} onClick={next}>⏭</button>
 
         <audio ref={audioRef} />
       </div>
@@ -343,38 +343,42 @@ const styles = {
     fontFamily: "Courier New"
   },
 
-  glassBox: {
+  box: {
     padding: 40,
-    borderRadius: 20,
     background: "rgba(255,255,255,0.06)",
-    backdropFilter: "blur(18px)",
+    borderRadius: 20,
     display: "flex",
     flexDirection: "column",
     gap: 12,
-    color: "white",
-    minWidth: 280
+    minWidth: 280,
+    backdropFilter: "blur(18px)",
+    color: "white"
   },
 
-  glassBtn: {
+  input: {
+    padding: 10,
+    background: "#111",
+    border: "1px solid #333",
+    color: "white"
+  },
+
+  btn: {
     padding: "10px 14px",
     borderRadius: 14,
     background: "rgba(255,255,255,0.08)",
     border: "1px solid rgba(255,255,255,0.15)",
     color: "white",
-    backdropFilter: "blur(18px)",
     cursor: "pointer",
     fontFamily: "Courier New"
   },
 
-  textBtn: {
+  link: {
     background: "none",
     border: "none",
-    color: "white",
-    opacity: 0.6,
-    cursor: "pointer"
+    color: "gray"
   },
 
-  smallText: {
+  small: {
     fontSize: 11,
     opacity: 0.4,
     textAlign: "center"
@@ -382,7 +386,7 @@ const styles = {
 
   home: {
     height: "100vh",
-    background: "radial-gradient(circle at top, #151515, #0b0b0b)",
+    background: "#0b0b0b",
     color: "white",
     fontFamily: "Courier New"
   },
@@ -393,27 +397,28 @@ const styles = {
     right: 20
   },
 
-  homeCenter: {
+  centerHome: {
     textAlign: "center",
     paddingTop: 120
   },
 
-  logo: { fontSize: 44 },
+  logo: {
+    fontSize: 44,
+    marginBottom: 20
+  },
 
-  sub: { opacity: 0.4 },
-
-  projectGrid: {
+  grid: {
     display: "flex",
     justifyContent: "center",
     gap: 10,
-    marginTop: 40
+    marginTop: 30
   },
 
-  projectCard: {
+  card: {
     padding: 16,
-    borderRadius: 14,
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 14,
     cursor: "pointer"
   },
 
@@ -427,12 +432,15 @@ const styles = {
 
   sidebar: {
     width: 260,
-    padding: 20
+    padding: 20,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12
   },
 
   trackList: { marginTop: 20 },
 
-  track: { padding: 6, cursor: "pointer", opacity: 0.8 },
+  track: { padding: 6, opacity: 0.8, cursor: "pointer" },
 
   center: {
     flex: 1,
@@ -448,7 +456,7 @@ const styles = {
     height: 360,
     borderRadius: "50%",
     position: "relative",
-    boxShadow: "0 40px 80px rgba(0,0,0,0.8)"
+    boxShadow: "0 50px 100px rgba(0,0,0,0.9)"
   },
 
   grooves: {
@@ -456,7 +464,7 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.04) 0px, transparent 2px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.05) 0px, transparent 2px)"
   },
 
   label: {
@@ -466,7 +474,7 @@ const styles = {
     borderRadius: "50%",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%, -50%)"
+    transform: "translate(-50%,-50%)"
   },
 
   labelFallback: {
@@ -476,7 +484,7 @@ const styles = {
     borderRadius: "50%",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%, -50%)",
+    transform: "translate(-50%,-50%)",
     background: "#111",
     display: "flex",
     alignItems: "center",
@@ -490,8 +498,8 @@ const styles = {
     background: "#fff",
     right: -80,
     top: "52%",
-    borderRadius: 10,
-    transformOrigin: "left center"
+    transformOrigin: "left center",
+    borderRadius: 10
   },
 
   player: {
@@ -499,10 +507,9 @@ const styles = {
     bottom: 0,
     left: 260,
     right: 0,
-    height: 70,
     display: "flex",
     justifyContent: "center",
     gap: 10,
-    alignItems: "center"
+    padding: 10
   }
 };
