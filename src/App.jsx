@@ -27,8 +27,8 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
 
   const [vinylColor, setVinylColor] = useState("#111111");
-
-  /* ================= NEW AUDIO STATE ================= */
+  const [splatterColor, setSplatterColor] = useState("#4d7cff");
+  const [splatterOn, setSplatterOn] = useState(false);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -80,9 +80,7 @@ export default function App() {
       return;
     }
 
-    if (remember) {
-      localStorage.setItem("aurae_remember", email);
-    }
+    if (remember) localStorage.setItem("aurae_remember", email);
 
     setView("home");
   }
@@ -111,6 +109,8 @@ export default function App() {
     setTracks(projects[name]?.tracks || []);
     setIndex(0);
     setPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
     setView("studio");
   }
 
@@ -127,7 +127,7 @@ export default function App() {
     saveProjects(next);
   }
 
-  /* ================= MULTI TRACK UPLOAD ================= */
+  /* ================= TRACK UPLOAD ================= */
 
   async function addTracks(e) {
     const files = Array.from(e.target.files || []);
@@ -155,7 +155,7 @@ export default function App() {
     updateTracks([...tracks, ...loaded]);
   }
 
-  /* ================= COVER FIX (IMPORTANT) ================= */
+  /* ================= COVER ================= */
 
   function addCover(e) {
     const file = e.target.files?.[0];
@@ -177,6 +177,7 @@ export default function App() {
 
     setIndex(i);
     setPlaying(true);
+    setCurrentTime(0);
 
     setTimeout(() => {
       const a = audioRef.current;
@@ -210,6 +211,15 @@ export default function App() {
     if (index > 0) play(index - 1);
   }
 
+  /* SEEK BAR */
+  function seek(e) {
+    const a = audioRef.current;
+    const value = Number(e.target.value);
+
+    a.currentTime = value;
+    setCurrentTime(value);
+  }
+
   /* ================= AUDIO EVENTS ================= */
 
   useEffect(() => {
@@ -237,7 +247,37 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* ================= AUTH SCREEN ================= */
+  /* ================= REAL STYLUS POSITION ================= */
+  const trackProgress = duration ? currentTime / duration : 0;
+
+  const songProgress =
+    tracks.length > 1 ? index / (tracks.length - 1) : 0;
+
+  const globalProgress = (songProgress + trackProgress / tracks.length);
+
+  const stylusRotation = 28 - globalProgress * 16;
+
+  /* ================= VINYL LOOK ================= */
+
+  const vinylBackground = splatterOn
+    ? `
+radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%),
+repeating-radial-gradient(circle,
+transparent 0px,
+transparent 26px,
+rgba(255,255,255,0.05) 28px,
+transparent 30px),
+radial-gradient(circle at 18% 25%, ${splatterColor} 0 6px, transparent 7px),
+radial-gradient(circle at 72% 24%, ${splatterColor} 0 8px, transparent 9px),
+radial-gradient(circle at 83% 52%, ${splatterColor} 0 5px, transparent 6px),
+radial-gradient(circle at 25% 74%, ${splatterColor} 0 9px, transparent 10px),
+radial-gradient(circle at 62% 78%, ${splatterColor} 0 7px, transparent 8px),
+radial-gradient(circle at 42% 12%, ${splatterColor} 0 4px, transparent 5px),
+radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
+`
+    : `radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)`;
+
+  /* ================= AUTH ================= */
 
   if (view === "auth") {
     return (
@@ -311,7 +351,6 @@ export default function App() {
                 >
                   <div style={{ fontSize: 18 }}>{name}</div>
 
-                  {/* COVER PREVIEW */}
                   {list[0]?.cover && (
                     <img
                       src={list[0].cover}
@@ -378,15 +417,38 @@ export default function App() {
           onChange={(e) => setVinylColor(e.target.value)}
         />
 
+        <div style={styles.section}>splatter</div>
+
+        <label style={styles.row}>
+          <input
+            type="checkbox"
+            checked={splatterOn}
+            onChange={() => setSplatterOn(!splatterOn)}
+          />
+          <span>enable</span>
+        </label>
+
+        <input
+          type="color"
+          value={splatterColor}
+          onChange={(e) => setSplatterColor(e.target.value)}
+        />
+
         <button style={styles.btn} onClick={() => setView("home")}>
           home
         </button>
 
         <div style={styles.list}>
           {tracks.map((t, i) => (
-            <div key={t.id} style={styles.track} onClick={() => play(i)}>
+            <div
+              key={t.id}
+              style={styles.track}
+              onClick={() => play(i)}
+            >
               <span>{t.name}</span>
-              <span>{formatTime(t.duration)}</span>
+              <span style={styles.trackTime}>
+                {formatTime(t.duration)}
+              </span>
             </div>
           ))}
         </div>
@@ -400,14 +462,17 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)`,
-              animation: playing ? "spin 1.55s linear infinite" : "none"
+              background: vinylBackground,
+              animation: playing
+                ? "spin 1.55s linear infinite"
+                : "none"
             }}
           >
             <div style={styles.grooves} />
             <div style={styles.spinDot} />
             <div style={styles.spinShine} />
 
+            {/* cover bleibt immer sichtbar */}
             {current?.cover ? (
               <img src={current.cover} style={styles.labelImg} />
             ) : (
@@ -417,10 +482,11 @@ export default function App() {
             )}
           </div>
 
+          {/* STYLUS REAL POSITION */}
           <div
             style={{
               ...styles.arm,
-              transform: playing ? "rotate(18deg)" : "rotate(28deg)"
+              transform: `rotate(${stylusRotation}deg)`
             }}
           >
             <div style={styles.head} />
@@ -443,10 +509,24 @@ export default function App() {
         </button>
 
         <div style={styles.now}>
-          {current?.name || "no track"} •{" "}
+          {current?.name || "no track loaded"}
+        </div>
+
+        <div style={styles.timeBox}>
           {formatTime(currentTime)} / {formatTime(duration)} • left{" "}
           {formatTime(remaining)}
         </div>
+
+        {/* SEEK BAR */}
+        <input
+          type="range"
+          min="0"
+          max={duration || 0}
+          step="0.01"
+          value={currentTime}
+          onChange={seek}
+          style={styles.seek}
+        />
       </div>
 
       <audio ref={audioRef} />
@@ -454,7 +534,7 @@ export default function App() {
   );
 }
 
-/* ================= STYLES (UNCHANGED) ================= */
+/* ================= STYLES ================= */
 
 const styles = {
   app: {
@@ -470,8 +550,7 @@ const styles = {
     background: "radial-gradient(circle at top, #171717, #090909)",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
-    fontFamily: "Courier New, monospace"
+    alignItems: "center"
   },
 
   panel: {
@@ -511,18 +590,14 @@ const styles = {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.07)",
-    backdropFilter: "blur(14px)",
     color: "white",
     cursor: "pointer",
-    fontFamily: "inherit",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.25)"
+    fontFamily: "inherit"
   },
 
   home: {
     minHeight: "100vh",
-    background: "radial-gradient(circle at top, #151515, #090909)",
-    color: "white",
-    fontFamily: "Courier New, monospace"
+    background: "radial-gradient(circle at top, #151515, #090909)"
   },
 
   topRight: {
@@ -549,9 +624,7 @@ const styles = {
     padding: 18,
     borderRadius: 18,
     background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.09)",
-    cursor: "pointer",
-    boxShadow: "0 18px 40px rgba(0,0,0,0.25)"
+    cursor: "pointer"
   },
 
   meta: {
@@ -585,11 +658,15 @@ const styles = {
   track: {
     display: "flex",
     justifyContent: "space-between",
-    gap: 10,
     padding: 10,
     borderRadius: 12,
     background: "rgba(255,255,255,0.03)",
     cursor: "pointer"
+  },
+
+  trackTime: {
+    fontSize: 12,
+    opacity: 0.55
   },
 
   stage: {
@@ -613,8 +690,10 @@ const styles = {
     width: 520,
     height: 520,
     borderRadius: 28,
-    background: "linear-gradient(145deg,#f7f7f7,#d9d9d9)",
-    boxShadow: "0 40px 80px rgba(0,0,0,0.35)"
+    background:
+      "linear-gradient(145deg,#f7f7f7,#d9d9d9)",
+    boxShadow:
+      "0 40px 80px rgba(0,0,0,0.35)"
   },
 
   vinyl: {
@@ -643,8 +722,7 @@ const styles = {
     background: "#fff",
     top: 36,
     left: "50%",
-    transform: "translateX(-50%)",
-    boxShadow: "0 0 14px rgba(255,255,255,0.55)"
+    transform: "translateX(-50%)"
   },
 
   spinShine: {
@@ -680,10 +758,7 @@ const styles = {
     transform: "translate(-50%, -50%)",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
-    fontSize: 12,
-    textAlign: "center",
-    padding: 10
+    alignItems: "center"
   },
 
   arm: {
@@ -695,9 +770,8 @@ const styles = {
     right: 62,
     borderRadius: 10,
     transformOrigin: "12px center",
-    transition: "0.5s ease",
-    zIndex: 5,
-    boxShadow: "0 8px 20px rgba(0,0,0,0.3)"
+    transition: "0.25s linear",
+    zIndex: 5
   },
 
   head: {
@@ -715,22 +789,32 @@ const styles = {
     left: 290,
     right: 0,
     bottom: 0,
-    height: 78,
+    minHeight: 92,
     display: "flex",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
+    padding: 10,
     background: "rgba(0,0,0,0.45)",
     backdropFilter: "blur(16px)"
   },
 
   now: {
-    marginLeft: 12,
-    maxWidth: 280,
+    maxWidth: 240,
     overflow: "hidden",
     whiteSpace: "nowrap",
     textOverflow: "ellipsis",
-    opacity: 0.65
+    opacity: 0.7
+  },
+
+  timeBox: {
+    fontSize: 12,
+    opacity: 0.7
+  },
+
+  seek: {
+    width: "60%"
   }
 };
 
@@ -739,15 +823,18 @@ const styles = {
 const style = document.createElement("style");
 style.innerHTML = `
 @keyframes spin{
-  from{transform:rotate(0deg);}
-  to{transform:rotate(360deg);}
+from{transform:rotate(0deg);}
+to{transform:rotate(360deg);}
 }
 body{
-  margin:0;
-  overflow:hidden;
+margin:0;
+overflow:hidden;
 }
 *{
-  box-sizing:border-box;
+box-sizing:border-box;
+}
+input[type="range"]{
+accent-color:white;
 }
 `;
 document.head.appendChild(style);
