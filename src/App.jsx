@@ -3,9 +3,9 @@ import React, { useEffect, useRef, useState } from "react";
 export default function App() {
   /* ================= AUTH ================= */
 
-  const [view, setView] = useState(() => {
-    return localStorage.getItem("aurae_remember") ? "home" : "auth";
-  });
+  const [view, setView] = useState(() =>
+    localStorage.getItem("aurae_remember") ? "home" : "auth"
+  );
 
   const [users, setUsers] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
@@ -263,7 +263,10 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* ================= STYLUS FIX ================= */
+  /* =====================================================
+     STYLUS V2 REAL PHYSICS
+     echte Kreisbahn + Winkelberechnung
+  ===================================================== */
 
   const totalSongs = Math.max(tracks.length, 1);
   const songProgress = duration > 0 ? currentTime / duration : 0;
@@ -273,7 +276,32 @@ export default function App() {
       ? 0
       : (index + songProgress) / totalSongs;
 
-  const stylusDeg = 32 - projectProgress * 24;
+  /* Vinyl Zentrum innerhalb Turntable */
+  const cx = 280;
+  const cy = 280;
+
+  /* Pivot rechts */
+  const px = 470;
+  const py = 285;
+
+  /* außen -> innen Radius */
+  const startRadius = 175;
+  const endRadius = 75;
+
+  const needleRadius =
+    startRadius - (startRadius - endRadius) * projectProgress;
+
+  /* Kontaktpunkt leicht rechts oben */
+  const grooveAngle = -0.9; // Radiant
+
+  const nx = cx + Math.cos(grooveAngle) * needleRadius;
+  const ny = cy + Math.sin(grooveAngle) * needleRadius;
+
+  /* Winkel Arm zum Kontaktpunkt */
+  const armAngle =
+    (Math.atan2(ny - py, nx - px) * 180) / Math.PI;
+
+  const armLength = Math.hypot(nx - px, ny - py);
 
   /* ================= AUTH SCREEN ================= */
 
@@ -509,13 +537,22 @@ export default function App() {
             )}
           </div>
 
-          {/* STYLUS */}
-          <div style={styles.armBase} />
+          {/* STYLUS V2 */}
+          <div
+            style={{
+              ...styles.armBase,
+              left: px - 15,
+              top: py - 15
+            }}
+          />
 
           <div
             style={{
               ...styles.arm,
-              transform: `rotate(${stylusDeg}deg)`
+              width: armLength,
+              left: px,
+              top: py - 4,
+              transform: `rotate(${armAngle}deg)`
             }}
           >
             <div style={styles.counter} />
@@ -579,8 +616,7 @@ const styles = {
     background: "radial-gradient(circle at top, #171717, #090909)",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
-    fontFamily: "Courier New, monospace"
+    alignItems: "center"
   },
 
   panel: {
@@ -620,7 +656,6 @@ const styles = {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.07)",
-    backdropFilter: "blur(14px)",
     color: "white",
     cursor: "pointer",
     fontFamily: "inherit"
@@ -749,10 +784,11 @@ const styles = {
     width: 390,
     height: 390,
     borderRadius: "50%",
-    position: "relative",
+    position: "absolute",
+    top: 85,
+    left: 85,
     zIndex: 2,
-    boxShadow:
-      "0 25px 60px rgba(0,0,0,0.8)"
+    boxShadow: "0 25px 60px rgba(0,0,0,0.8)"
   },
 
   grooves: {
@@ -790,8 +826,6 @@ const styles = {
 
   armBase: {
     position: "absolute",
-    right: 74,
-    top: 262,
     width: 30,
     height: 30,
     borderRadius: "50%",
@@ -802,23 +836,20 @@ const styles = {
 
   arm: {
     position: "absolute",
-    right: 88,
-    top: 276,
-    width: 220,
     height: 8,
     borderRadius: 30,
     background:
       "linear-gradient(145deg,#fafafa,#8e8e8e)",
-    transformOrigin: "12px center",
-    transition: "transform .15s ease-out",
+    transformOrigin: "0px center",
+    transition: "all .12s linear",
     zIndex: 6
   },
 
   counter: {
     position: "absolute",
-    left: -18,
+    left: -16,
     top: -4,
-    width: 24,
+    width: 22,
     height: 16,
     borderRadius: 10,
     background: "#666"
@@ -836,7 +867,7 @@ const styles = {
 
   needle: {
     position: "absolute",
-    right: 0,
+    right: 1,
     top: 13,
     width: 2,
     height: 12,
