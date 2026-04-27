@@ -3,9 +3,9 @@ import React, { useEffect, useRef, useState } from "react";
 export default function App() {
   /* ================= AUTH ================= */
 
-  const [view, setView] = useState(() => {
-    return localStorage.getItem("aurae_remember") ? "home" : "auth";
-  });
+  const [view, setView] = useState(() =>
+    localStorage.getItem("aurae_remember") ? "home" : "auth"
+  );
 
   const [users, setUsers] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
@@ -27,11 +27,14 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
 
   const [vinylColor, setVinylColor] = useState("#111111");
+  const [splatterOn, setSplatterOn] = useState(true);
   const [splatterColor, setSplatterColor] = useState("#4d7cff");
-  const [splatterOn, setSplatterOn] = useState(false);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  const [menu, setMenu] = useState(null); // {x,y,i}
+  const [dragIndex, setDragIndex] = useState(null);
 
   const audioRef = useRef(null);
 
@@ -45,17 +48,33 @@ export default function App() {
     localStorage.setItem("aurae_projects", JSON.stringify(next));
   }
 
+  function saveTrackList(list) {
+    setTracks(list);
+
+    const next = {
+      ...projects,
+      [activeProject]: {
+        ...(projects[activeProject] || {}),
+        tracks: list
+      }
+    };
+
+    saveProjects(next);
+  }
+
   function formatTime(sec = 0) {
     const mins = Math.floor(sec / 60);
     const secs = Math.floor(sec % 60)
       .toString()
       .padStart(2, "0");
+
     return `${mins}:${secs}`;
   }
 
   function totalDuration(list = []) {
-    const sum = list.reduce((acc, t) => acc + (t.duration || 0), 0);
-    return formatTime(sum);
+    return formatTime(
+      list.reduce((a, b) => a + (b.duration || 0), 0)
+    );
   }
 
   /* ================= AUTH ================= */
@@ -80,7 +99,9 @@ export default function App() {
       return;
     }
 
-    if (remember) localStorage.setItem("aurae_remember", email);
+    if (remember) {
+      localStorage.setItem("aurae_remember", email);
+    }
 
     setView("home");
   }
@@ -114,20 +135,7 @@ export default function App() {
     setView("studio");
   }
 
-  function updateTracks(list) {
-    setTracks(list);
-
-    const next = {
-      ...projects,
-      [activeProject]: {
-        tracks: list
-      }
-    };
-
-    saveProjects(next);
-  }
-
-  /* ================= TRACK UPLOAD ================= */
+  /* ================= TRACKS ================= */
 
   async function addTracks(e) {
     const files = Array.from(e.target.files || []);
@@ -152,22 +160,58 @@ export default function App() {
       )
     );
 
-    updateTracks([...tracks, ...loaded]);
+    saveTrackList([...tracks, ...loaded]);
   }
 
-  /* ================= COVER ================= */
+  /* ================= COVER FIX ================= */
 
   function addCover(e) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !tracks[index]) return;
 
-    const url = URL.createObjectURL(file);
+    const reader = new FileReader();
 
-    const updated = tracks.map((t, i) =>
-      i === index ? { ...t, cover: url } : t
-    );
+    reader.onload = () => {
+      const base64 = reader.result;
 
-    updateTracks(updated);
+      const list = tracks.map((t, i) =>
+        i === index ? { ...t, cover: base64 } : t
+      );
+
+      saveTrackList(list);
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  /* ================= DELETE ================= */
+
+  function deleteTrack(i) {
+    const list = tracks.filter((_, n) => n !== i);
+
+    let nextIndex = index;
+
+    if (i < index) nextIndex--;
+    if (nextIndex >= list.length) nextIndex = list.length - 1;
+    if (nextIndex < 0) nextIndex = 0;
+
+    setIndex(nextIndex);
+    saveTrackList(list);
+    setMenu(null);
+  }
+
+  /* ================= REORDER ================= */
+
+  function moveTrack(from, to) {
+    if (from === to || to == null) return;
+
+    const list = [...tracks];
+    const item = list.splice(from, 1)[0];
+    list.splice(to, 0, item);
+
+    saveTrackList(list);
+
+    if (index === from) setIndex(to);
   }
 
   /* ================= PLAYER ================= */
@@ -177,7 +221,6 @@ export default function App() {
 
     setIndex(i);
     setPlaying(true);
-    setCurrentTime(0);
 
     setTimeout(() => {
       const a = audioRef.current;
@@ -211,10 +254,9 @@ export default function App() {
     if (index > 0) play(index - 1);
   }
 
-  /* SEEK BAR */
   function seek(e) {
-    const a = audioRef.current;
     const value = Number(e.target.value);
+    const a = audioRef.current;
 
     a.currentTime = value;
     setCurrentTime(value);
@@ -231,51 +273,56 @@ export default function App() {
       else setPlaying(false);
     };
 
-    const updateTime = () => {
+    const time = () => {
       setCurrentTime(a.currentTime || 0);
       setDuration(a.duration || 0);
     };
 
     a.addEventListener("ended", ended);
-    a.addEventListener("timeupdate", updateTime);
-    a.addEventListener("loadedmetadata", updateTime);
+    a.addEventListener("timeupdate", time);
+    a.addEventListener("loadedmetadata", time);
 
     return () => {
       a.removeEventListener("ended", ended);
-      a.removeEventListener("timeupdate", updateTime);
-      a.removeEventListener("loadedmetadata", updateTime);
+      a.removeEventListener("timeupdate", time);
+      a.removeEventListener("loadedmetadata", time);
     };
   }, [index, tracks]);
 
-  /* ================= REAL STYLUS POSITION ================= */
-  const trackProgress = duration ? currentTime / duration : 0;
+  /* ================= REAL STYLUS FIX ================= */
 
-  const songProgress =
+  const songPart =
     tracks.length > 1 ? index / (tracks.length - 1) : 0;
 
-  const globalProgress = (songProgress + trackProgress / tracks.length);
+  const timePart = duration ? currentTime / duration : 0;
 
-  const stylusRotation = 28 - globalProgress * 16;
+  const progress =
+    tracks.length > 0
+      ? (index + timePart) / tracks.length
+      : 0;
 
-  /* ================= VINYL LOOK ================= */
+  const stylusRotation = 29 - progress * 17;
 
-  const vinylBackground = splatterOn
+  /* ================= SPLATTER FIX ================= */
+
+  const splatterLayer = splatterOn
     ? `
-radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%),
-repeating-radial-gradient(circle,
-transparent 0px,
-transparent 26px,
-rgba(255,255,255,0.05) 28px,
-transparent 30px),
-radial-gradient(circle at 18% 25%, ${splatterColor} 0 6px, transparent 7px),
-radial-gradient(circle at 72% 24%, ${splatterColor} 0 8px, transparent 9px),
-radial-gradient(circle at 83% 52%, ${splatterColor} 0 5px, transparent 6px),
-radial-gradient(circle at 25% 74%, ${splatterColor} 0 9px, transparent 10px),
-radial-gradient(circle at 62% 78%, ${splatterColor} 0 7px, transparent 8px),
-radial-gradient(circle at 42% 12%, ${splatterColor} 0 4px, transparent 5px),
-radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
+radial-gradient(circle at 18% 22%, ${splatterColor} 0 8px, transparent 9px),
+radial-gradient(circle at 34% 12%, ${splatterColor} 0 6px, transparent 7px),
+radial-gradient(circle at 72% 19%, ${splatterColor} 0 7px, transparent 8px),
+radial-gradient(circle at 84% 42%, ${splatterColor} 0 10px, transparent 11px),
+radial-gradient(circle at 77% 76%, ${splatterColor} 0 6px, transparent 7px),
+radial-gradient(circle at 26% 78%, ${splatterColor} 0 9px, transparent 10px),
+radial-gradient(circle at 13% 58%, ${splatterColor} 0 7px, transparent 8px),
+radial-gradient(circle at 58% 84%, ${splatterColor} 0 8px, transparent 9px),
+radial-gradient(circle at 58% 15%, ${splatterColor} 0 5px, transparent 6px),
 `
-    : `radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)`;
+    : "";
+
+  const vinylBg = `
+${splatterLayer}
+radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
+`;
 
   /* ================= AUTH ================= */
 
@@ -306,7 +353,7 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
               checked={remember}
               onChange={() => setRemember(!remember)}
             />
-            <span>remember me</span>
+            remember me
           </label>
 
           <button style={styles.btn} onClick={login}>
@@ -379,10 +426,13 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
   /* ================= STUDIO ================= */
 
   return (
-    <div style={styles.app}>
+    <div
+      style={styles.app}
+      onClick={() => setMenu(null)}
+    >
       {/* LEFT */}
       <div style={styles.sidebar}>
-        <h3 style={{ marginBottom: 4 }}>{activeProject}</h3>
+        <h3>{activeProject}</h3>
 
         <div style={styles.meta}>
           {tracks.length} tracks • {totalDuration(tracks)}
@@ -410,7 +460,6 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
         </label>
 
         <div style={styles.section}>vinyl color</div>
-
         <input
           type="color"
           value={vinylColor}
@@ -425,7 +474,7 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
             checked={splatterOn}
             onChange={() => setSplatterOn(!splatterOn)}
           />
-          <span>enable</span>
+          enable
         </label>
 
         <input
@@ -434,7 +483,10 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
           onChange={(e) => setSplatterColor(e.target.value)}
         />
 
-        <button style={styles.btn} onClick={() => setView("home")}>
+        <button
+          style={styles.btn}
+          onClick={() => setView("home")}
+        >
           home
         </button>
 
@@ -442,7 +494,25 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
           {tracks.map((t, i) => (
             <div
               key={t.id}
-              style={styles.track}
+              draggable
+              onDragStart={() => setDragIndex(i)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => moveTrack(dragIndex, i)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  i
+                });
+              }}
+              style={{
+                ...styles.track,
+                border:
+                  i === index
+                    ? "1px solid rgba(255,255,255,0.25)"
+                    : "1px solid transparent"
+              }}
               onClick={() => play(i)}
             >
               <span>{t.name}</span>
@@ -462,7 +532,7 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
           <div
             style={{
               ...styles.vinyl,
-              background: vinylBackground,
+              background: vinylBg,
               animation: playing
                 ? "spin 1.55s linear infinite"
                 : "none"
@@ -470,11 +540,12 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
           >
             <div style={styles.grooves} />
             <div style={styles.spinDot} />
-            <div style={styles.spinShine} />
 
-            {/* cover bleibt immer sichtbar */}
             {current?.cover ? (
-              <img src={current.cover} style={styles.labelImg} />
+              <img
+                src={current.cover}
+                style={styles.labelImg}
+              />
             ) : (
               <div style={styles.labelFallback}>
                 {current?.name || "AURAE"}
@@ -482,7 +553,6 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
             )}
           </div>
 
-          {/* STYLUS REAL POSITION */}
           <div
             style={{
               ...styles.arm,
@@ -513,11 +583,11 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
         </div>
 
         <div style={styles.timeBox}>
-          {formatTime(currentTime)} / {formatTime(duration)} • left{" "}
+          {formatTime(currentTime)} / {formatTime(duration)}
+          {" • left "}
           {formatTime(remaining)}
         </div>
 
-        {/* SEEK BAR */}
         <input
           type="range"
           min="0"
@@ -528,6 +598,24 @@ radial-gradient(circle at 14% 55%, ${splatterColor} 0 5px, transparent 6px)
           style={styles.seek}
         />
       </div>
+
+      {/* CONTEXT MENU */}
+      {menu && (
+        <div
+          style={{
+            ...styles.menu,
+            left: menu.x,
+            top: menu.y
+          }}
+        >
+          <div
+            style={styles.menuItem}
+            onClick={() => deleteTrack(menu.i)}
+          >
+            delete
+          </div>
+        </div>
+      )}
 
       <audio ref={audioRef} />
     </div>
@@ -547,7 +635,8 @@ const styles = {
 
   auth: {
     height: "100vh",
-    background: "radial-gradient(circle at top, #171717, #090909)",
+    background:
+      "radial-gradient(circle at top, #171717, #090909)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
@@ -558,46 +647,40 @@ const styles = {
     padding: 34,
     borderRadius: 22,
     background: "rgba(255,255,255,0.06)",
-    backdropFilter: "blur(18px)",
     display: "flex",
     flexDirection: "column",
     gap: 12
   },
 
   logo: {
-    fontSize: 44,
-    marginBottom: 6,
-    letterSpacing: 2
+    fontSize: 44
   },
 
   input: {
     padding: 12,
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "#101010",
-    color: "white"
+    border: "none"
+  },
+
+  btn: {
+    padding: "12px 16px",
+    borderRadius: 14,
+    border: "none",
+    background: "#1f1f1f",
+    color: "white",
+    cursor: "pointer"
   },
 
   row: {
     display: "flex",
     gap: 8,
-    alignItems: "center",
-    fontSize: 13
-  },
-
-  btn: {
-    padding: "12px 16px",
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.07)",
-    color: "white",
-    cursor: "pointer",
-    fontFamily: "inherit"
+    alignItems: "center"
   },
 
   home: {
     minHeight: "100vh",
-    background: "radial-gradient(circle at top, #151515, #090909)"
+    background:
+      "radial-gradient(circle at top, #151515, #090909)"
   },
 
   topRight: {
@@ -613,9 +696,9 @@ const styles = {
 
   grid: {
     display: "flex",
+    gap: 14,
     justifyContent: "center",
     flexWrap: "wrap",
-    gap: 14,
     padding: 24
   },
 
@@ -645,11 +728,10 @@ const styles = {
 
   section: {
     fontSize: 12,
-    opacity: 0.55
+    opacity: 0.6
   },
 
   list: {
-    marginTop: 8,
     display: "flex",
     flexDirection: "column",
     gap: 8
@@ -665,8 +747,8 @@ const styles = {
   },
 
   trackTime: {
-    fontSize: 12,
-    opacity: 0.55
+    opacity: 0.55,
+    fontSize: 12
   },
 
   stage: {
@@ -691,9 +773,7 @@ const styles = {
     height: 520,
     borderRadius: 28,
     background:
-      "linear-gradient(145deg,#f7f7f7,#d9d9d9)",
-    boxShadow:
-      "0 40px 80px rgba(0,0,0,0.35)"
+      "linear-gradient(145deg,#f7f7f7,#d9d9d9)"
   },
 
   vinyl: {
@@ -701,9 +781,7 @@ const styles = {
     height: 390,
     borderRadius: "50%",
     position: "relative",
-    zIndex: 2,
-    boxShadow:
-      "0 25px 60px rgba(0,0,0,0.8), inset 0 0 25px rgba(255,255,255,0.06)"
+    zIndex: 2
   },
 
   grooves: {
@@ -711,29 +789,18 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.07) 0px, transparent 2px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,0.06) 0px, transparent 2px)"
   },
 
   spinDot: {
     position: "absolute",
-    width: 18,
-    height: 18,
+    width: 16,
+    height: 16,
     borderRadius: "50%",
-    background: "#fff",
-    top: 36,
+    background: "white",
+    top: 30,
     left: "50%",
     transform: "translateX(-50%)"
-  },
-
-  spinShine: {
-    position: "absolute",
-    width: 140,
-    height: 34,
-    borderRadius: "50%",
-    top: 22,
-    left: 125,
-    background: "rgba(255,255,255,0.10)",
-    filter: "blur(10px)"
   },
 
   labelImg: {
@@ -744,7 +811,8 @@ const styles = {
     objectFit: "cover",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%, -50%)"
+    transform: "translate(-50%, -50%)",
+    zIndex: 3
   },
 
   labelFallback: {
@@ -758,7 +826,8 @@ const styles = {
     transform: "translate(-50%, -50%)",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    zIndex: 3
   },
 
   arm: {
@@ -770,7 +839,7 @@ const styles = {
     right: 62,
     borderRadius: 10,
     transformOrigin: "12px center",
-    transition: "0.25s linear",
+    transition: "0.15s linear",
     zIndex: 5
   },
 
@@ -781,7 +850,7 @@ const styles = {
     width: 22,
     height: 16,
     borderRadius: 4,
-    background: "#ffffff"
+    background: "#fff"
   },
 
   player: {
@@ -789,23 +858,21 @@ const styles = {
     left: 290,
     right: 0,
     bottom: 0,
-    minHeight: 92,
+    minHeight: 90,
     display: "flex",
     flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
     padding: 10,
-    background: "rgba(0,0,0,0.45)",
-    backdropFilter: "blur(16px)"
+    background: "rgba(0,0,0,0.45)"
   },
 
   now: {
     maxWidth: 240,
     overflow: "hidden",
-    whiteSpace: "nowrap",
     textOverflow: "ellipsis",
-    opacity: 0.7
+    whiteSpace: "nowrap"
   },
 
   timeBox: {
@@ -815,6 +882,20 @@ const styles = {
 
   seek: {
     width: "60%"
+  },
+
+  menu: {
+    position: "fixed",
+    background: "#111",
+    border: "1px solid rgba(255,255,255,0.15)",
+    borderRadius: 10,
+    overflow: "hidden",
+    zIndex: 1000
+  },
+
+  menuItem: {
+    padding: "10px 16px",
+    cursor: "pointer"
   }
 };
 
@@ -833,7 +914,7 @@ overflow:hidden;
 *{
 box-sizing:border-box;
 }
-input[type="range"]{
+input[type=range]{
 accent-color:white;
 }
 `;
