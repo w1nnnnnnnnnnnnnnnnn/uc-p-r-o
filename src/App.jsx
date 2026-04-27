@@ -29,8 +29,7 @@ export default function App() {
   const [albumCover, setAlbumCover] = useState(null);
 
   const [vinylColor, setVinylColor] = useState("#111111");
-  const [splatterColor, setSplatterColor] = useState("#5b7cff");
-  const [splatterAmount, setSplatterAmount] = useState(24);
+  const [transparentVinyl, setTransparentVinyl] = useState(false);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -46,10 +45,7 @@ export default function App() {
 
   function saveProjects(next) {
     setProjects(next);
-    localStorage.setItem(
-      "aurae_projects_v2",
-      JSON.stringify(next)
-    );
+    localStorage.setItem("aurae_projects_v2", JSON.stringify(next));
   }
 
   function saveCurrentProject(nextTracks = tracks, nextCover = albumCover) {
@@ -76,8 +72,9 @@ export default function App() {
   }
 
   function totalDuration(list = []) {
-    const sum = list.reduce((a, b) => a + (b.duration || 0), 0);
-    return formatTime(sum);
+    return formatTime(
+      list.reduce((a, b) => a + (b.duration || 0), 0)
+    );
   }
 
   /* ================= AUTH ================= */
@@ -101,10 +98,7 @@ export default function App() {
       return;
     }
 
-    if (remember) {
-      localStorage.setItem("aurae_remember", email);
-    }
-
+    if (remember) localStorage.setItem("aurae_remember", email);
     setView("home");
   }
 
@@ -119,15 +113,13 @@ export default function App() {
     const name = prompt("project name");
     if (!name) return;
 
-    const next = {
+    saveProjects({
       ...projects,
       [name]: {
         tracks: [],
         cover: null
       }
-    };
-
-    saveProjects(next);
+    });
   }
 
   function openProject(name) {
@@ -189,7 +181,6 @@ export default function App() {
     const list = tracks.filter((_, n) => n !== i);
 
     let nextIndex = index;
-
     if (i < index) nextIndex--;
     if (nextIndex > list.length - 1) nextIndex = list.length - 1;
     if (nextIndex < 0) nextIndex = 0;
@@ -200,7 +191,7 @@ export default function App() {
   }
 
   function moveTrack(from, to) {
-    if (from === to || from == null || to == null) return;
+    if (from == null || to == null || from === to) return;
 
     const list = [...tracks];
     const item = list.splice(from, 1)[0];
@@ -284,39 +275,34 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* ================= REAL STYLUS ================= */
+  /* ================= REAL STYLUS FIX ================= */
 
-  const trackPart =
-    tracks.length > 0
-      ? index / Math.max(1, tracks.length - 1)
-      : 0;
+  /*
+    Gewünscht:
+    Song 1 = ganz außen
+    letzter Song = innen
+    während Song läuft = langsam weiter rein
+  */
 
-  const songPart = duration ? currentTime / duration : 0;
+  const totalSongs = Math.max(tracks.length, 1);
+  const songProgress = duration ? currentTime / duration : 0;
 
-  const totalProgress =
-    tracks.length > 0
-      ? (index + songPart) / tracks.length
-      : 0;
+  const overallProgress =
+    tracks.length === 0
+      ? 0
+      : (index + songProgress) / totalSongs;
 
-  // außen 31deg -> innen 11deg
-  const stylusDeg = 31 - totalProgress * 20;
+  // Start außen = 34deg
+  // Ende innen = 8deg
+  const stylusDeg = 34 - overallProgress * 26;
 
-  /* ================= SPLATTER V2 ================= */
+  /* ================= VINYL ================= */
 
-  const splatters = Array.from({
-    length: splatterAmount
-  }).map((_, i) => {
-    const x = (i * 37) % 100;
-    const y = (i * 61) % 100;
-    const size = 4 + ((i * 7) % 12);
-
-    return `radial-gradient(circle at ${x}% ${y}%, ${splatterColor} 0 ${size}px, transparent ${
-      size + 1
-    }px)`;
-  });
-
-  const vinylBg = `
-${splatters.join(",")},
+  const vinylBg = transparentVinyl
+    ? `
+radial-gradient(circle at 35% 35%, rgba(255,255,255,.28), rgba(255,255,255,.06) 45%, rgba(255,255,255,.18) 70%, rgba(255,255,255,.08))
+`
+    : `
 radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
 `;
 
@@ -337,8 +323,8 @@ radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
 
           <input
             style={styles.input}
-            type="password"
             placeholder="password"
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -393,19 +379,12 @@ radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
                   onClick={() => openProject(name)}
                 >
                   {p.cover ? (
-                    <img
-                      src={p.cover}
-                      style={styles.homeCover}
-                    />
+                    <img src={p.cover} style={styles.homeCover} />
                   ) : (
-                    <div style={styles.homeNoCover}>
-                      AURAE
-                    </div>
+                    <div style={styles.homeNoCover}>AURAE</div>
                   )}
 
-                  <div style={{ fontSize: 18 }}>
-                    {name}
-                  </div>
+                  <div style={{ fontSize: 18 }}>{name}</div>
 
                   <div style={styles.meta}>
                     {p.tracks?.length || 0} tracks •{" "}
@@ -423,10 +402,7 @@ radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
   /* ================= STUDIO ================= */
 
   return (
-    <div
-      style={styles.app}
-      onClick={() => setMenu(null)}
-    >
+    <div style={styles.app} onClick={() => setMenu(null)}>
       {/* LEFT */}
       <div style={styles.sidebar}>
         <h3>{activeProject}</h3>
@@ -463,23 +439,16 @@ radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
           onChange={(e) => setVinylColor(e.target.value)}
         />
 
-        <div style={styles.section}>splatter color</div>
-        <input
-          type="color"
-          value={splatterColor}
-          onChange={(e) => setSplatterColor(e.target.value)}
-        />
-
-        <div style={styles.section}>splatter amount</div>
-        <input
-          type="range"
-          min="0"
-          max="60"
-          value={splatterAmount}
-          onChange={(e) =>
-            setSplatterAmount(Number(e.target.value))
-          }
-        />
+        <label style={styles.row}>
+          <input
+            type="checkbox"
+            checked={transparentVinyl}
+            onChange={() =>
+              setTransparentVinyl(!transparentVinyl)
+            }
+          />
+          transparent vinyl
+        </label>
 
         <button
           style={styles.btn}
@@ -508,7 +477,7 @@ radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
                 ...styles.track,
                 border:
                   i === index
-                    ? "1px solid rgba(255,255,255,0.3)"
+                    ? "1px solid rgba(255,255,255,.28)"
                     : "1px solid transparent"
               }}
               onClick={() => play(i)}
@@ -539,14 +508,9 @@ radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
             <div style={styles.grooves} />
 
             {albumCover ? (
-              <img
-                src={albumCover}
-                style={styles.labelImg}
-              />
+              <img src={albumCover} style={styles.labelImg} />
             ) : (
-              <div style={styles.labelFallback}>
-                AURAE
-              </div>
+              <div style={styles.labelFallback}>AURAE</div>
             )}
           </div>
 
@@ -580,8 +544,7 @@ radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)
         </div>
 
         <div style={styles.time}>
-          {formatTime(currentTime)} /{" "}
-          {formatTime(duration)}
+          {formatTime(currentTime)} / {formatTime(duration)}
         </div>
 
         <input
@@ -648,9 +611,7 @@ const styles = {
     gap: 12
   },
 
-  logo: {
-    fontSize: 44
-  },
+  logo: { fontSize: 44 },
 
   input: {
     padding: 12,
@@ -669,7 +630,8 @@ const styles = {
 
   row: {
     display: "flex",
-    gap: 8
+    gap: 8,
+    alignItems: "center"
   },
 
   home: {
@@ -805,7 +767,7 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,.06) 0px, transparent 2px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,.07) 0px, transparent 2px)"
   },
 
   labelImg: {
@@ -816,8 +778,7 @@ const styles = {
     objectFit: "cover",
     top: "50%",
     left: "50%",
-    transform:
-      "translate(-50%,-50%)"
+    transform: "translate(-50%,-50%)"
   },
 
   labelFallback: {
@@ -828,23 +789,23 @@ const styles = {
     background: "#111",
     top: "50%",
     left: "50%",
-    transform:
-      "translate(-50%,-50%)",
+    transform: "translate(-50%,-50%)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
   },
 
+  /* STYLUS BESSER POSITIONIERT */
   arm: {
     position: "absolute",
-    width: 190,
+    width: 215,
     height: 8,
     background: "#f2f2f2",
-    top: 272,
-    right: 55,
+    top: 250,
+    right: 38,
     borderRadius: 8,
-    transformOrigin: "12px center",
-    transition: "0.1s linear",
+    transformOrigin: "16px center",
+    transition: "0.08s linear",
     zIndex: 6
   },
 
@@ -852,7 +813,7 @@ const styles = {
     position: "absolute",
     right: -10,
     top: -4,
-    width: 22,
+    width: 24,
     height: 16,
     borderRadius: 4,
     background: "#fff"
@@ -870,8 +831,7 @@ const styles = {
     alignItems: "center",
     gap: 10,
     padding: 10,
-    background:
-      "rgba(0,0,0,.45)"
+    background: "rgba(0,0,0,.45)"
   },
 
   now: {
@@ -906,23 +866,14 @@ const styles = {
   }
 };
 
-/* ================= KEYFRAMES ================= */
-
 const style = document.createElement("style");
 style.innerHTML = `
-body{
-margin:0;
-overflow:hidden;
-}
-*{
-box-sizing:border-box;
-}
+body{margin:0;overflow:hidden;}
+*{box-sizing:border-box;}
 @keyframes spin{
 from{transform:rotate(0deg);}
 to{transform:rotate(360deg);}
 }
-input[type=range]{
-accent-color:white;
-}
+input[type=range]{accent-color:white;}
 `;
 document.head.appendChild(style);
