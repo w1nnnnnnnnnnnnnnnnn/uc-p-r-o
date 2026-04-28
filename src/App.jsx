@@ -36,6 +36,9 @@ export default function App() {
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
 
+  const [deleteTrackIndex, setDeleteTrackIndex] =
+    useState(null);
+
   const audioRef = useRef(null);
 
   const current = tracks[index];
@@ -44,10 +47,16 @@ export default function App() {
 
   function saveProjects(next) {
     setProjects(next);
-    localStorage.setItem("aurae_projects", JSON.stringify(next));
+    localStorage.setItem(
+      "aurae_projects",
+      JSON.stringify(next)
+    );
   }
 
-  function saveCurrentProject(nextTracks = tracks, nextCover = albumCover) {
+  function saveCurrentProject(
+    nextTracks = tracks,
+    nextCover = albumCover
+  ) {
     const next = {
       ...projects,
       [activeProject]: {
@@ -66,11 +75,16 @@ export default function App() {
     const secs = Math.floor(sec % 60)
       .toString()
       .padStart(2, "0");
+
     return `${mins}:${secs}`;
   }
 
   function totalDuration(list = []) {
-    const sum = list.reduce((acc, t) => acc + (t.duration || 0), 0);
+    const sum = list.reduce(
+      (acc, t) => acc + (t.duration || 0),
+      0
+    );
+
     return formatTime(sum);
   }
 
@@ -88,7 +102,12 @@ export default function App() {
     };
 
     setUsers(next);
-    localStorage.setItem("aurae_users", JSON.stringify(next));
+
+    localStorage.setItem(
+      "aurae_users",
+      JSON.stringify(next)
+    );
+
     login();
   }
 
@@ -106,14 +125,19 @@ export default function App() {
     setLoginError("");
 
     if (remember) {
-      localStorage.setItem("aurae_remember", email);
+      localStorage.setItem(
+        "aurae_remember",
+        email
+      );
     }
 
     setView("home");
   }
 
   function logout() {
-    localStorage.removeItem("aurae_remember");
+    localStorage.removeItem(
+      "aurae_remember"
+    );
     setView("auth");
   }
 
@@ -131,6 +155,7 @@ export default function App() {
     };
 
     saveProjects(next);
+
     setProjectName("");
     setShowCreate(false);
   }
@@ -150,41 +175,63 @@ export default function App() {
     setView("studio");
   }
 
-  /* ================= TRACK UPLOAD ================= */
+  /* ================= TRACKS ================= */
 
   async function addTracks(e) {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(
+      e.target.files || []
+    );
 
     const loaded = await Promise.all(
       files.map(
         (file) =>
           new Promise((resolve) => {
-            const url = URL.createObjectURL(file);
+            const url =
+              URL.createObjectURL(file);
+
             const probe = new Audio(url);
 
-            probe.addEventListener("loadedmetadata", () => {
-              resolve({
-                id: Date.now() + Math.random(),
-                name: file.name.replace(/\.[^/.]+$/, ""),
-                url,
-                duration: probe.duration || 0
-              });
-            });
+            probe.addEventListener(
+              "loadedmetadata",
+              () => {
+                resolve({
+                  id:
+                    Date.now() +
+                    Math.random(),
+                  name: file.name.replace(
+                    /\.[^/.]+$/,
+                    ""
+                  ),
+                  url,
+                  duration:
+                    probe.duration || 0
+                });
+              }
+            );
           })
       )
     );
 
-    saveCurrentProject([...tracks, ...loaded]);
+    saveCurrentProject([
+      ...tracks,
+      ...loaded
+    ]);
   }
 
   function addCover(e) {
-    const file = e.target.files?.[0];
+    const file =
+      e.target.files?.[0];
+
     if (!file) return;
 
-    const reader = new FileReader();
+    const reader =
+      new FileReader();
 
     reader.onload = () => {
-      saveCurrentProject(tracks, reader.result);
+      saveCurrentProject(
+        tracks,
+        reader.result
+      );
     };
 
     reader.readAsDataURL(file);
@@ -200,6 +247,7 @@ export default function App() {
 
     setTimeout(() => {
       const a = audioRef.current;
+
       a.src = tracks[i].url;
       a.play().catch(() => {});
     }, 30);
@@ -223,16 +271,23 @@ export default function App() {
   }
 
   function next() {
-    if (index < tracks.length - 1) play(index + 1);
+    if (index < tracks.length - 1)
+      play(index + 1);
   }
 
   function prev() {
-    if (index > 0) play(index - 1);
+    if (index > 0)
+      play(index - 1);
   }
 
   function seek(e) {
-    const val = Number(e.target.value);
-    audioRef.current.currentTime = val;
+    const val = Number(
+      e.target.value
+    );
+
+    audioRef.current.currentTime =
+      val;
+
     setCurrentTime(val);
   }
 
@@ -243,38 +298,80 @@ export default function App() {
     if (!a) return;
 
     const update = () => {
-      setCurrentTime(a.currentTime || 0);
-      setDuration(a.duration || 0);
+      setCurrentTime(
+        a.currentTime || 0
+      );
+
+      setDuration(
+        a.duration || 0
+      );
     };
 
     const ended = () => {
-      if (index < tracks.length - 1) play(index + 1);
-      else setPlaying(false);
+      if (
+        index <
+        tracks.length - 1
+      ) {
+        play(index + 1);
+      } else {
+        setPlaying(false);
+      }
     };
 
-    a.addEventListener("timeupdate", update);
-    a.addEventListener("loadedmetadata", update);
-    a.addEventListener("ended", ended);
+    a.addEventListener(
+      "timeupdate",
+      update
+    );
+
+    a.addEventListener(
+      "loadedmetadata",
+      update
+    );
+
+    a.addEventListener(
+      "ended",
+      ended
+    );
 
     return () => {
-      a.removeEventListener("timeupdate", update);
-      a.removeEventListener("loadedmetadata", update);
-      a.removeEventListener("ended", ended);
+      a.removeEventListener(
+        "timeupdate",
+        update
+      );
+
+      a.removeEventListener(
+        "loadedmetadata",
+        update
+      );
+
+      a.removeEventListener(
+        "ended",
+        ended
+      );
     };
   }, [index, tracks]);
 
   /* ================= STYLUS ================= */
 
-  const totalSongs = Math.max(tracks.length, 1);
+  const totalSongs = Math.max(
+    tracks.length,
+    1
+  );
+
   const songProgress =
-    duration > 0 ? currentTime / duration : 0;
+    duration > 0
+      ? currentTime / duration
+      : 0;
 
   const projectProgress =
     tracks.length === 0
       ? 0
-      : (index + songProgress) / totalSongs;
+      : (index + songProgress) /
+        totalSongs;
 
-  const armAngle = 18 + projectProgress * 22;
+  /* außen -> innen */
+  const armAngle =
+    -30 + projectProgress * 36;
 
   /* ================= AUTH SCREEN ================= */
 
@@ -282,14 +379,18 @@ export default function App() {
     return (
       <div style={styles.auth}>
         <div style={styles.panel}>
-          <div style={styles.logo}>AURAE</div>
+          <div style={styles.logo}>
+            AURAE
+          </div>
 
           <input
             style={styles.input}
             placeholder="email"
             value={email}
             onChange={(e) =>
-              setEmail(e.target.value)
+              setEmail(
+                e.target.value
+              )
             }
           />
 
@@ -299,12 +400,18 @@ export default function App() {
             type="password"
             value={password}
             onChange={(e) =>
-              setPassword(e.target.value)
+              setPassword(
+                e.target.value
+              )
             }
           />
 
           {loginError && (
-            <div style={styles.error}>
+            <div
+              style={
+                styles.error
+              }
+            >
               {loginError}
             </div>
           )}
@@ -312,12 +419,19 @@ export default function App() {
           <label style={styles.row}>
             <input
               type="checkbox"
-              checked={remember}
+              checked={
+                remember
+              }
               onChange={() =>
-                setRemember(!remember)
+                setRemember(
+                  !remember
+                )
               }
             />
-            <span>remember me</span>
+
+            <span>
+              remember me
+            </span>
           </label>
 
           <button
@@ -343,49 +457,92 @@ export default function App() {
   if (view === "home") {
     return (
       <div style={styles.home}>
-        <div style={styles.topRight}>
+        <div
+          style={
+            styles.topRight
+          }
+        >
           <button
-            style={styles.btn}
-            onClick={logout}
+            style={
+              styles.btn
+            }
+            onClick={
+              logout
+            }
           >
             logout
           </button>
         </div>
 
-        <div style={styles.centerHome}>
-          <div style={styles.logo}>
+        <div
+          style={
+            styles.centerHome
+          }
+        >
+          <div
+            style={
+              styles.logo
+            }
+          >
             AURAE OS
           </div>
 
           <button
-            style={styles.btn}
+            style={
+              styles.btn
+            }
             onClick={() =>
-              setShowCreate(true)
+              setShowCreate(
+                true
+              )
             }
           >
             + new project
           </button>
 
-          <div style={styles.grid}>
-            {Object.keys(projects).map(
-              (name) => {
+          <div
+            style={
+              styles.grid
+            }
+          >
+            {Object.keys(
+              projects
+            ).map(
+              (
+                name
+              ) => {
                 const list =
-                  projects[name]?.tracks ||
+                  projects[
+                    name
+                  ]
+                    ?.tracks ||
                   [];
+
                 const cover =
-                  projects[name]?.cover;
+                  projects[
+                    name
+                  ]
+                    ?.cover;
 
                 return (
                   <div
-                    key={name}
-                    style={styles.card}
+                    key={
+                      name
+                    }
+                    style={
+                      styles.card
+                    }
                     onClick={() =>
-                      openProject(name)
+                      openProject(
+                        name
+                      )
                     }
                   >
                     {cover ? (
                       <img
-                        src={cover}
+                        src={
+                          cover
+                        }
                         style={
                           styles.homeCover
                         }
@@ -405,14 +562,23 @@ export default function App() {
                         fontSize: 18
                       }}
                     >
-                      {name}
+                      {
+                        name
+                      }
                     </div>
 
                     <div
-                      style={styles.meta}
+                      style={
+                        styles.meta
+                      }
                     >
-                      {list.length} tracks •{" "}
-                      {totalDuration(list)}
+                      {
+                        list.length
+                      }{" "}
+                      tracks •{" "}
+                      {totalDuration(
+                        list
+                      )}
                     </div>
                   </div>
                 );
@@ -422,29 +588,48 @@ export default function App() {
         </div>
 
         {showCreate && (
-          <div style={styles.overlay}>
-            <div style={styles.modal}>
+          <div
+            style={
+              styles.overlay
+            }
+          >
+            <div
+              style={
+                styles.modal
+              }
+            >
               <div
                 style={{
                   fontSize: 22
                 }}
               >
-                create project
+                create
+                project
               </div>
 
               <input
-                style={styles.input}
+                style={
+                  styles.input
+                }
                 placeholder="project name"
-                value={projectName}
-                onChange={(e) =>
+                value={
+                  projectName
+                }
+                onChange={(
+                  e
+                ) =>
                   setProjectName(
-                    e.target.value
+                    e
+                      .target
+                      .value
                   )
                 }
               />
 
               <button
-                style={styles.btn}
+                style={
+                  styles.btn
+                }
                 onClick={
                   createProject
                 }
@@ -453,7 +638,9 @@ export default function App() {
               </button>
 
               <button
-                style={styles.btn}
+                style={
+                  styles.btn
+                }
                 onClick={() =>
                   setShowCreate(
                     false
@@ -474,228 +661,288 @@ export default function App() {
   return (
     <div style={styles.app}>
       {/* LEFT */}
-      <div style={styles.sidebar}>
-        <h3>{activeProject}</h3>
+      <div
+        style={
+          styles.sidebar
+        }
+      >
+        <h3>
+          {activeProject}
+        </h3>
 
-        <div style={styles.meta}>
+        <div
+          style={
+            styles.meta
+          }
+        >
           {tracks.length} tracks •{" "}
-          {totalDuration(tracks)}
+          {totalDuration(
+            tracks
+          )}
         </div>
 
-        <label style={styles.btn}>
+        <label
+          style={
+            styles.btn
+          }
+        >
           add tracks
+
           <input
             hidden
             multiple
             type="file"
-            accept=".mp3,.wav,audio/mpeg,audio/wav"
-            onChange={addTracks}
+            accept=".mp3,.wav"
+            onChange={
+              addTracks
+            }
           />
         </label>
 
-        <label style={styles.btn}>
+        <label
+          style={
+            styles.btn
+          }
+        >
           cover art
+
           <input
             hidden
             type="file"
             accept=".png,.jpg,.jpeg"
-            onChange={addCover}
+            onChange={
+              addCover
+            }
           />
         </label>
 
-        <div style={styles.section}>
+        <div
+          style={
+            styles.section
+          }
+        >
           vinyl color
         </div>
 
         <input
           type="color"
-          value={vinylColor}
-          onChange={(e) =>
+          value={
+            vinylColor
+          }
+          onChange={(
+            e
+          ) =>
             setVinylColor(
-              e.target.value
+              e.target
+                .value
             )
           }
         />
 
         <button
-          style={styles.btn}
+          style={
+            styles.btn
+          }
           onClick={() =>
-            setView("home")
+            setView(
+              "home"
+            )
           }
         >
           home
         </button>
 
         {/* TRACKLIST */}
-        <div style={styles.trackList}>
-          {tracks.map((track, i) => (
-            <div
-              key={track.id}
-              style={{
-                ...styles.trackRow,
-                background:
-                  i === index
-                    ? "rgba(255,255,255,.12)"
-                    : "rgba(255,255,255,.04)"
-              }}
-              onClick={() => play(i)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-
-                const ok =
-                  window.confirm(
-                    `Delete "${track.name}" ?`
+        <div
+          style={
+            styles.trackList
+          }
+        >
+          {tracks.map(
+            (
+              track,
+              i
+            ) => (
+              <div
+                key={
+                  track.id
+                }
+                style={{
+                  ...styles.trackRow,
+                  background:
+                    i ===
+                    index
+                      ? "rgba(255,255,255,.12)"
+                      : "rgba(255,255,255,.04)"
+                }}
+                onClick={() =>
+                  play(i)
+                }
+                onContextMenu={(
+                  e
+                ) => {
+                  e.preventDefault();
+                  setDeleteTrackIndex(
+                    i
                   );
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1
+                  }}
+                >
+                  {
+                    track.name
+                  }
+                </div>
 
-                if (ok) {
-                  const next =
-                    tracks.filter(
-                      (
-                        _,
-                        idx
-                      ) =>
-                        idx !== i
-                    );
+                <div
+                  style={
+                    styles.trackActions
+                  }
+                >
+                  <button
+                    style={
+                      styles.miniBtn
+                    }
+                    onClick={(
+                      e
+                    ) => {
+                      e.stopPropagation();
 
-                  saveCurrentProject(
-                    next
-                  );
+                      if (
+                        i ===
+                        0
+                      )
+                        return;
 
-                  if (
-                    index >=
-                    next.length
-                  ) {
-                    setIndex(
-                      Math.max(
-                        0,
-                        next.length -
+                      const next =
+                        [
+                          ...tracks
+                        ];
+
+                      [
+                        next[
+                          i -
+                            1
+                        ],
+                        next[
+                          i
+                        ]
+                      ] =
+                        [
+                          next[
+                            i
+                          ],
+                          next[
+                            i -
+                              1
+                          ]
+                        ];
+
+                      saveCurrentProject(
+                        next
+                      );
+
+                      if (
+                        index ===
+                        i
+                      )
+                        setIndex(
+                          i -
+                            1
+                        );
+                    }}
+                  >
+                    ↑
+                  </button>
+
+                  <button
+                    style={
+                      styles.miniBtn
+                    }
+                    onClick={(
+                      e
+                    ) => {
+                      e.stopPropagation();
+
+                      if (
+                        i ===
+                        tracks.length -
                           1
                       )
-                    );
-                  }
-                }
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                {track.name}
-              </div>
+                        return;
 
-              <div
-                style={
-                  styles.trackActions
-                }
-              >
-                <button
-                  style={
-                    styles.miniBtn
-                  }
-                  onClick={(
-                    e
-                  ) => {
-                    e.stopPropagation();
+                      const next =
+                        [
+                          ...tracks
+                        ];
 
-                    if (i === 0)
-                      return;
-
-                    const next =
                       [
-                        ...tracks
-                      ];
+                        next[
+                          i +
+                            1
+                        ],
+                        next[
+                          i
+                        ]
+                      ] =
+                        [
+                          next[
+                            i
+                          ],
+                          next[
+                            i +
+                              1
+                          ]
+                        ];
 
-                    [
-                      next[i - 1],
-                      next[i]
-                    ] = [
-                      next[i],
-                      next[i - 1]
-                    ];
-
-                    saveCurrentProject(
-                      next
-                    );
-
-                    if (
-                      index ===
-                      i
-                    )
-                      setIndex(
-                        i - 1
+                      saveCurrentProject(
+                        next
                       );
-                    else if (
-                      index ===
-                      i - 1
-                    )
-                      setIndex(i);
-                  }}
-                >
-                  ↑
-                </button>
 
-                <button
-                  style={
-                    styles.miniBtn
-                  }
-                  onClick={(
-                    e
-                  ) => {
-                    e.stopPropagation();
+                      if (
+                        index ===
+                        i
+                      )
+                        setIndex(
+                          i +
+                            1
+                        );
+                    }}
+                  >
+                    ↓
+                  </button>
 
-                    if (
-                      i ===
-                      tracks.length -
-                        1
-                    )
-                      return;
-
-                    const next =
-                      [
-                        ...tracks
-                      ];
-
-                    [
-                      next[i + 1],
-                      next[i]
-                    ] = [
-                      next[i],
-                      next[i + 1]
-                    ];
-
-                    saveCurrentProject(
-                      next
-                    );
-
-                    if (
-                      index ===
-                      i
-                    )
-                      setIndex(
-                        i + 1
-                      );
-                    else if (
-                      index ===
-                      i + 1
-                    )
-                      setIndex(i);
-                  }}
-                >
-                  ↓
-                </button>
-
-                <span>
-                  {formatTime(
-                    track.duration
-                  )}
-                </span>
+                  <span>
+                    {formatTime(
+                      track.duration
+                    )}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          )}
         </div>
       </div>
 
       {/* CENTER */}
-      <div style={styles.stage}>
-        <div style={styles.turntable}>
-          <div style={styles.plinth} />
+      <div
+        style={
+          styles.stage
+        }
+      >
+        <div
+          style={
+            styles.turntable
+          }
+        >
+          <div
+            style={
+              styles.plinth
+            }
+          />
 
           <div
             style={{
@@ -707,11 +954,17 @@ export default function App() {
                   : "none"
             }}
           >
-            <div style={styles.grooves} />
+            <div
+              style={
+                styles.grooves
+              }
+            />
 
             {albumCover ? (
               <img
-                src={albumCover}
+                src={
+                  albumCover
+                }
                 style={
                   styles.labelImg
                 }
@@ -729,7 +982,11 @@ export default function App() {
           </div>
 
           {/* REAL STYLUS */}
-          <div style={styles.armBase} />
+          <div
+            style={
+              styles.armPivot
+            }
+          />
 
           <div
             style={{
@@ -742,11 +999,19 @@ export default function App() {
                 styles.armTube
               }
             />
+
+            <div
+              style={
+                styles.armCounter
+              }
+            />
+
             <div
               style={
                 styles.armHead
               }
             />
+
             <div
               style={
                 styles.armNeedle
@@ -757,17 +1022,27 @@ export default function App() {
       </div>
 
       {/* PLAYER */}
-      <div style={styles.player}>
+      <div
+        style={
+          styles.player
+        }
+      >
         <button
-          style={styles.btn}
+          style={
+            styles.btn
+          }
           onClick={prev}
         >
           ⏮
         </button>
 
         <button
-          style={styles.btn}
-          onClick={toggle}
+          style={
+            styles.btn
+          }
+          onClick={
+            toggle
+          }
         >
           {playing
             ? "pause"
@@ -775,13 +1050,19 @@ export default function App() {
         </button>
 
         <button
-          style={styles.btn}
+          style={
+            styles.btn
+          }
           onClick={next}
         >
           ⏭
         </button>
 
-        <div style={styles.now}>
+        <div
+          style={
+            styles.now
+          }
+        >
           {current?.name ||
             "no track loaded"}
         </div>
@@ -799,14 +1080,113 @@ export default function App() {
         <input
           type="range"
           min="0"
-          max={duration || 0}
-          value={currentTime}
-          onChange={seek}
+          max={
+            duration ||
+            0
+          }
+          value={
+            currentTime
+          }
+          onChange={
+            seek
+          }
           style={{
             width: 260
           }}
         />
       </div>
+
+      {/* DELETE MODAL */}
+      {deleteTrackIndex !==
+        null && (
+        <div
+          style={
+            styles.overlay
+          }
+        >
+          <div
+            style={
+              styles.modal
+            }
+          >
+            <div
+              style={{
+                fontSize: 22
+              }}
+            >
+              delete
+              track?
+            </div>
+
+            <div
+              style={{
+                opacity:
+                  0.7
+              }}
+            >
+              {
+                tracks[
+                  deleteTrackIndex
+                ]
+                  ?.name
+              }
+            </div>
+
+            <button
+              style={
+                styles.btn
+              }
+              onClick={() => {
+                const next =
+                  tracks.filter(
+                    (
+                      _,
+                      idx
+                    ) =>
+                      idx !==
+                      deleteTrackIndex
+                  );
+
+                saveCurrentProject(
+                  next
+                );
+
+                if (
+                  index >=
+                  next.length
+                ) {
+                  setIndex(
+                    Math.max(
+                      0,
+                      next.length -
+                        1
+                    )
+                  );
+                }
+
+                setDeleteTrackIndex(
+                  null
+                );
+              }}
+            >
+              delete
+            </button>
+
+            <button
+              style={
+                styles.btn
+              }
+              onClick={() =>
+                setDeleteTrackIndex(
+                  null
+                )
+              }
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <audio ref={audioRef} />
     </div>
@@ -828,10 +1208,12 @@ const styles = {
   auth: {
     height: "100vh",
     background:
-      "radial-gradient(circle at top, #171717, #090909)",
+      "radial-gradient(circle at top,#171717,#090909)",
     display: "flex",
-    justifyContent: "center",
-    alignItems: "center"
+    justifyContent:
+      "center",
+    alignItems:
+      "center"
   },
 
   panel: {
@@ -839,17 +1221,17 @@ const styles = {
     padding: 34,
     borderRadius: 22,
     background:
-      "rgba(255,255,255,0.06)",
+      "rgba(255,255,255,.06)",
     backdropFilter:
       "blur(18px)",
     display: "flex",
-    flexDirection: "column",
+    flexDirection:
+      "column",
     gap: 12
   },
 
   logo: {
     fontSize: 44,
-    marginBottom: 6,
     letterSpacing: 2
   },
 
@@ -857,28 +1239,22 @@ const styles = {
     padding: 12,
     borderRadius: 12,
     border:
-      "1px solid rgba(255,255,255,0.08)",
-    background: "#101010",
+      "1px solid rgba(255,255,255,.08)",
+    background:
+      "#101010",
     color: "white"
   },
 
-  row: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    fontSize: 13
-  },
-
   btn: {
-    padding: "12px 16px",
+    padding:
+      "12px 16px",
     borderRadius: 16,
     border:
-      "1px solid rgba(255,255,255,0.12)",
+      "1px solid rgba(255,255,255,.12)",
     background:
-      "rgba(255,255,255,0.07)",
+      "rgba(255,255,255,.07)",
     color: "white",
-    cursor: "pointer",
-    fontFamily: "inherit"
+    cursor: "pointer"
   },
 
   miniBtn: {
@@ -892,27 +1268,36 @@ const styles = {
     cursor: "pointer"
   },
 
+  row: {
+    display: "flex",
+    gap: 8
+  },
+
   error: {
-    background: "#ff3a3a",
+    background:
+      "#ff3535",
     padding: 10,
     borderRadius: 12
   },
 
   home: {
-    minHeight: "100vh",
+    minHeight:
+      "100vh",
     background:
-      "radial-gradient(circle at top, #151515, #090909)",
+      "radial-gradient(circle at top,#151515,#090909)",
     color: "white"
   },
 
   topRight: {
-    position: "absolute",
+    position:
+      "absolute",
     top: 20,
     right: 20
   },
 
   centerHome: {
-    textAlign: "center",
+    textAlign:
+      "center",
     paddingTop: 110
   },
 
@@ -930,14 +1315,15 @@ const styles = {
     padding: 18,
     borderRadius: 18,
     background:
-      "rgba(255,255,255,0.05)",
+      "rgba(255,255,255,.05)",
     cursor: "pointer"
   },
 
   homeCover: {
     width: "100%",
     height: 130,
-    objectFit: "cover",
+    objectFit:
+      "cover",
     borderRadius: 14,
     marginBottom: 12
   },
@@ -946,18 +1332,20 @@ const styles = {
     width: "100%",
     height: 130,
     borderRadius: 14,
+    background:
+      "#111",
     marginBottom: 12,
-    background: "#111",
     display: "flex",
-    alignItems: "center",
     justifyContent:
+      "center",
+    alignItems:
       "center"
   },
 
   meta: {
-    marginTop: 6,
+    opacity: 0.55,
     fontSize: 12,
-    opacity: 0.55
+    marginTop: 6
   },
 
   sidebar: {
@@ -968,7 +1356,7 @@ const styles = {
       "column",
     gap: 12,
     borderRight:
-      "1px solid rgba(255,255,255,0.05)"
+      "1px solid rgba(255,255,255,.05)"
   },
 
   section: {
@@ -977,29 +1365,30 @@ const styles = {
   },
 
   trackList: {
-    marginTop: 10,
     display: "flex",
     flexDirection:
       "column",
     gap: 8,
-    overflowY: "auto"
+    overflowY:
+      "auto"
   },
 
   trackRow: {
     display: "flex",
     justifyContent:
       "space-between",
-    alignItems: "center",
+    alignItems:
+      "center",
     padding: 10,
     borderRadius: 12,
-    cursor: "pointer",
-    fontSize: 13
+    cursor: "pointer"
   },
 
   trackActions: {
     display: "flex",
-    alignItems: "center",
-    gap: 6
+    gap: 6,
+    alignItems:
+      "center"
   },
 
   stage: {
@@ -1007,179 +1396,220 @@ const styles = {
     display: "flex",
     justifyContent:
       "center",
-    alignItems: "center"
+    alignItems:
+      "center"
   },
 
   turntable: {
-    position: "relative",
+    position:
+      "relative",
     width: 560,
-    height: 560,
-    display: "flex",
-    justifyContent:
-      "center",
-    alignItems: "center"
+    height: 560
   },
 
   plinth: {
-    position: "absolute",
+    position:
+      "absolute",
     width: 520,
     height: 520,
+    left: 20,
+    top: 20,
     borderRadius: 28,
     background:
-      "linear-gradient(145deg,#f7f7f7,#d9d9d9)"
+      "linear-gradient(145deg,#f8f8f8,#d6d6d6)",
+    boxShadow:
+      "0 40px 80px rgba(0,0,0,.35), inset 0 2px 8px rgba(255,255,255,.7)"
   },
 
   vinyl: {
     width: 390,
     height: 390,
-    borderRadius: "50%",
-    position: "absolute",
-    top: 85,
+    borderRadius:
+      "50%",
+    position:
+      "absolute",
     left: 85,
+    top: 85,
     zIndex: 2,
     boxShadow:
-      "0 25px 60px rgba(0,0,0,0.8)"
+      "0 25px 60px rgba(0,0,0,.85)"
   },
 
   grooves: {
-    position: "absolute",
+    position:
+      "absolute",
     inset: 0,
-    borderRadius: "50%",
+    borderRadius:
+      "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,0.07) 0px, transparent 2px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,.06) 0px, transparent 2px)"
   },
 
   labelImg: {
-    position: "absolute",
+    position:
+      "absolute",
     width: 150,
     height: 150,
-    borderRadius: "50%",
-    objectFit: "cover",
+    borderRadius:
+      "50%",
+    objectFit:
+      "cover",
     top: "50%",
     left: "50%",
     transform:
-      "translate(-50%, -50%)"
+      "translate(-50%,-50%)"
   },
 
   labelFallback: {
-    position: "absolute",
+    position:
+      "absolute",
     width: 150,
     height: 150,
-    borderRadius: "50%",
-    background: "#111",
+    borderRadius:
+      "50%",
+    background:
+      "#111",
     top: "50%",
     left: "50%",
     transform:
-      "translate(-50%, -50%)",
+      "translate(-50%,-50%)",
     display: "flex",
     justifyContent:
       "center",
-    alignItems: "center"
+    alignItems:
+      "center"
   },
 
-  /* REAL STYLUS */
+  /* STYLUS */
 
-  armBase: {
-    position: "absolute",
-    right: 62,
-    top: 318,
-    width: 34,
-    height: 34,
-    borderRadius: "50%",
+  armPivot: {
+    position:
+      "absolute",
+    right: 58,
+    top: 304,
+    width: 46,
+    height: 46,
+    borderRadius:
+      "50%",
     background:
-      "linear-gradient(145deg,#d7d7d7,#666)",
-    zIndex: 8,
+      "radial-gradient(circle at 30% 30%, #fafafa, #777)",
+    zIndex: 20,
     boxShadow:
-      "0 8px 18px rgba(0,0,0,.35)"
+      "0 10px 20px rgba(0,0,0,.35)"
   },
 
   armWrap: {
-    position: "absolute",
-    right: 78,
-    top: 332,
-    width: 210,
-    height: 8,
+    position:
+      "absolute",
+    right: 82,
+    top: 326,
+    width: 240,
+    height: 10,
     transformOrigin:
       "0px center",
     transition:
-      "transform .35s ease",
-    zIndex: 8
+      "transform .45s cubic-bezier(.22,.8,.2,1)",
+    zIndex: 20
   },
 
   armTube: {
-    position: "absolute",
+    position:
+      "absolute",
     left: 0,
     top: 0,
-    width: 190,
-    height: 8,
+    width: 205,
+    height: 10,
     borderRadius: 20,
     background:
-      "linear-gradient(145deg,#fafafa,#8d8d8d)",
-    boxShadow:
-      "0 4px 12px rgba(0,0,0,.25)"
+      "linear-gradient(145deg,#f8f8f8,#9b9b9b)"
+  },
+
+  armCounter: {
+    position:
+      "absolute",
+    left: -14,
+    top: -4,
+    width: 24,
+    height: 18,
+    borderRadius: 20,
+    background:
+      "linear-gradient(145deg,#555,#222)"
   },
 
   armHead: {
-    position: "absolute",
+    position:
+      "absolute",
     right: 0,
     top: -6,
-    width: 26,
+    width: 28,
     height: 18,
     borderRadius: 4,
     background:
-      "linear-gradient(145deg,#fff,#bcbcbc)"
+      "linear-gradient(145deg,#fff,#bdbdbd)"
   },
 
   armNeedle: {
-    position: "absolute",
-    right: 4,
-    top: 11,
+    position:
+      "absolute",
+    right: 5,
+    top: 12,
     width: 2,
-    height: 16,
-    background: "#111"
+    height: 18,
+    background:
+      "#111",
+    transform:
+      "rotate(12deg)"
   },
 
   player: {
-    position: "fixed",
+    position:
+      "fixed",
     left: 290,
     right: 0,
     bottom: 0,
     height: 78,
     display: "flex",
-    alignItems: "center",
+    alignItems:
+      "center",
     justifyContent:
       "center",
     gap: 10,
     background:
-      "rgba(0,0,0,0.45)",
+      "rgba(0,0,0,.45)",
     backdropFilter:
       "blur(16px)"
   },
 
   now: {
     maxWidth: 220,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
+    overflow:
+      "hidden",
+    whiteSpace:
+      "nowrap",
     textOverflow:
       "ellipsis"
   },
 
   overlay: {
-    position: "fixed",
+    position:
+      "fixed",
     inset: 0,
     background:
       "rgba(0,0,0,.55)",
     display: "flex",
     justifyContent:
       "center",
-    alignItems: "center"
+    alignItems:
+      "center",
+    zIndex: 999
   },
 
   modal: {
     width: 340,
     padding: 24,
     borderRadius: 18,
-    background: "#111",
+    background:
+      "#111",
     display: "flex",
     flexDirection:
       "column",
