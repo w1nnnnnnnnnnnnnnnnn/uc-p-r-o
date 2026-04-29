@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
-  /* ================= AUTH ================= */
-
   const [view, setView] = useState(() =>
     localStorage.getItem("aurae_remember") ? "home" : "auth"
   );
@@ -14,14 +12,6 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
-
-  /* ================= POPUPS ================= */
-
-  const [popup, setPopup] = useState(null); // {title,text,actions[]}
-  const [showCreate, setShowCreate] = useState(false);
-  const [projectName, setProjectName] = useState("");
-
-  /* ================= DATA ================= */
 
   const [projects, setProjects] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_projects") || "{}")
@@ -43,14 +33,6 @@ export default function App() {
   const current = tracks[index];
 
   /* ================= HELPERS ================= */
-
-  function openPopup(title, text, actions = []) {
-    setPopup({ title, text, actions });
-  }
-
-  function closePopup() {
-    setPopup(null);
-  }
 
   function saveProjects(next) {
     setProjects(next);
@@ -79,34 +61,11 @@ export default function App() {
     return `${mins}:${secs}`;
   }
 
-  function totalDuration(list = []) {
-    const sum = list.reduce((acc, t) => acc + (t.duration || 0), 0);
-    return formatTime(sum);
-  }
-
   /* ================= AUTH ================= */
 
   function login() {
-    if (!email || !password) {
-      openPopup("Login Error", "Please fill all fields.", [
-        { text: "OK", onClick: closePopup }
-      ]);
-      return;
-    }
-
-    if (!users[email]) {
-      openPopup("Account", "Account not found.", [
-        { text: "OK", onClick: closePopup }
-      ]);
-      return;
-    }
-
-    if (users[email].password !== password) {
-      openPopup("Login Error", "Wrong password.", [
-        { text: "OK", onClick: closePopup }
-      ]);
-      return;
-    }
+    if (!users[email]) return;
+    if (users[email].password !== password) return;
 
     if (remember) {
       localStorage.setItem("aurae_remember", email);
@@ -116,12 +75,7 @@ export default function App() {
   }
 
   function signup() {
-    if (!email || !password) {
-      openPopup("Sign Up", "Please fill all fields.", [
-        { text: "OK", onClick: closePopup }
-      ]);
-      return;
-    }
+    if (!email || !password) return;
 
     const next = {
       ...users,
@@ -141,23 +95,22 @@ export default function App() {
   /* ================= PROJECTS ================= */
 
   function createProject() {
-    if (!projectName.trim()) return;
+    const name = prompt("Project Name");
+    if (!name) return;
 
     const next = {
       ...projects,
-      [projectName]: {
+      [name]: {
         tracks: [],
         cover: null
       }
     };
 
     saveProjects(next);
-    setProjectName("");
-    setShowCreate(false);
   }
 
   function openProject(name) {
-    const p = projects[name] || {};
+    const p = projects[name];
 
     setActiveProject(name);
     setTracks(p.tracks || []);
@@ -211,32 +164,6 @@ export default function App() {
     reader.readAsDataURL(file);
   }
 
-  function deleteTrack(i) {
-    openPopup(
-      "Delete Track",
-      `Delete "${tracks[i]?.name}"?`,
-      [
-        {
-          text: "Delete",
-          onClick: () => {
-            const next = tracks.filter((_, x) => x !== i);
-            saveCurrentProject(next);
-
-            if (index >= next.length) {
-              setIndex(Math.max(0, next.length - 1));
-            }
-
-            closePopup();
-          }
-        },
-        {
-          text: "Cancel",
-          onClick: closePopup
-        }
-      ]
-    );
-  }
-
   /* ================= PLAYER ================= */
 
   function play(i) {
@@ -249,7 +176,7 @@ export default function App() {
       const a = audioRef.current;
       a.src = tracks[i].url;
       a.play().catch(() => {});
-    }, 30);
+    }, 40);
   }
 
   function toggle() {
@@ -310,7 +237,7 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* ================= REAL STYLUS ================= */
+  /* ================= STYLUS FIX ================= */
 
   const totalSongs = Math.max(tracks.length, 1);
 
@@ -322,11 +249,11 @@ export default function App() {
       ? 0
       : (index + songProgress) / totalSongs;
 
-  /* start außen -> ende innen */
+  /* außen -> innen / auf vinyl */
   const armAngle =
-    12 + projectProgress * 28;
+    -18 + projectProgress * 32;
 
-  /* ================= AUTH SCREEN ================= */
+  /* ================= AUTH ================= */
 
   if (view === "auth") {
     return (
@@ -345,8 +272,8 @@ export default function App() {
 
           <input
             style={styles.input}
-            placeholder="password"
             type="password"
+            placeholder="password"
             value={password}
             onChange={(e) =>
               setPassword(e.target.value)
@@ -361,25 +288,17 @@ export default function App() {
                 setRemember(!remember)
               }
             />
-            <span>remember me</span>
+            remember me
           </label>
 
-          <button
-            style={styles.btn}
-            onClick={login}
-          >
+          <button style={styles.btn} onClick={login}>
             login
           </button>
 
-          <button
-            style={styles.btn}
-            onClick={signup}
-          >
+          <button style={styles.btn} onClick={signup}>
             sign up
           </button>
         </div>
-
-        {popup && <Popup popup={popup} />}
       </div>
     );
   }
@@ -390,123 +309,55 @@ export default function App() {
     return (
       <div style={styles.home}>
         <div style={styles.topRight}>
-          <button
-            style={styles.btn}
-            onClick={logout}
-          >
+          <button style={styles.btn} onClick={logout}>
             logout
           </button>
         </div>
 
         <div style={styles.centerHome}>
-          <div style={styles.logo}>
-            AURAE OS
-          </div>
+          <div style={styles.logo}>AURAE OS</div>
 
           <button
             style={styles.btn}
-            onClick={() =>
-              setShowCreate(true)
-            }
+            onClick={createProject}
           >
             + new project
           </button>
 
           <div style={styles.grid}>
-            {Object.keys(projects).map(
-              (name) => {
-                const list =
-                  projects[name]?.tracks ||
-                  [];
-                const cover =
-                  projects[name]?.cover;
+            {Object.keys(projects).map((name) => {
+              const cover =
+                projects[name]?.cover;
 
-                return (
-                  <div
-                    key={name}
-                    style={styles.card}
-                    onClick={() =>
-                      openProject(name)
-                    }
-                  >
-                    {cover ? (
-                      <img
-                        src={cover}
-                        style={
-                          styles.homeCover
-                        }
-                      />
-                    ) : (
-                      <div
-                        style={
-                          styles.homeFallback
-                        }
-                      >
-                        AURAE
-                      </div>
-                    )}
-
-                    <div>
-                      {name}
-                    </div>
-
+              return (
+                <div
+                  key={name}
+                  style={styles.card}
+                  onClick={() =>
+                    openProject(name)
+                  }
+                >
+                  {cover ? (
+                    <img
+                      src={cover}
+                      style={styles.homeCover}
+                    />
+                  ) : (
                     <div
                       style={
-                        styles.meta
+                        styles.homeFallback
                       }
                     >
-                      {list.length} tracks •{" "}
-                      {totalDuration(
-                        list
-                      )}
+                      AURAE
                     </div>
-                  </div>
-                );
-              }
-            )}
+                  )}
+
+                  <div>{name}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
-
-        {showCreate && (
-          <div style={styles.overlay}>
-            <div style={styles.modal}>
-              <div style={styles.modalTitle}>
-                Create Project
-              </div>
-
-              <input
-                style={styles.input}
-                placeholder="project name"
-                value={projectName}
-                onChange={(e) =>
-                  setProjectName(
-                    e.target.value
-                  )
-                }
-              />
-
-              <button
-                style={styles.btn}
-                onClick={
-                  createProject
-                }
-              >
-                Create
-              </button>
-
-              <button
-                style={styles.btn}
-                onClick={() =>
-                  setShowCreate(false)
-                }
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {popup && <Popup popup={popup} />}
       </div>
     );
   }
@@ -517,11 +368,6 @@ export default function App() {
     <div style={styles.app}>
       <div style={styles.sidebar}>
         <h3>{activeProject}</h3>
-
-        <div style={styles.meta}>
-          {tracks.length} tracks •{" "}
-          {totalDuration(tracks)}
-        </div>
 
         <label style={styles.btn}>
           add tracks
@@ -571,10 +417,6 @@ export default function App() {
               onClick={() =>
                 play(i)
               }
-              onContextMenu={(e) => {
-                e.preventDefault();
-                deleteTrack(i);
-              }}
             >
               <span>{t.name}</span>
               <span>
@@ -619,12 +461,8 @@ export default function App() {
             )}
           </div>
 
-          {/* REAL ARM */}
-          <div
-            style={
-              styles.armBase
-            }
-          />
+          {/* STYLUS FIXED */}
+          <div style={styles.armBase} />
 
           <div
             style={{
@@ -632,31 +470,16 @@ export default function App() {
               transform: `rotate(${armAngle}deg)`
             }}
           >
-            <div
-              style={
-                styles.armTube
-              }
-            />
-            <div
-              style={
-                styles.armHead
-              }
-            />
-            <div
-              style={
-                styles.armNeedle
-              }
-            />
+            <div style={styles.armTube} />
+            <div style={styles.armHead} />
+            <div style={styles.armNeedle} />
           </div>
         </div>
       </div>
 
       {/* PLAYER */}
       <div style={styles.player}>
-        <button
-          style={styles.btn}
-          onClick={prev}
-        >
+        <button style={styles.btn} onClick={prev}>
           ⏮
         </button>
 
@@ -664,15 +487,10 @@ export default function App() {
           style={styles.btn}
           onClick={toggle}
         >
-          {playing
-            ? "pause"
-            : "play"}
+          {playing ? "pause" : "play"}
         </button>
 
-        <button
-          style={styles.btn}
-          onClick={next}
-        >
+        <button style={styles.btn} onClick={next}>
           ⏭
         </button>
 
@@ -682,10 +500,7 @@ export default function App() {
         </div>
 
         <div>
-          {formatTime(
-            currentTime
-          )}{" "}
-          /{" "}
+          {formatTime(currentTime)} /{" "}
           {formatTime(duration)}
         </div>
 
@@ -699,39 +514,7 @@ export default function App() {
         />
       </div>
 
-      {popup && <Popup popup={popup} />}
-
       <audio ref={audioRef} />
-    </div>
-  );
-}
-
-/* ================= POPUP ================= */
-
-function Popup({ popup }) {
-  return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <div style={styles.modalTitle}>
-          {popup.title}
-        </div>
-
-        <div style={styles.modalText}>
-          {popup.text}
-        </div>
-
-        {popup.actions.map(
-          (btn, i) => (
-            <button
-              key={i}
-              style={styles.btn}
-              onClick={btn.onClick}
-            >
-              {btn.text}
-            </button>
-          )
-        )}
-      </div>
     </div>
   );
 }
@@ -750,13 +533,13 @@ const styles = {
 
   auth: {
     height: "100vh",
-    background:
-      "radial-gradient(circle at top,#171717,#090909)",
     display: "flex",
     justifyContent:
       "center",
     alignItems:
-      "center"
+      "center",
+    background:
+      "radial-gradient(circle at top,#171717,#090909)"
   },
 
   panel: {
@@ -779,7 +562,7 @@ const styles = {
     padding: 12,
     borderRadius: 12,
     border: "none",
-    background: "#101010",
+    background: "#111",
     color: "white"
   },
 
@@ -822,8 +605,8 @@ const styles = {
     display: "flex",
     justifyContent:
       "center",
-    flexWrap: "wrap",
     gap: 14,
+    flexWrap: "wrap",
     padding: 24
   },
 
@@ -839,9 +622,9 @@ const styles = {
   homeCover: {
     width: "100%",
     height: 130,
-    borderRadius: 14,
     objectFit:
       "cover",
+    borderRadius: 14,
     marginBottom: 12
   },
 
@@ -858,12 +641,6 @@ const styles = {
       "center"
   },
 
-  meta: {
-    opacity: 0.6,
-    fontSize: 12,
-    marginTop: 6
-  },
-
   sidebar: {
     width: 290,
     padding: 20,
@@ -877,9 +654,7 @@ const styles = {
     display: "flex",
     flexDirection:
       "column",
-    gap: 8,
-    overflowY:
-      "auto"
+    gap: 8
   },
 
   track: {
@@ -971,69 +746,64 @@ const styles = {
       "center"
   },
 
-  /* ARM */
+  /* ===== FIXED ARM ===== */
 
   armBase: {
-    position:
-      "absolute",
-    right: 42,
-    top: 48,
-    width: 56,
-    height: 56,
+    position: "absolute",
+    right: 62,
+    top: 86,
+    width: 54,
+    height: 54,
     borderRadius: "50%",
     background:
-      "radial-gradient(circle,#fff,#777)",
+      "radial-gradient(circle at 30% 30%, #ffffff, #7a7a7a)",
     zIndex: 50
   },
 
   arm: {
-    position:
-      "absolute",
-    right: 70,
-    top: 76,
+    position: "absolute",
+    right: 88,
+    top: 112,
     width: 250,
     height: 10,
     transformOrigin:
       "100% center",
     transition:
-      "transform .7s ease",
+      "transform .8s ease",
     zIndex: 50
   },
 
   armTube: {
-    position:
-      "absolute",
+    position: "absolute",
     right: 0,
     top: 0,
-    width: 230,
+    width: 228,
     height: 10,
     borderRadius: 20,
     background:
-      "linear-gradient(145deg,#fff,#8d8d8d)"
+      "linear-gradient(145deg,#ffffff,#8c8c8c)"
   },
 
   armHead: {
-    position:
-      "absolute",
-    left: 0,
-    top: -6,
-    width: 28,
-    height: 18,
+    position: "absolute",
+    left: -2,
+    top: -7,
+    width: 30,
+    height: 20,
     borderRadius: 4,
     background:
-      "linear-gradient(145deg,#fff,#bbb)"
+      "linear-gradient(145deg,#ffffff,#bbbbbb)"
   },
 
   armNeedle: {
-    position:
-      "absolute",
-    left: 6,
-    top: 10,
+    position: "absolute",
+    left: 8,
+    top: 11,
     width: 2,
-    height: 18,
+    height: 24,
     background: "#111",
     transform:
-      "rotate(-22deg)"
+      "rotate(18deg)"
   },
 
   player: {
@@ -1044,9 +814,9 @@ const styles = {
     bottom: 0,
     height: 78,
     display: "flex",
-    alignItems:
-      "center",
     justifyContent:
+      "center",
+    alignItems:
       "center",
     gap: 10,
     background:
@@ -1054,45 +824,7 @@ const styles = {
   },
 
   now: {
-    maxWidth: 220,
-    overflow: "hidden",
-    whiteSpace:
-      "nowrap",
-    textOverflow:
-      "ellipsis"
-  },
-
-  overlay: {
-    position:
-      "fixed",
-    inset: 0,
-    background:
-      "rgba(0,0,0,.55)",
-    display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center",
-    zIndex: 999
-  },
-
-  modal: {
-    width: 320,
-    padding: 24,
-    borderRadius: 18,
-    background: "#111",
-    display: "flex",
-    flexDirection:
-      "column",
-    gap: 12
-  },
-
-  modalTitle: {
-    fontSize: 22
-  },
-
-  modalText: {
-    opacity: 0.8
+    maxWidth: 220
   }
 };
 
