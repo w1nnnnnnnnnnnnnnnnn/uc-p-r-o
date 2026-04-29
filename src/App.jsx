@@ -210,18 +210,29 @@ export default function App() {
   }
 
   function deleteTrack(i) {
-    openPopup("Delete Track", `Delete "${tracks[i]?.name}"?`, [
-      {
-        text: "Delete",
-        onClick: () => {
-          const next = tracks.filter((_, x) => x !== i);
-          saveCurrentProject(next);
-          if (index >= next.length) setIndex(Math.max(0, next.length - 1));
-          closePopup();
+    openPopup(
+      "Delete Track",
+      `Delete "${tracks[i]?.name}"?`,
+      [
+        {
+          text: "Delete",
+          onClick: () => {
+            const next = tracks.filter((_, x) => x !== i);
+            saveCurrentProject(next);
+
+            if (index >= next.length) {
+              setIndex(Math.max(0, next.length - 1));
+            }
+
+            closePopup();
+          }
+        },
+        {
+          text: "Cancel",
+          onClick: closePopup
         }
-      },
-      { text: "Cancel", onClick: closePopup }
-    ]);
+      ]
+    );
   }
 
   /* ================= PLAYER ================= */
@@ -270,7 +281,7 @@ export default function App() {
     setCurrentTime(val);
   }
 
-  /* ================= AUDIO ================= */
+  /* ================= AUDIO EVENTS ================= */
 
   useEffect(() => {
     const a = audioRef.current;
@@ -297,17 +308,21 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* ================= FINAL REAL STYLUS ================= */
+  /* ================= REALISTIC STYLUS ================= */
 
   const totalSongs = Math.max(tracks.length, 1);
 
-  const songProgress = duration > 0 ? currentTime / duration : 0;
+  const songProgress =
+    duration > 0 ? currentTime / duration : 0;
 
   const projectProgress =
-    tracks.length === 0 ? 0 : (index + songProgress) / totalSongs;
+    tracks.length === 0
+      ? 0
+      : (index + songProgress) / totalSongs;
 
-  /* START außen -> ENDE innen */
-  const armAngle = 34 - projectProgress * 26;
+  /* START AUSSEN -> ENDE INNEN */
+  const armAngle =
+    -34 + projectProgress * 26;
 
   /* ================= AUTH ================= */
 
@@ -369,7 +384,10 @@ export default function App() {
         <div style={styles.centerHome}>
           <div style={styles.logo}>AURAE OS</div>
 
-          <button style={styles.btn} onClick={() => setShowCreate(true)}>
+          <button
+            style={styles.btn}
+            onClick={() => setShowCreate(true)}
+          >
             + new project
           </button>
 
@@ -387,7 +405,9 @@ export default function App() {
                   {cover ? (
                     <img src={cover} style={styles.homeCover} />
                   ) : (
-                    <div style={styles.homeFallback}>AURAE</div>
+                    <div style={styles.homeFallback}>
+                      AURAE
+                    </div>
                   )}
 
                   <div>{name}</div>
@@ -404,22 +424,31 @@ export default function App() {
         {showCreate && (
           <div style={styles.overlay}>
             <div style={styles.modal}>
-              <div style={styles.modalTitle}>Create Project</div>
+              <div style={styles.modalTitle}>
+                Create Project
+              </div>
 
               <input
                 style={styles.input}
                 placeholder="project name"
                 value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
+                onChange={(e) =>
+                  setProjectName(e.target.value)
+                }
               />
 
-              <button style={styles.btn} onClick={createProject}>
+              <button
+                style={styles.btn}
+                onClick={createProject}
+              >
                 Create
               </button>
 
               <button
                 style={styles.btn}
-                onClick={() => setShowCreate(false)}
+                onClick={() =>
+                  setShowCreate(false)
+                }
               >
                 Cancel
               </button>
@@ -467,10 +496,15 @@ export default function App() {
         <input
           type="color"
           value={vinylColor}
-          onChange={(e) => setVinylColor(e.target.value)}
+          onChange={(e) =>
+            setVinylColor(e.target.value)
+          }
         />
 
-        <button style={styles.btn} onClick={() => setView("home")}>
+        <button
+          style={styles.btn}
+          onClick={() => setView("home")}
+        >
           home
         </button>
 
@@ -492,6 +526,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* CENTER */}
       <div style={styles.stage}>
         <div style={styles.turntable}>
           <div style={styles.plinth} />
@@ -508,14 +543,21 @@ export default function App() {
             <div style={styles.grooves} />
 
             {albumCover ? (
-              <img src={albumCover} style={styles.labelImg} />
+              <img
+                src={albumCover}
+                style={styles.labelImg}
+              />
             ) : (
-              <div style={styles.labelFallback}>AURAE</div>
+              <div style={styles.labelFallback}>
+                AURAE
+              </div>
             )}
           </div>
 
+          {/* ARM BASE */}
           <div style={styles.armBase} />
 
+          {/* ARM */}
           <div
             style={{
               ...styles.arm,
@@ -529,6 +571,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* PLAYER */}
       <div style={styles.player}>
         <button style={styles.btn} onClick={prev}>
           ⏮
@@ -542,10 +585,13 @@ export default function App() {
           ⏭
         </button>
 
-        <div style={styles.now}>{current?.name || "no track loaded"}</div>
+        <div style={styles.now}>
+          {current?.name || "no track loaded"}
+        </div>
 
         <div>
-          {formatTime(currentTime)} / {formatTime(duration)}
+          {formatTime(currentTime)} /{" "}
+          {formatTime(duration)}
         </div>
 
         <input
@@ -565,12 +611,19 @@ export default function App() {
   );
 }
 
+/* ================= POPUP ================= */
+
 function Popup({ popup }) {
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
-        <div style={styles.modalTitle}>{popup.title}</div>
-        <div style={styles.modalText}>{popup.text}</div>
+        <div style={styles.modalTitle}>
+          {popup.title}
+        </div>
+
+        <div style={styles.modalText}>
+          {popup.text}
+        </div>
 
         {popup.actions.map((btn, i) => (
           <button
@@ -585,6 +638,8 @@ function Popup({ popup }) {
     </div>
   );
 }
+
+/* ================= STYLES ================= */
 
 const styles = {
   app: {
@@ -633,7 +688,10 @@ const styles = {
     cursor: "pointer"
   },
 
-  row: { display: "flex", gap: 8 },
+  row: {
+    display: "flex",
+    gap: 8
+  },
 
   home: {
     minHeight: "100vh",
@@ -747,7 +805,9 @@ const styles = {
     top: 85,
     width: 390,
     height: 390,
-    borderRadius: "50%"
+    borderRadius: "50%",
+    boxShadow:
+      "0 0 30px rgba(0,0,0,.6)"
   },
 
   grooves: {
@@ -755,7 +815,7 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,.07) 0px, transparent 2px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,.06) 0px, transparent 2px)"
   },
 
   labelImg: {
@@ -766,7 +826,8 @@ const styles = {
     objectFit: "cover",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%,-50%)"
+    transform:
+      "translate(-50%,-50%)"
   },
 
   labelFallback: {
@@ -777,65 +838,73 @@ const styles = {
     background: "#111",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%,-50%)",
+    transform:
+      "translate(-50%,-50%)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
   },
 
+  /* REALISTIC ARM */
+
   armBase: {
     position: "absolute",
-    right: 42,
-    top: 48,
-    width: 56,
-    height: 56,
+    right: 72,
+    top: 72,
+    width: 26,
+    height: 26,
     borderRadius: "50%",
     background:
-      "radial-gradient(circle,#fff,#777)",
+      "radial-gradient(circle,#fefefe,#777)",
+    boxShadow:
+      "0 0 10px rgba(0,0,0,.35)",
     zIndex: 50
   },
 
   arm: {
     position: "absolute",
-    right: 70,
+    right: 84,
     top: 84,
-    width: 250,
-    height: 10,
-    transformOrigin: "100% center",
-    transition: "transform .5s ease",
-    zIndex: 50
+    width: 245,
+    height: 16,
+    transformOrigin: "100% 50%",
+    transition: "transform .45s ease",
+    zIndex: 55
   },
 
   armTube: {
     position: "absolute",
     right: 0,
-    top: 0,
-    width: 230,
-    height: 10,
+    top: 5,
+    width: 220,
+    height: 7,
     borderRadius: 20,
     background:
-      "linear-gradient(145deg,#fff,#8d8d8d)"
+      "linear-gradient(90deg,#fafafa,#b8b8b8,#f5f5f5)",
+    boxShadow:
+      "0 1px 4px rgba(0,0,0,.35)"
   },
 
   armHead: {
     position: "absolute",
     left: 0,
-    top: -4,
-    width: 30,
-    height: 16,
+    top: 1,
+    width: 26,
+    height: 14,
     borderRadius: 4,
     background:
-      "linear-gradient(145deg,#fff,#bbb)"
+      "linear-gradient(145deg,#ddd,#888)"
   },
 
   armNeedle: {
     position: "absolute",
-    left: 6,
+    left: 4,
     top: 10,
     width: 2,
-    height: 10,
+    height: 14,
     background: "#111",
-    transform: "rotate(-15deg)"
+    transform: "rotate(18deg)",
+    transformOrigin: "top center"
   },
 
   player: {
@@ -848,7 +917,8 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    background: "rgba(0,0,0,.45)"
+    background:
+      "rgba(0,0,0,.45)"
   },
 
   now: {
@@ -861,7 +931,8 @@ const styles = {
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,.55)",
+    background:
+      "rgba(0,0,0,.55)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
