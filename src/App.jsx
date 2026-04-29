@@ -39,6 +39,7 @@ export default function App() {
   const [duration, setDuration] = useState(0);
 
   const audioRef = useRef(null);
+
   const current = tracks[index];
 
   /* ================= HELPERS ================= */
@@ -79,7 +80,7 @@ export default function App() {
   }
 
   function totalDuration(list = []) {
-    const sum = list.reduce((a, t) => a + (t.duration || 0), 0);
+    const sum = list.reduce((acc, t) => acc + (t.duration || 0), 0);
     return formatTime(sum);
   }
 
@@ -107,9 +108,7 @@ export default function App() {
       return;
     }
 
-    if (remember) {
-      localStorage.setItem("aurae_remember", email);
-    }
+    if (remember) localStorage.setItem("aurae_remember", email);
 
     setView("home");
   }
@@ -177,8 +176,8 @@ export default function App() {
 
     const loaded = await Promise.all(
       files.map(
-        file =>
-          new Promise(resolve => {
+        (file) =>
+          new Promise((resolve) => {
             const url = URL.createObjectURL(file);
             const probe = new Audio(url);
 
@@ -217,18 +216,11 @@ export default function App() {
         onClick: () => {
           const next = tracks.filter((_, x) => x !== i);
           saveCurrentProject(next);
-
-          if (index >= next.length) {
-            setIndex(Math.max(0, next.length - 1));
-          }
-
+          if (index >= next.length) setIndex(Math.max(0, next.length - 1));
           closePopup();
         }
       },
-      {
-        text: "Cancel",
-        onClick: closePopup
-      }
+      { text: "Cancel", onClick: closePopup }
     ]);
   }
 
@@ -278,7 +270,7 @@ export default function App() {
     setCurrentTime(val);
   }
 
-  /* ================= AUDIO EVENTS ================= */
+  /* ================= AUDIO ================= */
 
   useEffect(() => {
     const a = audioRef.current;
@@ -305,25 +297,19 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* ================= ULTRA FINAL STYLUS ================= */
+  /* ================= FINAL REAL STYLUS ================= */
 
   const totalSongs = Math.max(tracks.length, 1);
 
-  const songProgress =
-    duration > 0 ? currentTime / duration : 0;
+  const songProgress = duration > 0 ? currentTime / duration : 0;
 
   const projectProgress =
-    tracks.length === 0
-      ? 0
-      : (index + songProgress) / totalSongs;
+    tracks.length === 0 ? 0 : (index + songProgress) / totalSongs;
 
-  /* außen rechts -> innen links */
-  const armAngle =
-    -34 + projectProgress * 44;
+  /* START außen -> ENDE innen */
+  const armAngle = 34 - projectProgress * 26;
 
-  const armDrop = playing ? 8 : 0;
-
-  /* ================= AUTH SCREEN ================= */
+  /* ================= AUTH ================= */
 
   if (view === "auth") {
     return (
@@ -335,7 +321,7 @@ export default function App() {
             style={styles.input}
             placeholder="email"
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
           />
 
           <input
@@ -343,7 +329,7 @@ export default function App() {
             placeholder="password"
             type="password"
             value={password}
-            onChange={e => setPassword(e.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
           />
 
           <label style={styles.row}>
@@ -383,15 +369,12 @@ export default function App() {
         <div style={styles.centerHome}>
           <div style={styles.logo}>AURAE OS</div>
 
-          <button
-            style={styles.btn}
-            onClick={() => setShowCreate(true)}
-          >
+          <button style={styles.btn} onClick={() => setShowCreate(true)}>
             + new project
           </button>
 
           <div style={styles.grid}>
-            {Object.keys(projects).map(name => {
+            {Object.keys(projects).map((name) => {
               const list = projects[name]?.tracks || [];
               const cover = projects[name]?.cover;
 
@@ -404,16 +387,13 @@ export default function App() {
                   {cover ? (
                     <img src={cover} style={styles.homeCover} />
                   ) : (
-                    <div style={styles.homeFallback}>
-                      AURAE
-                    </div>
+                    <div style={styles.homeFallback}>AURAE</div>
                   )}
 
                   <div>{name}</div>
 
                   <div style={styles.meta}>
-                    {list.length} tracks •{" "}
-                    {totalDuration(list)}
+                    {list.length} tracks • {totalDuration(list)}
                   </div>
                 </div>
               );
@@ -424,31 +404,22 @@ export default function App() {
         {showCreate && (
           <div style={styles.overlay}>
             <div style={styles.modal}>
-              <div style={styles.modalTitle}>
-                Create Project
-              </div>
+              <div style={styles.modalTitle}>Create Project</div>
 
               <input
                 style={styles.input}
                 placeholder="project name"
                 value={projectName}
-                onChange={e =>
-                  setProjectName(e.target.value)
-                }
+                onChange={(e) => setProjectName(e.target.value)}
               />
 
-              <button
-                style={styles.btn}
-                onClick={createProject}
-              >
+              <button style={styles.btn} onClick={createProject}>
                 Create
               </button>
 
               <button
                 style={styles.btn}
-                onClick={() =>
-                  setShowCreate(false)
-                }
+                onClick={() => setShowCreate(false)}
               >
                 Cancel
               </button>
@@ -469,8 +440,7 @@ export default function App() {
         <h3>{activeProject}</h3>
 
         <div style={styles.meta}>
-          {tracks.length} tracks •{" "}
-          {totalDuration(tracks)}
+          {tracks.length} tracks • {totalDuration(tracks)}
         </div>
 
         <label style={styles.btn}>
@@ -497,15 +467,10 @@ export default function App() {
         <input
           type="color"
           value={vinylColor}
-          onChange={e =>
-            setVinylColor(e.target.value)
-          }
+          onChange={(e) => setVinylColor(e.target.value)}
         />
 
-        <button
-          style={styles.btn}
-          onClick={() => setView("home")}
-        >
+        <button style={styles.btn} onClick={() => setView("home")}>
           home
         </button>
 
@@ -515,77 +480,38 @@ export default function App() {
               key={t.id}
               style={styles.track}
               onClick={() => play(i)}
-              onContextMenu={e => {
+              onContextMenu={(e) => {
                 e.preventDefault();
                 deleteTrack(i);
               }}
             >
               <span>{t.name}</span>
-              <span>
-                {formatTime(t.duration)}
-              </span>
+              <span>{formatTime(t.duration)}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* CENTER */}
       <div style={styles.stage}>
         <div style={styles.turntable}>
           <div style={styles.plinth} />
-          <div style={styles.platterShadow} />
 
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle at center,
-#0b0b0b 0%,
-${vinylColor} 18%,
-#050505 38%,
-#111 58%,
-#020202 75%,
-#000 100%)`,
+              background: `radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)`,
               animation: playing
-                ? "spin 1.8s linear infinite"
+                ? "spin 1.55s linear infinite"
                 : "none"
             }}
           >
             <div style={styles.grooves} />
 
-            {tracks.map((_, i) => {
-              const size =
-                170 +
-                ((i + 1) / tracks.length) *
-                  180;
-
-              return (
-                <div
-                  key={i}
-                  style={{
-                    ...styles.songRing,
-                    width: size,
-                    height: size
-                  }}
-                />
-              );
-            })}
-
             {albumCover ? (
-              <img
-                src={albumCover}
-                style={styles.labelImg}
-              />
+              <img src={albumCover} style={styles.labelImg} />
             ) : (
-              <div
-                style={
-                  styles.labelFallback
-                }
-              >
-                AURAE
-              </div>
+              <div style={styles.labelFallback}>AURAE</div>
             )}
-
-            <div style={styles.spindle} />
           </div>
 
           <div style={styles.armBase} />
@@ -597,57 +523,29 @@ ${vinylColor} 18%,
             }}
           >
             <div style={styles.armTube} />
-
-            <div
-              style={{
-                ...styles.armHead,
-                transform: `translateY(${armDrop}px)`
-              }}
-            >
-              <div
-                style={
-                  styles.armNeedle
-                }
-              />
-            </div>
+            <div style={styles.armHead} />
+            <div style={styles.armNeedle} />
           </div>
         </div>
       </div>
 
-      {/* PLAYER */}
       <div style={styles.player}>
-        <button
-          style={styles.btn}
-          onClick={prev}
-        >
+        <button style={styles.btn} onClick={prev}>
           ⏮
         </button>
 
-        <button
-          style={styles.btn}
-          onClick={toggle}
-        >
-          {playing
-            ? "pause"
-            : "play"}
+        <button style={styles.btn} onClick={toggle}>
+          {playing ? "pause" : "play"}
         </button>
 
-        <button
-          style={styles.btn}
-          onClick={next}
-        >
+        <button style={styles.btn} onClick={next}>
           ⏭
         </button>
 
-        <div style={styles.now}>
-          {current?.name ||
-            "no track loaded"}
-        </div>
+        <div style={styles.now}>{current?.name || "no track loaded"}</div>
 
         <div>
-          {formatTime(
-            currentTime
-          )} / {formatTime(duration)}
+          {formatTime(currentTime)} / {formatTime(duration)}
         </div>
 
         <input
@@ -667,37 +565,26 @@ ${vinylColor} 18%,
   );
 }
 
-/* ================= POPUP ================= */
-
 function Popup({ popup }) {
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
-        <div style={styles.modalTitle}>
-          {popup.title}
-        </div>
+        <div style={styles.modalTitle}>{popup.title}</div>
+        <div style={styles.modalText}>{popup.text}</div>
 
-        <div style={styles.modalText}>
-          {popup.text}
-        </div>
-
-        {popup.actions.map(
-          (btn, i) => (
-            <button
-              key={i}
-              style={styles.btn}
-              onClick={btn.onClick}
-            >
-              {btn.text}
-            </button>
-          )
-        )}
+        {popup.actions.map((btn, i) => (
+          <button
+            key={i}
+            style={styles.btn}
+            onClick={btn.onClick}
+          >
+            {btn.text}
+          </button>
+        ))}
       </div>
     </div>
   );
 }
-
-/* ================= STYLES ================= */
 
 const styles = {
   app: {
@@ -705,8 +592,7 @@ const styles = {
     height: "100vh",
     background: "#090909",
     color: "white",
-    fontFamily:
-      "Courier New, monospace"
+    fontFamily: "Courier New, monospace"
   },
 
   auth: {
@@ -714,27 +600,21 @@ const styles = {
     background:
       "radial-gradient(circle at top,#171717,#090909)",
     display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center"
+    justifyContent: "center",
+    alignItems: "center"
   },
 
   panel: {
     width: 340,
     padding: 34,
     borderRadius: 22,
-    background:
-      "rgba(255,255,255,.06)",
+    background: "rgba(255,255,255,.06)",
     display: "flex",
-    flexDirection:
-      "column",
+    flexDirection: "column",
     gap: 12
   },
 
-  logo: {
-    fontSize: 44
-  },
+  logo: { fontSize: 44 },
 
   input: {
     padding: 12,
@@ -745,20 +625,15 @@ const styles = {
   },
 
   btn: {
-    padding:
-      "12px 16px",
+    padding: "12px 16px",
     borderRadius: 16,
     border: "none",
-    background:
-      "rgba(255,255,255,.08)",
+    background: "rgba(255,255,255,.08)",
     color: "white",
     cursor: "pointer"
   },
 
-  row: {
-    display: "flex",
-    gap: 8
-  },
+  row: { display: "flex", gap: 8 },
 
   home: {
     minHeight: "100vh",
@@ -779,8 +654,7 @@ const styles = {
 
   grid: {
     display: "flex",
-    justifyContent:
-      "center",
+    justifyContent: "center",
     flexWrap: "wrap",
     gap: 14,
     padding: 24
@@ -790,8 +664,7 @@ const styles = {
     minWidth: 240,
     padding: 18,
     borderRadius: 18,
-    background:
-      "rgba(255,255,255,.05)",
+    background: "rgba(255,255,255,.05)",
     cursor: "pointer"
   },
 
@@ -810,10 +683,8 @@ const styles = {
     background: "#111",
     marginBottom: 12,
     display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center"
+    justifyContent: "center",
+    alignItems: "center"
   },
 
   meta: {
@@ -826,37 +697,31 @@ const styles = {
     width: 290,
     padding: 20,
     display: "flex",
-    flexDirection:
-      "column",
+    flexDirection: "column",
     gap: 12
   },
 
   list: {
     display: "flex",
-    flexDirection:
-      "column",
+    flexDirection: "column",
     gap: 8,
     overflowY: "auto"
   },
 
   track: {
     display: "flex",
-    justifyContent:
-      "space-between",
+    justifyContent: "space-between",
     padding: 10,
     borderRadius: 12,
-    background:
-      "rgba(255,255,255,.04)",
+    background: "rgba(255,255,255,.04)",
     cursor: "pointer"
   },
 
   stage: {
     flex: 1,
     display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center"
+    justifyContent: "center",
+    alignItems: "center"
   },
 
   turntable: {
@@ -867,25 +732,13 @@ const styles = {
 
   plinth: {
     position: "absolute",
-    inset: 20,
+    left: 20,
+    top: 20,
+    width: 520,
+    height: 520,
     borderRadius: 28,
     background:
-      "linear-gradient(145deg,#f6f6f6,#d7d7d7)",
-    boxShadow:
-      "0 22px 40px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.9)"
-  },
-
-  platterShadow: {
-    position: "absolute",
-    left: 72,
-    top: 72,
-    width: 416,
-    height: 416,
-    borderRadius: "50%",
-    background:
-      "radial-gradient(circle,#3d3d3d,#111)",
-    boxShadow:
-      "0 0 35px rgba(0,0,0,.45)"
+      "linear-gradient(145deg,#f7f7f7,#d9d9d9)"
   },
 
   vinyl: {
@@ -894,10 +747,7 @@ const styles = {
     top: 85,
     width: 390,
     height: 390,
-    borderRadius: "50%",
-    overflow: "hidden",
-    boxShadow:
-      "0 0 18px rgba(0,0,0,.5)"
+    borderRadius: "50%"
   },
 
   grooves: {
@@ -905,126 +755,87 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,.08) 0px, rgba(255,255,255,.03) 1px, transparent 2px, transparent 4px)"
-  },
-
-  songRing: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform:
-      "translate(-50%,-50%)",
-    borderRadius: "50%",
-    border:
-      "2px solid rgba(255,255,255,.15)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,.07) 0px, transparent 2px)"
   },
 
   labelImg: {
     position: "absolute",
-    width: 145,
-    height: 145,
+    width: 150,
+    height: 150,
     borderRadius: "50%",
     objectFit: "cover",
     top: "50%",
     left: "50%",
-    transform:
-      "translate(-50%,-50%)",
-    zIndex: 5
+    transform: "translate(-50%,-50%)"
   },
 
   labelFallback: {
     position: "absolute",
-    width: 145,
-    height: 145,
+    width: 150,
+    height: 150,
     borderRadius: "50%",
     background: "#111",
     top: "50%",
     left: "50%",
-    transform:
-      "translate(-50%,-50%)",
+    transform: "translate(-50%,-50%)",
     display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center",
-    zIndex: 5
-  },
-
-  spindle: {
-    position: "absolute",
-    width: 10,
-    height: 10,
-    borderRadius: "50%",
-    background: "#ddd",
-    top: "50%",
-    left: "50%",
-    transform:
-      "translate(-50%,-50%)",
-    zIndex: 6
+    justifyContent: "center",
+    alignItems: "center"
   },
 
   armBase: {
     position: "absolute",
     right: 42,
-    top: 46,
-    width: 58,
-    height: 58,
+    top: 48,
+    width: 56,
+    height: 56,
     borderRadius: "50%",
     background:
       "radial-gradient(circle,#fff,#777)",
-    zIndex: 40,
-    boxShadow:
-      "0 5px 10px rgba(0,0,0,.35)"
+    zIndex: 50
   },
 
   arm: {
     position: "absolute",
-    right: 71,
-    top: 74,
-    width: 255,
-    height: 14,
-    transformOrigin:
-      "100% center",
-    transition:
-      "transform .6s ease",
+    right: 70,
+    top: 84,
+    width: 250,
+    height: 10,
+    transformOrigin: "100% center",
+    transition: "transform .5s ease",
     zIndex: 50
   },
 
   armTube: {
     position: "absolute",
     right: 0,
-    top: 3,
-    width: 235,
-    height: 8,
+    top: 0,
+    width: 230,
+    height: 10,
     borderRadius: 20,
     background:
-      "linear-gradient(145deg,#fafafa,#8c8c8c)",
-    boxShadow:
-      "0 2px 5px rgba(0,0,0,.25)"
+      "linear-gradient(145deg,#fff,#8d8d8d)"
   },
 
   armHead: {
     position: "absolute",
     left: 0,
-    top: -1,
+    top: -4,
     width: 30,
     height: 16,
     borderRadius: 4,
     background:
-      "linear-gradient(145deg,#f5f5f5,#bcbcbc)",
-    transition:
-      "transform .25s ease"
+      "linear-gradient(145deg,#fff,#bbb)"
   },
 
   armNeedle: {
     position: "absolute",
-    left: 7,
-    top: 12,
+    left: 6,
+    top: 10,
     width: 2,
-    height: 18,
+    height: 10,
     background: "#111",
-    transform:
-      "rotate(18deg)"
+    transform: "rotate(-15deg)"
   },
 
   player: {
@@ -1034,34 +845,26 @@ const styles = {
     bottom: 0,
     height: 78,
     display: "flex",
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
-    background:
-      "rgba(0,0,0,.45)"
+    background: "rgba(0,0,0,.45)"
   },
 
   now: {
     maxWidth: 220,
     overflow: "hidden",
-    whiteSpace:
-      "nowrap",
-    textOverflow:
-      "ellipsis"
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis"
   },
 
   overlay: {
     position: "fixed",
     inset: 0,
-    background:
-      "rgba(0,0,0,.55)",
+    background: "rgba(0,0,0,.55)",
     display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center",
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 999
   },
 
@@ -1071,22 +874,16 @@ const styles = {
     borderRadius: 18,
     background: "#111",
     display: "flex",
-    flexDirection:
-      "column",
+    flexDirection: "column",
     gap: 12
   },
 
-  modalTitle: {
-    fontSize: 22
-  },
+  modalTitle: { fontSize: 22 },
 
-  modalText: {
-    opacity: 0.8
-  }
+  modalText: { opacity: 0.8 }
 };
 
-const style =
-  document.createElement("style");
+const style = document.createElement("style");
 
 style.innerHTML = `
 @keyframes spin{
