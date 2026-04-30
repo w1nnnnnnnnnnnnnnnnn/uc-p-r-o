@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
@@ -13,6 +11,11 @@ export default function App() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
+
+  const [popup, setPopup] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [projectName, setProjectName] = useState("");
 
   const [projects, setProjects] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_projects") || "{}")
@@ -26,10 +29,6 @@ export default function App() {
   const [vinylColor, setVinylColor] = useState("#111111");
   const [albumCover, setAlbumCover] = useState(null);
 
-  const [popup, setPopup] = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [projectName, setProjectName] = useState("");
-
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -37,12 +36,20 @@ export default function App() {
 
   const current = tracks[index];
 
+  function openPopup(title, text, actions = []) {
+    setPopup({ title, text, actions });
+  }
+
+  function closePopup() {
+    setPopup(null);
+  }
+
   function saveProjects(next) {
     setProjects(next);
     localStorage.setItem("aurae_projects", JSON.stringify(next));
   }
 
-  function saveCurrent(nextTracks = tracks, nextCover = albumCover) {
+  function saveCurrentProject(nextTracks = tracks, nextCover = albumCover) {
     const next = {
       ...projects,
       [activeProject]: {
@@ -56,26 +63,34 @@ export default function App() {
     setAlbumCover(nextCover);
   }
 
-  function format(sec = 0) {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60)
+  function formatTime(sec = 0) {
+    const mins = Math.floor(sec / 60);
+    const secs = Math.floor(sec % 60)
       .toString()
       .padStart(2, "0");
-    return `${m}:${s}`;
+    return `${mins}:${secs}`;
   }
 
   function totalDuration(list = []) {
-    return list.reduce((a, b) => a + (b.duration || 0), 0);
+    const sum = list.reduce((a, t) => a + (t.duration || 0), 0);
+    return formatTime(sum);
   }
 
   function login() {
+    if (!email || !password) return;
     if (!users[email]) return;
     if (users[email].password !== password) return;
-    localStorage.setItem("aurae_remember", email);
+
+    if (remember) {
+      localStorage.setItem("aurae_remember", email);
+    }
+
     setView("home");
   }
 
   function signup() {
+    if (!email || !password) return;
+
     const next = {
       ...users,
       [email]: { password }
@@ -103,12 +118,12 @@ export default function App() {
     };
 
     saveProjects(next);
-    setShowCreate(false);
     setProjectName("");
+    setShowCreate(false);
   }
 
   function openProject(name) {
-    const p = projects[name];
+    const p = projects[name] || {};
 
     setActiveProject(name);
     setTracks(p.tracks || []);
@@ -127,8 +142,8 @@ export default function App() {
 
     const loaded = await Promise.all(
       files.map(
-        file =>
-          new Promise(resolve => {
+        (file) =>
+          new Promise((resolve) => {
             const url = URL.createObjectURL(file);
             const probe = new Audio(url);
 
@@ -144,7 +159,7 @@ export default function App() {
       )
     );
 
-    saveCurrent([...tracks, ...loaded]);
+    saveCurrentProject([...tracks, ...loaded]);
   }
 
   function addCover(e) {
@@ -153,21 +168,28 @@ export default function App() {
 
     const reader = new FileReader();
 
-    reader.onload = () => saveCurrent(tracks, reader.result);
+    reader.onload = () => {
+      saveCurrentProject(tracks, reader.result);
+    };
 
     reader.readAsDataURL(file);
   }
 
   function deleteTrack(i) {
-    setPopup({
-      title: "Delete Track?",
-      text: tracks[i].name,
-      action: () => {
-        const next = tracks.filter((_, x) => x !== i);
-        saveCurrent(next);
-        setPopup(null);
+    openPopup("Delete Track", `Delete "${tracks[i]?.name}"?`, [
+      {
+        text: "Delete",
+        onClick: () => {
+          const next = tracks.filter((_, x) => x !== i);
+          saveCurrentProject(next);
+          closePopup();
+        }
+      },
+      {
+        text: "Cancel",
+        onClick: closePopup
       }
-    });
+    ]);
   }
 
   function play(i) {
@@ -179,8 +201,8 @@ export default function App() {
     setTimeout(() => {
       const a = audioRef.current;
       a.src = tracks[i].url;
-      a.play();
-    }, 20);
+      a.play().catch(() => {});
+    }, 30);
   }
 
   function toggle() {
@@ -195,7 +217,7 @@ export default function App() {
       a.pause();
       setPlaying(false);
     } else {
-      a.play();
+      a.play().catch(() => {});
       setPlaying(true);
     }
   }
@@ -209,7 +231,9 @@ export default function App() {
   }
 
   function seek(e) {
-    audioRef.current.currentTime = Number(e.target.value);
+    const val = Number(e.target.value);
+    audioRef.current.currentTime = val;
+    setCurrentTime(val);
   }
 
   useEffect(() => {
@@ -237,40 +261,40 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* TONARM: außen Platte -> innen vor Label */
+  /* NUR DIE FUNKTIONEN GEÄNDERT */
+
   const totalSongs = Math.max(tracks.length, 1);
 
   const songProgress =
     duration > 0 ? currentTime / duration : 0;
 
-  const progress =
+  const projectProgress =
     tracks.length === 0
       ? 0
       : (index + songProgress) / totalSongs;
 
-  // außen Platte = -30
-  // innen vor Label = -3
-  const armAngle = -30 + progress * 27;
+  /* außen der platte -> bis kurz vor label */
+  const armAngle = -28 + projectProgress * 34;
 
   if (view === "auth") {
     return (
       <div style={styles.auth}>
         <div style={styles.panel}>
-          <h1>AURAE</h1>
+          <div style={styles.logo}>AURAE</div>
 
           <input
             style={styles.input}
             placeholder="email"
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
           />
 
           <input
             style={styles.input}
-            type="password"
             placeholder="password"
+            type="password"
             value={password}
-            onChange={e => setPassword(e.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
           />
 
           <button style={styles.btn} onClick={login}>
@@ -288,8 +312,8 @@ export default function App() {
   if (view === "home") {
     return (
       <div style={styles.home}>
-        <div style={styles.panel}>
-          <h1>AURAE OS</h1>
+        <div style={styles.centerHome}>
+          <div style={styles.logo}>AURAE OS</div>
 
           <button
             style={styles.btn}
@@ -298,29 +322,27 @@ export default function App() {
             + new project
           </button>
 
-          {Object.keys(projects).map(name => (
-            <div
-              key={name}
-              style={styles.project}
-              onClick={() => openProject(name)}
-            >
-              {name}
-            </div>
-          ))}
-
-          <button style={styles.btn} onClick={logout}>
-            logout
-          </button>
+          <div style={styles.grid}>
+            {Object.keys(projects).map((name) => (
+              <div
+                key={name}
+                style={styles.card}
+                onClick={() => openProject(name)}
+              >
+                {name}
+              </div>
+            ))}
+          </div>
         </div>
 
         {showCreate && (
-          <div style={styles.popupBg}>
-            <div style={styles.popup}>
+          <div style={styles.overlay}>
+            <div style={styles.modal}>
               <input
                 style={styles.input}
                 placeholder="project name"
                 value={projectName}
-                onChange={e =>
+                onChange={(e) =>
                   setProjectName(e.target.value)
                 }
               />
@@ -329,7 +351,7 @@ export default function App() {
                 style={styles.btn}
                 onClick={createProject}
               >
-                create
+                Create
               </button>
             </div>
           </div>
@@ -341,11 +363,10 @@ export default function App() {
   return (
     <div style={styles.app}>
       <div style={styles.sidebar}>
-        <h2>{activeProject}</h2>
+        <h3>{activeProject}</h3>
 
         <div style={styles.meta}>
-          {tracks.length} songs •{" "}
-          {format(totalDuration(tracks))}
+          {tracks.length} tracks • {totalDuration(tracks)}
         </div>
 
         <label style={styles.btn}>
@@ -354,6 +375,7 @@ export default function App() {
             hidden
             multiple
             type="file"
+            accept=".mp3,.wav"
             onChange={addTracks}
           />
         </label>
@@ -363,6 +385,7 @@ export default function App() {
           <input
             hidden
             type="file"
+            accept=".png,.jpg,.jpeg"
             onChange={addCover}
           />
         </label>
@@ -370,7 +393,7 @@ export default function App() {
         <input
           type="color"
           value={vinylColor}
-          onChange={e =>
+          onChange={(e) =>
             setVinylColor(e.target.value)
           }
         />
@@ -382,19 +405,19 @@ export default function App() {
           home
         </button>
 
-        <div style={styles.trackList}>
+        <div style={styles.list}>
           {tracks.map((t, i) => (
             <div
               key={t.id}
               style={styles.track}
               onClick={() => play(i)}
-              onContextMenu={e => {
+              onContextMenu={(e) => {
                 e.preventDefault();
                 deleteTrack(i);
               }}
             >
               <span>{t.name}</span>
-              <span>{format(t.duration)}</span>
+              <span>{formatTime(t.duration)}</span>
             </div>
           ))}
         </div>
@@ -409,7 +432,7 @@ export default function App() {
               ...styles.vinyl,
               background: vinylColor,
               animation: playing
-                ? "spin 1.8s linear infinite"
+                ? "spin 1.55s linear infinite"
                 : "none"
             }}
           >
@@ -418,16 +441,16 @@ export default function App() {
             {albumCover ? (
               <img
                 src={albumCover}
-                style={styles.label}
+                style={styles.labelImg}
               />
             ) : (
-              <div style={styles.label}>
+              <div style={styles.labelFallback}>
                 AURAE
               </div>
             )}
           </div>
 
-          <div style={styles.base} />
+          <div style={styles.armBase} />
 
           <div
             style={{
@@ -436,8 +459,8 @@ export default function App() {
             }}
           >
             <div style={styles.armTube} />
-            <div style={styles.head} />
-            <div style={styles.needle} />
+            <div style={styles.armHead} />
+            <div style={styles.armNeedle} />
           </div>
         </div>
       </div>
@@ -455,11 +478,10 @@ export default function App() {
           ⏭
         </button>
 
-        <div style={{ width: 200 }}>
-          {current?.name || "no song"}
-          <div>
-            {format(currentTime)} /{" "}
-            {format(duration)}
+        <div style={{ minWidth: 220 }}>
+          {current?.name || "no track loaded"}
+          <div style={{ fontSize: 12, opacity: 0.7 }}>
+            {formatTime(currentTime)} / {formatTime(duration)}
           </div>
         </div>
 
@@ -469,29 +491,25 @@ export default function App() {
           max={duration || 0}
           value={currentTime}
           onChange={seek}
-          style={{ width: 300 }}
+          style={{ width: 260 }}
         />
       </div>
 
       {popup && (
-        <div style={styles.popupBg}>
-          <div style={styles.popup}>
-            <h3>{popup.title}</h3>
-            <p>{popup.text}</p>
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <div>{popup.title}</div>
+            <div>{popup.text}</div>
 
-            <button
-              style={styles.btn}
-              onClick={popup.action}
-            >
-              delete
-            </button>
-
-            <button
-              style={styles.btn}
-              onClick={() => setPopup(null)}
-            >
-              cancel
-            </button>
+            {popup.actions.map((b, i) => (
+              <button
+                key={i}
+                style={styles.btn}
+                onClick={b.onClick}
+              >
+                {b.text}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -505,51 +523,73 @@ const styles = {
   app: {
     display: "flex",
     height: "100vh",
-    background: "#111",
+    background: "#090909",
     color: "white",
-    fontFamily: "Arial"
+    fontFamily: "Courier New, monospace"
   },
 
   auth: {
     height: "100vh",
+    background:
+      "radial-gradient(circle at top,#171717,#090909)",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
-    background: "#111"
-  },
-
-  home: {
-    minHeight: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    paddingTop: 80,
-    background: "#111"
+    alignItems: "center"
   },
 
   panel: {
-    width: 400,
+    width: 340,
+    padding: 34,
+    borderRadius: 22,
+    background: "rgba(255,255,255,.06)",
     display: "flex",
     flexDirection: "column",
     gap: 12
   },
 
+  logo: { fontSize: 44 },
+
   input: {
     padding: 12,
-    borderRadius: 10,
-    border: "none"
+    borderRadius: 12,
+    border: "none",
+    background: "#101010",
+    color: "white"
   },
 
   btn: {
-    padding: 12,
-    borderRadius: 10,
+    padding: "12px 16px",
+    borderRadius: 16,
     border: "none",
+    background: "rgba(255,255,255,.08)",
+    color: "white",
     cursor: "pointer"
   },
 
-  project: {
-    padding: 12,
-    background: "#222",
-    borderRadius: 10,
+  home: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(circle at top,#151515,#090909)"
+  },
+
+  centerHome: {
+    textAlign: "center",
+    paddingTop: 110
+  },
+
+  grid: {
+    display: "flex",
+    justifyContent: "center",
+    gap: 14,
+    padding: 24,
+    flexWrap: "wrap"
+  },
+
+  card: {
+    minWidth: 220,
+    padding: 20,
+    borderRadius: 18,
+    background: "rgba(255,255,255,.05)",
     cursor: "pointer"
   },
 
@@ -558,28 +598,30 @@ const styles = {
     padding: 20,
     display: "flex",
     flexDirection: "column",
-    gap: 10
+    gap: 12
   },
 
-  meta: {
-    opacity: 0.7
-  },
-
-  trackList: {
-    flex: 1,
-    overflowY: "auto",
+  list: {
     display: "flex",
     flexDirection: "column",
-    gap: 8
+    gap: 8,
+    overflowY: "auto",
+    maxHeight: "52vh",
+    paddingRight: 4
   },
 
   track: {
-    background: "#222",
-    padding: 10,
-    borderRadius: 10,
     display: "flex",
     justifyContent: "space-between",
+    padding: 10,
+    borderRadius: 12,
+    background: "rgba(255,255,255,.04)",
     cursor: "pointer"
+  },
+
+  meta: {
+    fontSize: 12,
+    opacity: 0.7
   },
 
   stage: {
@@ -590,25 +632,31 @@ const styles = {
   },
 
   turntable: {
-    width: 600,
-    height: 600,
-    position: "relative"
+    position: "relative",
+    width: 560,
+    height: 560
   },
 
   plinth: {
     position: "absolute",
-    inset: 0,
-    borderRadius: 30,
-    background: "#ddd"
+    left: 20,
+    top: 20,
+    width: 520,
+    height: 520,
+    borderRadius: 28,
+    background:
+      "linear-gradient(145deg,#f9f9f9,#d9d9d9 45%,#c8c8c8)",
+    boxShadow:
+      "0 28px 55px rgba(0,0,0,.45)"
   },
 
   vinyl: {
     position: "absolute",
-    width: 420,
-    height: 420,
-    borderRadius: "50%",
-    left: 70,
-    top: 70
+    left: 85,
+    top: 85,
+    width: 390,
+    height: 390,
+    borderRadius: "50%"
   },
 
   grooves: {
@@ -616,71 +664,87 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle,#0000 0px,#0000 3px,#0008 4px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,.10) 0px, transparent 3px)"
   },
 
-  label: {
+  labelImg: {
     position: "absolute",
-    width: 140,
-    height: 140,
+    width: 150,
+    height: 150,
     borderRadius: "50%",
-    left: "50%",
-    top: "50%",
-    transform: "translate(-50%,-50%)",
-    overflow: "hidden",
     objectFit: "cover",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%,-50%)"
+  },
+
+  labelFallback: {
+    position: "absolute",
+    width: 150,
+    height: 150,
+    borderRadius: "50%",
     background: "#111",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%,-50%)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
   },
 
-  base: {
+  armBase: {
     position: "absolute",
-    right: 70,
-    top: 80,
-    width: 70,
-    height: 70,
+    right: 58,
+    top: 88,
+    width: 54,
+    height: 54,
     borderRadius: "50%",
-    background: "#222"
+    background:
+      "radial-gradient(circle at 35% 35%, #ffffff, #8c8c8c 55%, #4f4f4f 100%)",
+    zIndex: 80
   },
 
   arm: {
     position: "absolute",
-    right: 104,
+    right: 84,
     top: 114,
-    width: 250,
-    height: 18,
+    width: 255,
+    height: 14,
     transformOrigin: "100% center",
-    transition: "0.4s"
+    transition: "transform .45s ease",
+    zIndex: 90
   },
 
   armTube: {
     position: "absolute",
-    right: 0,
-    width: 220,
+    right: 18,
+    top: 3,
+    width: 218,
     height: 8,
-    top: 4,
-    borderRadius: 10,
-    background: "silver"
+    borderRadius: 20,
+    background:
+      "linear-gradient(180deg,#f8f8f8,#bdbdbd 45%,#7d7d7d)"
   },
 
-  head: {
+  armHead: {
     position: "absolute",
     left: 0,
-    width: 30,
-    height: 18,
-    background: "#111"
+    top: 0,
+    width: 34,
+    height: 16,
+    borderRadius: 5,
+    background:
+      "linear-gradient(180deg,#f0f0f0,#a8a8a8)"
   },
 
-  needle: {
+  armNeedle: {
     position: "absolute",
-    left: 8,
-    top: 15,
+    left: 6,
+    top: 12,
     width: 2,
-    height: 18,
-    background: "#000",
-    transform: "rotate(20deg)"
+    height: 17,
+    background: "#111",
+    transform: "rotate(30deg)"
   },
 
   player: {
@@ -688,37 +752,49 @@ const styles = {
     left: 290,
     right: 0,
     bottom: 0,
-    height: 80,
-    background: "#000",
+    height: 78,
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: 10,
-    padding: 10
+    background: "rgba(0,0,0,.45)"
   },
 
-  popupBg: {
+  overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,.6)",
+    background: "rgba(0,0,0,.55)",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    zIndex: 999
   },
 
-  popup: {
-    background: "#222",
-    padding: 20,
-    borderRadius: 12,
-    width: 320
+  modal: {
+    width: 320,
+    padding: 24,
+    borderRadius: 18,
+    background: "#111",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12
   }
 };
 
 const style = document.createElement("style");
+
 style.innerHTML = `
-body{margin:0;overflow:hidden;}
 @keyframes spin{
 from{transform:rotate(0deg);}
 to{transform:rotate(360deg);}
 }
+body{
+margin:0;
+overflow:hidden;
+}
+*{
+box-sizing:border-box;
+}
 `;
+
 document.head.appendChild(style);
