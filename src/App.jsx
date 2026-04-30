@@ -71,34 +71,26 @@ export default function App() {
     return `${mins}:${secs}`;
   }
 
-  function totalDuration(list = []) {
-    const sum = list.reduce((a, t) => a + (t.duration || 0), 0);
-    return formatTime(sum);
-  }
-
   function login() {
-    if (!email || !password) {
-      openPopup("Login Error", "Please fill all fields.", [
-        { text: "OK", onClick: closePopup }
-      ]);
-      return;
-    }
+    if (!email || !password) return;
 
     if (!users[email]) {
-      openPopup("Account", "Account not found.", [
+      openPopup("Error", "Account not found.", [
         { text: "OK", onClick: closePopup }
       ]);
       return;
     }
 
     if (users[email].password !== password) {
-      openPopup("Login Error", "Wrong password.", [
+      openPopup("Error", "Wrong password.", [
         { text: "OK", onClick: closePopup }
       ]);
       return;
     }
 
-    if (remember) localStorage.setItem("aurae_remember", email);
+    if (remember) {
+      localStorage.setItem("aurae_remember", email);
+    }
 
     setView("home");
   }
@@ -276,7 +268,8 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* ULTRA FINAL V2 STYLUS */
+  /* ================= REALISTIC STYLUS ================= */
+
   const totalSongs = Math.max(tracks.length, 1);
 
   const songProgress =
@@ -287,8 +280,8 @@ export default function App() {
       ? 0
       : (index + songProgress) / totalSongs;
 
-  /* außen -> innen */
-  const armAngle = -24 + projectProgress * 38;
+  /* außen rechts -> innen links */
+  const armAngle = -34 + projectProgress * 24;
 
   if (view === "auth") {
     return (
@@ -440,9 +433,9 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle at 35% 35%, ${vinylColor}, #000 82%)`,
+              background: `radial-gradient(circle at 30% 28%, #222, ${vinylColor} 42%, #050505 82%)`,
               animation: playing
-                ? "spin 1.55s linear infinite"
+                ? "spin 1.6s linear infinite"
                 : "none"
             }}
           >
@@ -458,6 +451,8 @@ export default function App() {
                 AURAE
               </div>
             )}
+
+            <div style={styles.spindle} />
           </div>
 
           <div style={styles.armBase} />
@@ -469,6 +464,7 @@ export default function App() {
             }}
           >
             <div style={styles.armTube} />
+            <div style={styles.armJoint} />
             <div style={styles.armHead} />
             <div style={styles.armNeedle} />
           </div>
@@ -509,9 +505,10 @@ const styles = {
   app: {
     display: "flex",
     height: "100vh",
-    background: "#090909",
+    background:
+      "radial-gradient(circle at top,#111,#050505 60%,#000)",
     color: "white",
-    fontFamily: "Courier New, monospace"
+    fontFamily: "Inter, sans-serif"
   },
 
   auth: {
@@ -528,12 +525,16 @@ const styles = {
     padding: 34,
     borderRadius: 22,
     background: "rgba(255,255,255,.06)",
+    backdropFilter: "blur(18px)",
     display: "flex",
     flexDirection: "column",
     gap: 12
   },
 
-  logo: { fontSize: 44 },
+  logo: {
+    fontSize: 44,
+    fontWeight: 800
+  },
 
   input: {
     padding: 12,
@@ -546,8 +547,9 @@ const styles = {
   btn: {
     padding: "12px 16px",
     borderRadius: 16,
-    border: "none",
-    background: "rgba(255,255,255,.08)",
+    border: "1px solid rgba(255,255,255,.08)",
+    background:
+      "linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.03))",
     color: "white",
     cursor: "pointer"
   },
@@ -584,7 +586,9 @@ const styles = {
     padding: 20,
     display: "flex",
     flexDirection: "column",
-    gap: 12
+    gap: 12,
+    background:
+      "linear-gradient(180deg,rgba(0,0,0,.45),rgba(255,255,255,.02))"
   },
 
   list: {
@@ -610,32 +614,32 @@ const styles = {
 
   turntable: {
     position: "relative",
-    width: 560,
-    height: 560
+    width: 620,
+    height: 620
   },
 
   plinth: {
     position: "absolute",
     left: 20,
     top: 20,
-    width: 520,
-    height: 520,
-    borderRadius: 28,
+    width: 580,
+    height: 580,
+    borderRadius: 32,
     background:
-      "linear-gradient(145deg,#f9f9f9,#d9d9d9 45%,#c8c8c8)",
+      "linear-gradient(145deg,#ece8de,#d7d0c2 40%,#bdb6aa)",
     boxShadow:
-      "0 28px 55px rgba(0,0,0,.45)"
+      "0 40px 70px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.45)"
   },
 
   vinyl: {
     position: "absolute",
-    left: 85,
-    top: 85,
-    width: 390,
-    height: 390,
+    left: 82,
+    top: 82,
+    width: 420,
+    height: 420,
     borderRadius: "50%",
     boxShadow:
-      "inset 0 0 45px rgba(0,0,0,.92)"
+      "0 12px 30px rgba(0,0,0,.55), inset 0 0 70px rgba(0,0,0,.9)"
   },
 
   grooves: {
@@ -643,7 +647,7 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,.08) 0px, transparent 3px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,.06) 0px, rgba(255,255,255,.02) 1px, transparent 3px)"
   },
 
   labelImg: {
@@ -671,60 +675,85 @@ const styles = {
     alignItems: "center"
   },
 
+  spindle: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    width: 14,
+    height: 14,
+    borderRadius: "50%",
+    transform: "translate(-50%,-50%)",
+    background:
+      "radial-gradient(circle,#fff,#888 60%,#444)"
+  },
+
   armBase: {
     position: "absolute",
-    right: 58,
-    top: 88,
-    width: 54,
-    height: 54,
+    right: 70,
+    top: 80,
+    width: 74,
+    height: 74,
     borderRadius: "50%",
     background:
-      "radial-gradient(circle at 35% 35%, #ffffff, #8c8c8c 55%, #4f4f4f 100%)",
-    zIndex: 80
+      "radial-gradient(circle at 35% 35%, #2a2a2a, #111 55%, #000)",
+    boxShadow:
+      "0 10px 20px rgba(0,0,0,.45)",
+    zIndex: 50
   },
 
   arm: {
     position: "absolute",
-    right: 84,
-    top: 114,
-    width: 255,
-    height: 14,
+    right: 108,
+    top: 112,
+    width: 280,
+    height: 18,
     transformOrigin: "100% center",
     transition:
       "transform .45s cubic-bezier(.22,.61,.36,1)",
-    zIndex: 90
+    zIndex: 60
   },
 
   armTube: {
     position: "absolute",
-    right: 18,
-    top: 3,
-    width: 218,
-    height: 8,
+    right: 22,
+    top: 4,
+    width: 235,
+    height: 10,
     borderRadius: 20,
     background:
-      "linear-gradient(180deg,#f8f8f8,#bdbdbd 45%,#7d7d7d)"
+      "linear-gradient(180deg,#fafafa,#b8b8b8 45%,#666)"
+  },
+
+  armJoint: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    width: 28,
+    height: 18,
+    borderRadius: 20,
+    background:
+      "linear-gradient(180deg,#222,#000)"
   },
 
   armHead: {
     position: "absolute",
     left: 0,
     top: 0,
-    width: 34,
-    height: 16,
-    borderRadius: 5,
+    width: 38,
+    height: 18,
+    borderRadius: 4,
     background:
-      "linear-gradient(180deg,#f0f0f0,#a8a8a8)"
+      "linear-gradient(180deg,#111,#000)"
   },
 
   armNeedle: {
     position: "absolute",
-    left: 6,
-    top: 12,
+    left: 10,
+    top: 14,
     width: 2,
-    height: 17,
+    height: 18,
     background: "#111",
-    transform: "rotate(30deg)"
+    transform: "rotate(18deg)"
   },
 
   player: {
@@ -737,7 +766,8 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    background: "rgba(0,0,0,.45)"
+    background: "rgba(0,0,0,.45)",
+    backdropFilter: "blur(12px)"
   },
 
   overlay: {
@@ -771,6 +801,7 @@ to{transform:rotate(360deg);}
 body{
 margin:0;
 overflow:hidden;
+background:#000;
 }
 *{
 box-sizing:border-box;
