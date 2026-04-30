@@ -1,3 +1,5 @@
+
+
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
@@ -11,11 +13,6 @@ export default function App() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(true);
-
-  const [popup, setPopup] = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [projectName, setProjectName] = useState("");
 
   const [projects, setProjects] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_projects") || "{}")
@@ -29,6 +26,10 @@ export default function App() {
   const [vinylColor, setVinylColor] = useState("#111111");
   const [albumCover, setAlbumCover] = useState(null);
 
+  const [popup, setPopup] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [projectName, setProjectName] = useState("");
+
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -36,20 +37,12 @@ export default function App() {
 
   const current = tracks[index];
 
-  function openPopup(title, text, actions = []) {
-    setPopup({ title, text, actions });
-  }
-
-  function closePopup() {
-    setPopup(null);
-  }
-
   function saveProjects(next) {
     setProjects(next);
     localStorage.setItem("aurae_projects", JSON.stringify(next));
   }
 
-  function saveCurrentProject(nextTracks = tracks, nextCover = albumCover) {
+  function saveCurrent(nextTracks = tracks, nextCover = albumCover) {
     const next = {
       ...projects,
       [activeProject]: {
@@ -63,41 +56,26 @@ export default function App() {
     setAlbumCover(nextCover);
   }
 
-  function formatTime(sec = 0) {
-    const mins = Math.floor(sec / 60);
-    const secs = Math.floor(sec % 60)
+  function format(sec = 0) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60)
       .toString()
       .padStart(2, "0");
-    return `${mins}:${secs}`;
+    return `${m}:${s}`;
+  }
+
+  function totalDuration(list = []) {
+    return list.reduce((a, b) => a + (b.duration || 0), 0);
   }
 
   function login() {
-    if (!email || !password) return;
-
-    if (!users[email]) {
-      openPopup("Error", "Account not found.", [
-        { text: "OK", onClick: closePopup }
-      ]);
-      return;
-    }
-
-    if (users[email].password !== password) {
-      openPopup("Error", "Wrong password.", [
-        { text: "OK", onClick: closePopup }
-      ]);
-      return;
-    }
-
-    if (remember) {
-      localStorage.setItem("aurae_remember", email);
-    }
-
+    if (!users[email]) return;
+    if (users[email].password !== password) return;
+    localStorage.setItem("aurae_remember", email);
     setView("home");
   }
 
   function signup() {
-    if (!email || !password) return;
-
     const next = {
       ...users,
       [email]: { password }
@@ -125,12 +103,12 @@ export default function App() {
     };
 
     saveProjects(next);
-    setProjectName("");
     setShowCreate(false);
+    setProjectName("");
   }
 
   function openProject(name) {
-    const p = projects[name] || {};
+    const p = projects[name];
 
     setActiveProject(name);
     setTracks(p.tracks || []);
@@ -149,8 +127,8 @@ export default function App() {
 
     const loaded = await Promise.all(
       files.map(
-        (file) =>
-          new Promise((resolve) => {
+        file =>
+          new Promise(resolve => {
             const url = URL.createObjectURL(file);
             const probe = new Audio(url);
 
@@ -166,7 +144,7 @@ export default function App() {
       )
     );
 
-    saveCurrentProject([...tracks, ...loaded]);
+    saveCurrent([...tracks, ...loaded]);
   }
 
   function addCover(e) {
@@ -175,28 +153,21 @@ export default function App() {
 
     const reader = new FileReader();
 
-    reader.onload = () => {
-      saveCurrentProject(tracks, reader.result);
-    };
+    reader.onload = () => saveCurrent(tracks, reader.result);
 
     reader.readAsDataURL(file);
   }
 
   function deleteTrack(i) {
-    openPopup("Delete Track", `Delete "${tracks[i]?.name}"?`, [
-      {
-        text: "Delete",
-        onClick: () => {
-          const next = tracks.filter((_, x) => x !== i);
-          saveCurrentProject(next);
-          closePopup();
-        }
-      },
-      {
-        text: "Cancel",
-        onClick: closePopup
+    setPopup({
+      title: "Delete Track?",
+      text: tracks[i].name,
+      action: () => {
+        const next = tracks.filter((_, x) => x !== i);
+        saveCurrent(next);
+        setPopup(null);
       }
-    ]);
+    });
   }
 
   function play(i) {
@@ -208,8 +179,8 @@ export default function App() {
     setTimeout(() => {
       const a = audioRef.current;
       a.src = tracks[i].url;
-      a.play().catch(() => {});
-    }, 30);
+      a.play();
+    }, 20);
   }
 
   function toggle() {
@@ -224,7 +195,7 @@ export default function App() {
       a.pause();
       setPlaying(false);
     } else {
-      a.play().catch(() => {});
+      a.play();
       setPlaying(true);
     }
   }
@@ -238,9 +209,7 @@ export default function App() {
   }
 
   function seek(e) {
-    const val = Number(e.target.value);
-    audioRef.current.currentTime = val;
-    setCurrentTime(val);
+    audioRef.current.currentTime = Number(e.target.value);
   }
 
   useEffect(() => {
@@ -268,40 +237,40 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* ================= REALISTIC STYLUS ================= */
-
+  /* TONARM: außen Platte -> innen vor Label */
   const totalSongs = Math.max(tracks.length, 1);
 
   const songProgress =
     duration > 0 ? currentTime / duration : 0;
 
-  const projectProgress =
+  const progress =
     tracks.length === 0
       ? 0
       : (index + songProgress) / totalSongs;
 
-  /* außen rechts -> innen links */
-  const armAngle = -34 + projectProgress * 24;
+  // außen Platte = -30
+  // innen vor Label = -3
+  const armAngle = -30 + progress * 27;
 
   if (view === "auth") {
     return (
       <div style={styles.auth}>
         <div style={styles.panel}>
-          <div style={styles.logo}>AURAE</div>
+          <h1>AURAE</h1>
 
           <input
             style={styles.input}
             placeholder="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
           />
 
           <input
             style={styles.input}
-            placeholder="password"
             type="password"
+            placeholder="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
           />
 
           <button style={styles.btn} onClick={login}>
@@ -319,8 +288,8 @@ export default function App() {
   if (view === "home") {
     return (
       <div style={styles.home}>
-        <div style={styles.centerHome}>
-          <div style={styles.logo}>AURAE OS</div>
+        <div style={styles.panel}>
+          <h1>AURAE OS</h1>
 
           <button
             style={styles.btn}
@@ -329,27 +298,29 @@ export default function App() {
             + new project
           </button>
 
-          <div style={styles.grid}>
-            {Object.keys(projects).map((name) => (
-              <div
-                key={name}
-                style={styles.card}
-                onClick={() => openProject(name)}
-              >
-                {name}
-              </div>
-            ))}
-          </div>
+          {Object.keys(projects).map(name => (
+            <div
+              key={name}
+              style={styles.project}
+              onClick={() => openProject(name)}
+            >
+              {name}
+            </div>
+          ))}
+
+          <button style={styles.btn} onClick={logout}>
+            logout
+          </button>
         </div>
 
         {showCreate && (
-          <div style={styles.overlay}>
-            <div style={styles.modal}>
+          <div style={styles.popupBg}>
+            <div style={styles.popup}>
               <input
                 style={styles.input}
                 placeholder="project name"
                 value={projectName}
-                onChange={(e) =>
+                onChange={e =>
                   setProjectName(e.target.value)
                 }
               />
@@ -358,7 +329,7 @@ export default function App() {
                 style={styles.btn}
                 onClick={createProject}
               >
-                Create
+                create
               </button>
             </div>
           </div>
@@ -370,7 +341,12 @@ export default function App() {
   return (
     <div style={styles.app}>
       <div style={styles.sidebar}>
-        <h3>{activeProject}</h3>
+        <h2>{activeProject}</h2>
+
+        <div style={styles.meta}>
+          {tracks.length} songs •{" "}
+          {format(totalDuration(tracks))}
+        </div>
 
         <label style={styles.btn}>
           add tracks
@@ -378,7 +354,6 @@ export default function App() {
             hidden
             multiple
             type="file"
-            accept=".mp3,.wav"
             onChange={addTracks}
           />
         </label>
@@ -388,7 +363,6 @@ export default function App() {
           <input
             hidden
             type="file"
-            accept=".png,.jpg,.jpeg"
             onChange={addCover}
           />
         </label>
@@ -396,7 +370,7 @@ export default function App() {
         <input
           type="color"
           value={vinylColor}
-          onChange={(e) =>
+          onChange={e =>
             setVinylColor(e.target.value)
           }
         />
@@ -408,19 +382,19 @@ export default function App() {
           home
         </button>
 
-        <div style={styles.list}>
+        <div style={styles.trackList}>
           {tracks.map((t, i) => (
             <div
               key={t.id}
               style={styles.track}
               onClick={() => play(i)}
-              onContextMenu={(e) => {
+              onContextMenu={e => {
                 e.preventDefault();
                 deleteTrack(i);
               }}
             >
               <span>{t.name}</span>
-              <span>{formatTime(t.duration)}</span>
+              <span>{format(t.duration)}</span>
             </div>
           ))}
         </div>
@@ -433,9 +407,9 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
-              background: `radial-gradient(circle at 30% 28%, #222, ${vinylColor} 42%, #050505 82%)`,
+              background: vinylColor,
               animation: playing
-                ? "spin 1.6s linear infinite"
+                ? "spin 1.8s linear infinite"
                 : "none"
             }}
           >
@@ -444,18 +418,16 @@ export default function App() {
             {albumCover ? (
               <img
                 src={albumCover}
-                style={styles.labelImg}
+                style={styles.label}
               />
             ) : (
-              <div style={styles.labelFallback}>
+              <div style={styles.label}>
                 AURAE
               </div>
             )}
-
-            <div style={styles.spindle} />
           </div>
 
-          <div style={styles.armBase} />
+          <div style={styles.base} />
 
           <div
             style={{
@@ -464,9 +436,8 @@ export default function App() {
             }}
           >
             <div style={styles.armTube} />
-            <div style={styles.armJoint} />
-            <div style={styles.armHead} />
-            <div style={styles.armNeedle} />
+            <div style={styles.head} />
+            <div style={styles.needle} />
           </div>
         </div>
       </div>
@@ -484,7 +455,13 @@ export default function App() {
           ⏭
         </button>
 
-        <div>{current?.name || "no track loaded"}</div>
+        <div style={{ width: 200 }}>
+          {current?.name || "no song"}
+          <div>
+            {format(currentTime)} /{" "}
+            {format(duration)}
+          </div>
+        </div>
 
         <input
           type="range"
@@ -492,9 +469,32 @@ export default function App() {
           max={duration || 0}
           value={currentTime}
           onChange={seek}
-          style={{ width: 220 }}
+          style={{ width: 300 }}
         />
       </div>
+
+      {popup && (
+        <div style={styles.popupBg}>
+          <div style={styles.popup}>
+            <h3>{popup.title}</h3>
+            <p>{popup.text}</p>
+
+            <button
+              style={styles.btn}
+              onClick={popup.action}
+            >
+              delete
+            </button>
+
+            <button
+              style={styles.btn}
+              onClick={() => setPopup(null)}
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <audio ref={audioRef} />
     </div>
@@ -505,79 +505,51 @@ const styles = {
   app: {
     display: "flex",
     height: "100vh",
-    background:
-      "radial-gradient(circle at top,#111,#050505 60%,#000)",
+    background: "#111",
     color: "white",
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "Arial"
   },
 
   auth: {
     height: "100vh",
-    background:
-      "radial-gradient(circle at top,#171717,#090909)",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    background: "#111"
+  },
+
+  home: {
+    minHeight: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    paddingTop: 80,
+    background: "#111"
   },
 
   panel: {
-    width: 340,
-    padding: 34,
-    borderRadius: 22,
-    background: "rgba(255,255,255,.06)",
-    backdropFilter: "blur(18px)",
+    width: 400,
     display: "flex",
     flexDirection: "column",
     gap: 12
   },
 
-  logo: {
-    fontSize: 44,
-    fontWeight: 800
-  },
-
   input: {
     padding: 12,
-    borderRadius: 12,
-    border: "none",
-    background: "#101010",
-    color: "white"
+    borderRadius: 10,
+    border: "none"
   },
 
   btn: {
-    padding: "12px 16px",
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,.08)",
-    background:
-      "linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.03))",
-    color: "white",
+    padding: 12,
+    borderRadius: 10,
+    border: "none",
     cursor: "pointer"
   },
 
-  home: {
-    minHeight: "100vh",
-    background:
-      "radial-gradient(circle at top,#151515,#090909)"
-  },
-
-  centerHome: {
-    textAlign: "center",
-    paddingTop: 110
-  },
-
-  grid: {
-    display: "flex",
-    justifyContent: "center",
-    gap: 14,
-    padding: 24,
-    flexWrap: "wrap"
-  },
-
-  card: {
-    minWidth: 220,
-    padding: 20,
-    borderRadius: 18,
-    background: "rgba(255,255,255,.05)",
+  project: {
+    padding: 12,
+    background: "#222",
+    borderRadius: 10,
     cursor: "pointer"
   },
 
@@ -586,23 +558,28 @@ const styles = {
     padding: 20,
     display: "flex",
     flexDirection: "column",
-    gap: 12,
-    background:
-      "linear-gradient(180deg,rgba(0,0,0,.45),rgba(255,255,255,.02))"
+    gap: 10
   },
 
-  list: {
+  meta: {
+    opacity: 0.7
+  },
+
+  trackList: {
+    flex: 1,
+    overflowY: "auto",
     display: "flex",
     flexDirection: "column",
     gap: 8
   },
 
   track: {
+    background: "#222",
+    padding: 10,
+    borderRadius: 10,
     display: "flex",
     justifyContent: "space-between",
-    padding: 10,
-    borderRadius: 12,
-    background: "rgba(255,255,255,.04)"
+    cursor: "pointer"
   },
 
   stage: {
@@ -613,33 +590,25 @@ const styles = {
   },
 
   turntable: {
-    position: "relative",
-    width: 620,
-    height: 620
+    width: 600,
+    height: 600,
+    position: "relative"
   },
 
   plinth: {
     position: "absolute",
-    left: 20,
-    top: 20,
-    width: 580,
-    height: 580,
-    borderRadius: 32,
-    background:
-      "linear-gradient(145deg,#ece8de,#d7d0c2 40%,#bdb6aa)",
-    boxShadow:
-      "0 40px 70px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.45)"
+    inset: 0,
+    borderRadius: 30,
+    background: "#ddd"
   },
 
   vinyl: {
     position: "absolute",
-    left: 82,
-    top: 82,
     width: 420,
     height: 420,
     borderRadius: "50%",
-    boxShadow:
-      "0 12px 30px rgba(0,0,0,.55), inset 0 0 70px rgba(0,0,0,.9)"
+    left: 70,
+    top: 70
   },
 
   grooves: {
@@ -647,113 +616,71 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,.06) 0px, rgba(255,255,255,.02) 1px, transparent 3px)"
+      "repeating-radial-gradient(circle,#0000 0px,#0000 3px,#0008 4px)"
   },
 
-  labelImg: {
+  label: {
     position: "absolute",
-    width: 150,
-    height: 150,
+    width: 140,
+    height: 140,
     borderRadius: "50%",
-    objectFit: "cover",
-    top: "50%",
     left: "50%",
-    transform: "translate(-50%,-50%)"
-  },
-
-  labelFallback: {
-    position: "absolute",
-    width: 150,
-    height: 150,
-    borderRadius: "50%",
-    background: "#111",
     top: "50%",
-    left: "50%",
     transform: "translate(-50%,-50%)",
+    overflow: "hidden",
+    objectFit: "cover",
+    background: "#111",
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
   },
 
-  spindle: {
-    position: "absolute",
-    left: "50%",
-    top: "50%",
-    width: 14,
-    height: 14,
-    borderRadius: "50%",
-    transform: "translate(-50%,-50%)",
-    background:
-      "radial-gradient(circle,#fff,#888 60%,#444)"
-  },
-
-  armBase: {
+  base: {
     position: "absolute",
     right: 70,
     top: 80,
-    width: 74,
-    height: 74,
+    width: 70,
+    height: 70,
     borderRadius: "50%",
-    background:
-      "radial-gradient(circle at 35% 35%, #2a2a2a, #111 55%, #000)",
-    boxShadow:
-      "0 10px 20px rgba(0,0,0,.45)",
-    zIndex: 50
+    background: "#222"
   },
 
   arm: {
     position: "absolute",
-    right: 108,
-    top: 112,
-    width: 280,
+    right: 104,
+    top: 114,
+    width: 250,
     height: 18,
     transformOrigin: "100% center",
-    transition:
-      "transform .45s cubic-bezier(.22,.61,.36,1)",
-    zIndex: 60
+    transition: "0.4s"
   },
 
   armTube: {
     position: "absolute",
-    right: 22,
-    top: 4,
-    width: 235,
-    height: 10,
-    borderRadius: 20,
-    background:
-      "linear-gradient(180deg,#fafafa,#b8b8b8 45%,#666)"
-  },
-
-  armJoint: {
-    position: "absolute",
     right: 0,
-    top: 0,
-    width: 28,
-    height: 18,
-    borderRadius: 20,
-    background:
-      "linear-gradient(180deg,#222,#000)"
+    width: 220,
+    height: 8,
+    top: 4,
+    borderRadius: 10,
+    background: "silver"
   },
 
-  armHead: {
+  head: {
     position: "absolute",
     left: 0,
-    top: 0,
-    width: 38,
+    width: 30,
     height: 18,
-    borderRadius: 4,
-    background:
-      "linear-gradient(180deg,#111,#000)"
+    background: "#111"
   },
 
-  armNeedle: {
+  needle: {
     position: "absolute",
-    left: 10,
-    top: 14,
+    left: 8,
+    top: 15,
     width: 2,
     height: 18,
-    background: "#111",
-    transform: "rotate(18deg)"
+    background: "#000",
+    transform: "rotate(20deg)"
   },
 
   player: {
@@ -761,51 +688,37 @@ const styles = {
     left: 290,
     right: 0,
     bottom: 0,
-    height: 78,
+    height: 80,
+    background: "#000",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
     gap: 10,
-    background: "rgba(0,0,0,.45)",
-    backdropFilter: "blur(12px)"
+    padding: 10
   },
 
-  overlay: {
+  popupBg: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,.55)",
+    background: "rgba(0,0,0,.6)",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
-    zIndex: 999
+    alignItems: "center"
   },
 
-  modal: {
-    width: 320,
-    padding: 24,
-    borderRadius: 18,
-    background: "#111",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12
+  popup: {
+    background: "#222",
+    padding: 20,
+    borderRadius: 12,
+    width: 320
   }
 };
 
 const style = document.createElement("style");
-
 style.innerHTML = `
+body{margin:0;overflow:hidden;}
 @keyframes spin{
 from{transform:rotate(0deg);}
 to{transform:rotate(360deg);}
 }
-body{
-margin:0;
-overflow:hidden;
-background:#000;
-}
-*{
-box-sizing:border-box;
-}
 `;
-
 document.head.appendChild(style);
