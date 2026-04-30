@@ -32,6 +32,8 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  const [dragIndex, setDragIndex] = useState(null);
+
   const audioRef = useRef(null);
 
   const current = tracks[index];
@@ -182,6 +184,11 @@ export default function App() {
         onClick: () => {
           const next = tracks.filter((_, x) => x !== i);
           saveCurrentProject(next);
+
+          if (index >= next.length) {
+            setIndex(Math.max(0, next.length - 1));
+          }
+
           closePopup();
         }
       },
@@ -190,6 +197,18 @@ export default function App() {
         onClick: closePopup
       }
     ]);
+  }
+
+  function moveTrack(from, to) {
+    if (from === to || from === null) return;
+
+    const arr = [...tracks];
+    const item = arr.splice(from, 1)[0];
+    arr.splice(to, 0, item);
+
+    saveCurrentProject(arr);
+
+    if (index === from) setIndex(to);
   }
 
   function play(i) {
@@ -261,8 +280,7 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* NUR DIE FUNKTIONEN GEÄNDERT */
-
+  /* FIXED STYLUS: außen -> innen */
   const totalSongs = Math.max(tracks.length, 1);
 
   const songProgress =
@@ -273,8 +291,7 @@ export default function App() {
       ? 0
       : (index + songProgress) / totalSongs;
 
-  /* außen der platte -> bis kurz vor label */
-  const armAngle = -28 + projectProgress * 34;
+  const armAngle = -22 + projectProgress * 34;
 
   if (view === "auth") {
     return (
@@ -366,7 +383,8 @@ export default function App() {
         <h3>{activeProject}</h3>
 
         <div style={styles.meta}>
-          {tracks.length} tracks • {totalDuration(tracks)}
+          {tracks.length} tracks •{" "}
+          {totalDuration(tracks)}
         </div>
 
         <label style={styles.btn}>
@@ -409,7 +427,27 @@ export default function App() {
           {tracks.map((t, i) => (
             <div
               key={t.id}
-              style={styles.track}
+              draggable
+              onDragStart={() =>
+                setDragIndex(i)
+              }
+              onDragOver={(e) =>
+                e.preventDefault()
+              }
+              onDrop={() => {
+                moveTrack(
+                  dragIndex,
+                  i
+                );
+                setDragIndex(null);
+              }}
+              style={{
+                ...styles.track,
+                border:
+                  i === index
+                    ? "1px solid white"
+                    : "1px solid transparent"
+              }}
               onClick={() => play(i)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -417,7 +455,11 @@ export default function App() {
               }}
             >
               <span>{t.name}</span>
-              <span>{formatTime(t.duration)}</span>
+              <span>
+                {formatTime(
+                  t.duration
+                )}
+              </span>
             </div>
           ))}
         </div>
@@ -430,7 +472,8 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
-              background: vinylColor,
+              background:
+                vinylColor,
               animation: playing
                 ? "spin 1.55s linear infinite"
                 : "none"
@@ -478,11 +521,14 @@ export default function App() {
           ⏭
         </button>
 
-        <div style={{ minWidth: 220 }}>
-          {current?.name || "no track loaded"}
-          <div style={{ fontSize: 12, opacity: 0.7 }}>
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </div>
+        <div style={styles.now}>
+          {current?.name ||
+            "no track loaded"}
+        </div>
+
+        <div style={styles.timeBox}>
+          {formatTime(currentTime)} /{" "}
+          {formatTime(duration)}
         </div>
 
         <input
@@ -491,7 +537,7 @@ export default function App() {
           max={duration || 0}
           value={currentTime}
           onChange={seek}
-          style={{ width: 260 }}
+          style={{ width: 220 }}
         />
       </div>
 
@@ -501,15 +547,17 @@ export default function App() {
             <div>{popup.title}</div>
             <div>{popup.text}</div>
 
-            {popup.actions.map((b, i) => (
-              <button
-                key={i}
-                style={styles.btn}
-                onClick={b.onClick}
-              >
-                {b.text}
-              </button>
-            ))}
+            {popup.actions.map(
+              (btn, i) => (
+                <button
+                  key={i}
+                  style={styles.btn}
+                  onClick={btn.onClick}
+                >
+                  {btn.text}
+                </button>
+              )
+            )}
           </div>
         </div>
       )}
@@ -525,7 +573,8 @@ const styles = {
     height: "100vh",
     background: "#090909",
     color: "white",
-    fontFamily: "Courier New, monospace"
+    fontFamily:
+      "Courier New, monospace"
   },
 
   auth: {
@@ -541,7 +590,8 @@ const styles = {
     width: 340,
     padding: 34,
     borderRadius: 22,
-    background: "rgba(255,255,255,.06)",
+    background:
+      "rgba(255,255,255,.06)",
     display: "flex",
     flexDirection: "column",
     gap: 12
@@ -561,7 +611,8 @@ const styles = {
     padding: "12px 16px",
     borderRadius: 16,
     border: "none",
-    background: "rgba(255,255,255,.08)",
+    background:
+      "rgba(255,255,255,.08)",
     color: "white",
     cursor: "pointer"
   },
@@ -589,8 +640,14 @@ const styles = {
     minWidth: 220,
     padding: 20,
     borderRadius: 18,
-    background: "rgba(255,255,255,.05)",
+    background:
+      "rgba(255,255,255,.05)",
     cursor: "pointer"
+  },
+
+  meta: {
+    fontSize: 12,
+    opacity: 0.7
   },
 
   sidebar: {
@@ -606,22 +663,19 @@ const styles = {
     flexDirection: "column",
     gap: 8,
     overflowY: "auto",
-    maxHeight: "52vh",
-    paddingRight: 4
+    maxHeight:
+      "calc(100vh - 240px)"
   },
 
   track: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
     padding: 10,
     borderRadius: 12,
-    background: "rgba(255,255,255,.04)",
+    background:
+      "rgba(255,255,255,.04)",
     cursor: "pointer"
-  },
-
-  meta: {
-    fontSize: 12,
-    opacity: 0.7
   },
 
   stage: {
@@ -645,9 +699,7 @@ const styles = {
     height: 520,
     borderRadius: 28,
     background:
-      "linear-gradient(145deg,#f9f9f9,#d9d9d9 45%,#c8c8c8)",
-    boxShadow:
-      "0 28px 55px rgba(0,0,0,.45)"
+      "linear-gradient(145deg,#f9f9f9,#d9d9d9)"
   },
 
   vinyl: {
@@ -664,7 +716,7 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,.10) 0px, transparent 3px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,.07) 0px, transparent 3px)"
   },
 
   labelImg: {
@@ -675,7 +727,8 @@ const styles = {
     objectFit: "cover",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%,-50%)"
+    transform:
+      "translate(-50%,-50%)"
   },
 
   labelFallback: {
@@ -686,7 +739,8 @@ const styles = {
     background: "#111",
     top: "50%",
     left: "50%",
-    transform: "translate(-50%,-50%)",
+    transform:
+      "translate(-50%,-50%)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
@@ -700,7 +754,7 @@ const styles = {
     height: 54,
     borderRadius: "50%",
     background:
-      "radial-gradient(circle at 35% 35%, #ffffff, #8c8c8c 55%, #4f4f4f 100%)",
+      "radial-gradient(circle,#fff,#777)",
     zIndex: 80
   },
 
@@ -710,8 +764,10 @@ const styles = {
     top: 114,
     width: 255,
     height: 14,
-    transformOrigin: "100% center",
-    transition: "transform .45s ease",
+    transformOrigin:
+      "100% center",
+    transition:
+      "transform .45s ease",
     zIndex: 90
   },
 
@@ -723,7 +779,7 @@ const styles = {
     height: 8,
     borderRadius: 20,
     background:
-      "linear-gradient(180deg,#f8f8f8,#bdbdbd 45%,#7d7d7d)"
+      "linear-gradient(180deg,#f8f8f8,#8d8d8d)"
   },
 
   armHead: {
@@ -744,7 +800,8 @@ const styles = {
     width: 2,
     height: 17,
     background: "#111",
-    transform: "rotate(30deg)"
+    transform:
+      "rotate(30deg)"
   },
 
   player: {
@@ -757,13 +814,28 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    background: "rgba(0,0,0,.45)"
+    background:
+      "rgba(0,0,0,.45)"
+  },
+
+  now: {
+    width: 220,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis"
+  },
+
+  timeBox: {
+    width: 95,
+    textAlign: "center",
+    fontSize: 13
   },
 
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,.55)",
+    background:
+      "rgba(0,0,0,.55)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -781,7 +853,8 @@ const styles = {
   }
 };
 
-const style = document.createElement("style");
+const style =
+  document.createElement("style");
 
 style.innerHTML = `
 @keyframes spin{
