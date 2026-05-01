@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
@@ -13,13 +14,13 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
 
-  const [popup, setPopup] = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [projectName, setProjectName] = useState("");
-
   const [projects, setProjects] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_projects") || "{}")
   );
+
+  const [popup, setPopup] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [projectName, setProjectName] = useState("");
 
   const [activeProject, setActiveProject] = useState(null);
   const [tracks, setTracks] = useState([]);
@@ -32,19 +33,8 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const [dragIndex, setDragIndex] = useState(null);
-
   const audioRef = useRef(null);
-
   const current = tracks[index];
-
-  function openPopup(title, text, actions = []) {
-    setPopup({ title, text, actions });
-  }
-
-  function closePopup() {
-    setPopup(null);
-  }
 
   function saveProjects(next) {
     setProjects(next);
@@ -66,20 +56,20 @@ export default function App() {
   }
 
   function formatTime(sec = 0) {
-    const mins = Math.floor(sec / 60);
-    const secs = Math.floor(sec % 60)
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60)
       .toString()
       .padStart(2, "0");
-    return `${mins}:${secs}`;
+    return `${m}:${s}`;
   }
 
   function totalDuration(list = []) {
-    const sum = list.reduce((a, t) => a + (t.duration || 0), 0);
-    return formatTime(sum);
+    return formatTime(
+      list.reduce((a, b) => a + (b.duration || 0), 0)
+    );
   }
 
   function login() {
-    if (!email || !password) return;
     if (!users[email]) return;
     if (users[email].password !== password) return;
 
@@ -91,8 +81,6 @@ export default function App() {
   }
 
   function signup() {
-    if (!email || !password) return;
-
     const next = {
       ...users,
       [email]: { password }
@@ -125,16 +113,16 @@ export default function App() {
   }
 
   function openProject(name) {
-    const p = projects[name] || {};
+    const p = projects[name];
 
     setActiveProject(name);
-    setTracks(p.tracks || []);
-    setAlbumCover(p.cover || null);
+    setTracks(p?.tracks || []);
+    setAlbumCover(p?.cover || null);
 
     setIndex(0);
-    setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setPlaying(false);
 
     setView("studio");
   }
@@ -178,37 +166,12 @@ export default function App() {
   }
 
   function deleteTrack(i) {
-    openPopup("Delete Track", `Delete "${tracks[i]?.name}"?`, [
-      {
-        text: "Delete",
-        onClick: () => {
-          const next = tracks.filter((_, x) => x !== i);
-          saveCurrentProject(next);
+    const next = tracks.filter((_, x) => x !== i);
+    saveCurrentProject(next);
 
-          if (index >= next.length) {
-            setIndex(Math.max(0, next.length - 1));
-          }
-
-          closePopup();
-        }
-      },
-      {
-        text: "Cancel",
-        onClick: closePopup
-      }
-    ]);
-  }
-
-  function moveTrack(from, to) {
-    if (from === to || from === null) return;
-
-    const arr = [...tracks];
-    const item = arr.splice(from, 1)[0];
-    arr.splice(to, 0, item);
-
-    saveCurrentProject(arr);
-
-    if (index === from) setIndex(to);
+    if (index >= next.length) {
+      setIndex(Math.max(0, next.length - 1));
+    }
   }
 
   function play(i) {
@@ -280,7 +243,8 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* FIXED STYLUS: außen -> innen */
+  /* ===== mathematisch korrekter Stylus ===== */
+
   const totalSongs = Math.max(tracks.length, 1);
 
   const songProgress =
@@ -291,7 +255,33 @@ export default function App() {
       ? 0
       : (index + songProgress) / totalSongs;
 
-  const armAngle = -22 + projectProgress * 34;
+  const progress = Math.min(
+    Math.max(projectProgress, 0),
+    1
+  );
+
+  const cx = 280;
+  const cy = 280;
+
+  const outerR = 188;
+  const innerR = 92;
+
+  const trackAngle = (28 * Math.PI) / 180;
+
+  const r =
+    outerR - (outerR - innerR) * progress;
+
+  const tx = cx + Math.cos(trackAngle) * r;
+  const ty = cy + Math.sin(trackAngle) * r;
+
+  const px = 470;
+  const py = 118;
+
+  const dx = tx - px;
+  const dy = ty - py;
+
+  const armAngle =
+    (Math.atan2(dy, dx) * 180) / Math.PI;
 
   if (view === "auth") {
     return (
@@ -303,7 +293,9 @@ export default function App() {
             style={styles.input}
             placeholder="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) =>
+              setEmail(e.target.value)
+            }
           />
 
           <input
@@ -311,14 +303,22 @@ export default function App() {
             placeholder="password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) =>
+              setPassword(e.target.value)
+            }
           />
 
-          <button style={styles.btn} onClick={login}>
+          <button
+            style={styles.btn}
+            onClick={login}
+          >
             login
           </button>
 
-          <button style={styles.btn} onClick={signup}>
+          <button
+            style={styles.btn}
+            onClick={signup}
+          >
             sign up
           </button>
         </div>
@@ -330,25 +330,33 @@ export default function App() {
     return (
       <div style={styles.home}>
         <div style={styles.centerHome}>
-          <div style={styles.logo}>AURAE OS</div>
+          <div style={styles.logo}>
+            AURAE OS
+          </div>
 
           <button
             style={styles.btn}
-            onClick={() => setShowCreate(true)}
+            onClick={() =>
+              setShowCreate(true)
+            }
           >
             + new project
           </button>
 
           <div style={styles.grid}>
-            {Object.keys(projects).map((name) => (
-              <div
-                key={name}
-                style={styles.card}
-                onClick={() => openProject(name)}
-              >
-                {name}
-              </div>
-            ))}
+            {Object.keys(projects).map(
+              (name) => (
+                <div
+                  key={name}
+                  style={styles.card}
+                  onClick={() =>
+                    openProject(name)
+                  }
+                >
+                  {name}
+                </div>
+              )
+            )}
           </div>
         </div>
 
@@ -360,13 +368,17 @@ export default function App() {
                 placeholder="project name"
                 value={projectName}
                 onChange={(e) =>
-                  setProjectName(e.target.value)
+                  setProjectName(
+                    e.target.value
+                  )
                 }
               />
 
               <button
                 style={styles.btn}
-                onClick={createProject}
+                onClick={
+                  createProject
+                }
               >
                 Create
               </button>
@@ -383,7 +395,7 @@ export default function App() {
         <h3>{activeProject}</h3>
 
         <div style={styles.meta}>
-          {tracks.length} tracks •{" "}
+          {tracks.length} Tracks •{" "}
           {totalDuration(tracks)}
         </div>
 
@@ -412,13 +424,17 @@ export default function App() {
           type="color"
           value={vinylColor}
           onChange={(e) =>
-            setVinylColor(e.target.value)
+            setVinylColor(
+              e.target.value
+            )
           }
         />
 
         <button
           style={styles.btn}
-          onClick={() => setView("home")}
+          onClick={() =>
+            setView("home")
+          }
         >
           home
         </button>
@@ -427,28 +443,10 @@ export default function App() {
           {tracks.map((t, i) => (
             <div
               key={t.id}
-              draggable
-              onDragStart={() =>
-                setDragIndex(i)
+              style={styles.track}
+              onClick={() =>
+                play(i)
               }
-              onDragOver={(e) =>
-                e.preventDefault()
-              }
-              onDrop={() => {
-                moveTrack(
-                  dragIndex,
-                  i
-                );
-                setDragIndex(null);
-              }}
-              style={{
-                ...styles.track,
-                border:
-                  i === index
-                    ? "1px solid white"
-                    : "1px solid transparent"
-              }}
-              onClick={() => play(i)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 deleteTrack(i);
@@ -487,7 +485,11 @@ export default function App() {
                 style={styles.labelImg}
               />
             ) : (
-              <div style={styles.labelFallback}>
+              <div
+                style={
+                  styles.labelFallback
+                }
+              >
                 AURAE
               </div>
             )}
@@ -501,33 +503,59 @@ export default function App() {
               transform: `rotate(${armAngle}deg)`
             }}
           >
-            <div style={styles.armTube} />
-            <div style={styles.armHead} />
-            <div style={styles.armNeedle} />
+            <div
+              style={
+                styles.armTube
+              }
+            />
+            <div
+              style={
+                styles.armHead
+              }
+            />
+            <div
+              style={
+                styles.armNeedle
+              }
+            />
           </div>
         </div>
       </div>
 
       <div style={styles.player}>
-        <button style={styles.btn} onClick={prev}>
+        <button
+          style={styles.btn}
+          onClick={prev}
+        >
           ⏮
         </button>
 
-        <button style={styles.btn} onClick={toggle}>
-          {playing ? "pause" : "play"}
+        <button
+          style={styles.btn}
+          onClick={toggle}
+        >
+          {playing
+            ? "pause"
+            : "play"}
         </button>
 
-        <button style={styles.btn} onClick={next}>
+        <button
+          style={styles.btn}
+          onClick={next}
+        >
           ⏭
         </button>
 
         <div style={styles.now}>
           {current?.name ||
-            "no track loaded"}
+            "no track"}
         </div>
 
-        <div style={styles.timeBox}>
-          {formatTime(currentTime)} /{" "}
+        <div>
+          {formatTime(
+            currentTime
+          )}{" "}
+          /{" "}
           {formatTime(duration)}
         </div>
 
@@ -537,30 +565,9 @@ export default function App() {
           max={duration || 0}
           value={currentTime}
           onChange={seek}
-          style={{ width: 220 }}
+          style={{ width: 240 }}
         />
       </div>
-
-      {popup && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <div>{popup.title}</div>
-            <div>{popup.text}</div>
-
-            {popup.actions.map(
-              (btn, i) => (
-                <button
-                  key={i}
-                  style={styles.btn}
-                  onClick={btn.onClick}
-                >
-                  {btn.text}
-                </button>
-              )
-            )}
-          </div>
-        </div>
-      )}
 
       <audio ref={audioRef} />
     </div>
@@ -579,11 +586,13 @@ const styles = {
 
   auth: {
     height: "100vh",
-    background:
-      "radial-gradient(circle at top,#171717,#090909)",
     display: "flex",
-    justifyContent: "center",
-    alignItems: "center"
+    justifyContent:
+      "center",
+    alignItems:
+      "center",
+    background:
+      "radial-gradient(circle at top,#171717,#090909)"
   },
 
   panel: {
@@ -593,7 +602,8 @@ const styles = {
     background:
       "rgba(255,255,255,.06)",
     display: "flex",
-    flexDirection: "column",
+    flexDirection:
+      "column",
     gap: 12
   },
 
@@ -608,7 +618,8 @@ const styles = {
   },
 
   btn: {
-    padding: "12px 16px",
+    padding:
+      "12px 16px",
     borderRadius: 16,
     border: "none",
     background:
@@ -624,13 +635,15 @@ const styles = {
   },
 
   centerHome: {
-    textAlign: "center",
+    textAlign:
+      "center",
     paddingTop: 110
   },
 
   grid: {
     display: "flex",
-    justifyContent: "center",
+    justifyContent:
+      "center",
     gap: 14,
     padding: 24,
     flexWrap: "wrap"
@@ -646,25 +659,26 @@ const styles = {
   },
 
   meta: {
-    fontSize: 12,
-    opacity: 0.7
+    opacity: 0.7,
+    fontSize: 13
   },
 
   sidebar: {
     width: 290,
     padding: 20,
     display: "flex",
-    flexDirection: "column",
+    flexDirection:
+      "column",
     gap: 12
   },
 
   list: {
     display: "flex",
-    flexDirection: "column",
+    flexDirection:
+      "column",
     gap: 8,
     overflowY: "auto",
-    maxHeight:
-      "calc(100vh - 240px)"
+    minHeight: 0
   },
 
   track: {
@@ -681,8 +695,10 @@ const styles = {
   stage: {
     flex: 1,
     display: "flex",
-    justifyContent: "center",
-    alignItems: "center"
+    justifyContent:
+      "center",
+    alignItems:
+      "center"
   },
 
   turntable: {
@@ -716,7 +732,7 @@ const styles = {
     inset: 0,
     borderRadius: "50%",
     background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,.07) 0px, transparent 3px)"
+      "repeating-radial-gradient(circle, rgba(255,255,255,.08) 0px, transparent 3px)"
   },
 
   labelImg: {
@@ -742,50 +758,51 @@ const styles = {
     transform:
       "translate(-50%,-50%)",
     display: "flex",
-    justifyContent: "center",
-    alignItems: "center"
+    justifyContent:
+      "center",
+    alignItems:
+      "center"
   },
 
   armBase: {
     position: "absolute",
-    right: 58,
-    top: 88,
-    width: 54,
-    height: 54,
+    left: 452,
+    top: 100,
+    width: 38,
+    height: 38,
     borderRadius: "50%",
     background:
       "radial-gradient(circle,#fff,#777)",
-    zIndex: 80
+    zIndex: 95
   },
 
   arm: {
     position: "absolute",
-    right: 84,
-    top: 114,
-    width: 255,
+    left: 470,
+    top: 118,
+    width: 250,
     height: 14,
-    transformOrigin:
-      "100% center",
+    transformOrigin: "0% 50%",
     transition:
-      "transform .45s ease",
+      "transform .45s cubic-bezier(.22,.61,.36,1)",
     zIndex: 90
   },
 
   armTube: {
     position: "absolute",
-    right: 18,
+    left: 0,
     top: 3,
-    width: 218,
+    width: 220,
     height: 8,
     borderRadius: 20,
     background:
-      "linear-gradient(180deg,#f8f8f8,#8d8d8d)"
+      "linear-gradient(180deg,#f8f8f8,#bdbdbd 45%,#7d7d7d)"
   },
 
   armHead: {
     position: "absolute",
-    left: 0,
-    top: 0,
+    right: 8,
+    top: -2,
     width: 34,
     height: 16,
     borderRadius: 5,
@@ -795,13 +812,13 @@ const styles = {
 
   armNeedle: {
     position: "absolute",
-    left: 6,
+    right: 10,
     top: 12,
     width: 2,
-    height: 17,
+    height: 16,
     background: "#111",
     transform:
-      "rotate(30deg)"
+      "rotate(18deg)"
   },
 
   player: {
@@ -811,8 +828,10 @@ const styles = {
     bottom: 0,
     height: 78,
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems:
+      "center",
+    justifyContent:
+      "center",
     gap: 10,
     background:
       "rgba(0,0,0,.45)"
@@ -821,14 +840,10 @@ const styles = {
   now: {
     width: 220,
     overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis"
-  },
-
-  timeBox: {
-    width: 95,
-    textAlign: "center",
-    fontSize: 13
+    whiteSpace:
+      "nowrap",
+    textOverflow:
+      "ellipsis"
   },
 
   overlay: {
@@ -837,9 +852,10 @@ const styles = {
     background:
       "rgba(0,0,0,.55)",
     display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 999
+    justifyContent:
+      "center",
+    alignItems:
+      "center"
   },
 
   modal: {
@@ -848,7 +864,8 @@ const styles = {
     borderRadius: 18,
     background: "#111",
     display: "flex",
-    flexDirection: "column",
+    flexDirection:
+      "column",
     gap: 12
   }
 };
