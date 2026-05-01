@@ -1,47 +1,84 @@
 import React, { useEffect, useRef, useState } from "react";
 
 export default function App() {
-  const [view, setView] = useState(() =>
-    localStorage.getItem("aurae_remember") ? "home" : "auth"
+  const [view, setView] = useState(
+    localStorage.getItem("aurae_remember")
+      ? "home"
+      : "auth"
   );
 
   const [theme, setTheme] = useState(
-    localStorage.getItem("aurae_theme") || "dark"
+    localStorage.getItem("aurae_theme") ||
+      "dark"
   );
 
-  const [users, setUsers] = useState(() =>
-    JSON.parse(localStorage.getItem("aurae_users") || "{}")
+  const [users, setUsers] = useState(
+    JSON.parse(
+      localStorage.getItem("aurae_users") ||
+        "{}"
+    )
   );
 
-  const [projects, setProjects] = useState(() =>
-    JSON.parse(localStorage.getItem("aurae_projects") || "{}")
+  const [projects, setProjects] = useState(
+    JSON.parse(
+      localStorage.getItem(
+        "aurae_projects"
+      ) || "{}"
+    )
   );
 
-  const [folders, setFolders] = useState(() =>
-    JSON.parse(localStorage.getItem("aurae_folders") || "[]")
+  const [folders, setFolders] = useState(
+    JSON.parse(
+      localStorage.getItem(
+        "aurae_folders"
+      ) || "[]"
+    )
   );
 
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] =
+    useState("");
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [showFolder, setShowFolder] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [folderName, setFolderName] = useState("");
+  const [showCreate, setShowCreate] =
+    useState(false);
+  const [showFolder, setShowFolder] =
+    useState(false);
 
-  const [projectMenu, setProjectMenu] = useState(null);
-  const [songMenu, setSongMenu] = useState(null);
+  const [projectName, setProjectName] =
+    useState("");
+  const [folderName, setFolderName] =
+    useState("");
 
-  const [activeProject, setActiveProject] = useState(null);
-  const [tracks, setTracks] = useState([]);
+  const [folderOpen, setFolderOpen] =
+    useState(null);
+
+  const [itemMenu, setItemMenu] =
+    useState(null);
+
+  const [songMenu, setSongMenu] =
+    useState(null);
+
+  const [activeProject, setActiveProject] =
+    useState(null);
+
+  const [tracks, setTracks] = useState(
+    []
+  );
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] =
+    useState(false);
 
-  const [vinylColor, setVinylColor] = useState("#111111");
-  const [albumCover, setAlbumCover] = useState(null);
+  const [vinylColor, setVinylColor] =
+    useState("#111111");
 
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [albumCover, setAlbumCover] =
+    useState(null);
+
+  const [currentTime, setCurrentTime] =
+    useState(0);
+
+  const [duration, setDuration] =
+    useState(0);
 
   const audioRef = useRef(null);
   const current = tracks[index];
@@ -50,15 +87,24 @@ export default function App() {
   const text = dark ? "#fff" : "#000";
 
   useEffect(() => {
-    localStorage.setItem("aurae_projects", JSON.stringify(projects));
+    localStorage.setItem(
+      "aurae_projects",
+      JSON.stringify(projects)
+    );
   }, [projects]);
 
   useEffect(() => {
-    localStorage.setItem("aurae_folders", JSON.stringify(folders));
+    localStorage.setItem(
+      "aurae_folders",
+      JSON.stringify(folders)
+    );
   }, [folders]);
 
   useEffect(() => {
-    localStorage.setItem("aurae_theme", theme);
+    localStorage.setItem(
+      "aurae_theme",
+      theme
+    );
   }, [theme]);
 
   function formatTime(sec = 0) {
@@ -71,14 +117,27 @@ export default function App() {
 
   function totalDuration(list = []) {
     return formatTime(
-      list.reduce((a, b) => a + (b.duration || 0), 0)
+      list.reduce(
+        (a, b) =>
+          a + (b.duration || 0),
+        0
+      )
     );
   }
 
   function login() {
     if (!users[email]) return;
-    if (users[email].password !== password) return;
-    localStorage.setItem("aurae_remember", email);
+    if (
+      users[email].password !==
+      password
+    )
+      return;
+
+    localStorage.setItem(
+      "aurae_remember",
+      email
+    );
+
     setView("home");
   }
 
@@ -87,8 +146,14 @@ export default function App() {
       ...users,
       [email]: { password }
     };
+
     setUsers(next);
-    localStorage.setItem("aurae_users", JSON.stringify(next));
+
+    localStorage.setItem(
+      "aurae_users",
+      JSON.stringify(next)
+    );
+
     login();
   }
 
@@ -123,16 +188,20 @@ export default function App() {
     setShowFolder(false);
   }
 
-  function saveCurrentProject(nextTracks = tracks, nextCover = albumCover) {
-    setProjects({
+  function saveCurrentProject(
+    nextTracks = tracks,
+    nextCover = albumCover
+  ) {
+    const next = {
       ...projects,
       [activeProject]: {
         ...projects[activeProject],
         tracks: nextTracks,
         cover: nextCover
       }
-    });
+    };
 
+    setProjects(next);
     setTracks(nextTracks);
     setAlbumCover(nextCover);
   }
@@ -144,11 +213,36 @@ export default function App() {
     setActiveProject(name);
     setTracks(p.tracks || []);
     setAlbumCover(p.cover || null);
-    setPlaying(false);
+
     setIndex(0);
+    setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+
     setView("studio");
+  }
+
+  function renameProject(name) {
+    const n = prompt(
+      "Rename Project:",
+      name
+    );
+    if (!n || n === name) return;
+
+    const copy = { ...projects };
+    copy[n] = copy[name];
+    delete copy[name];
+    setProjects(copy);
+
+    setFolders(
+      folders.map((f) => ({
+        ...f,
+        projects: f.projects.map(
+          (p) =>
+            p === name ? n : p
+        )
+      }))
+    );
   }
 
   function deleteProject(name) {
@@ -159,110 +253,177 @@ export default function App() {
     setFolders(
       folders.map((f) => ({
         ...f,
-        projects: f.projects.filter((x) => x !== name)
+        projects:
+          f.projects.filter(
+            (p) => p !== name
+          )
       }))
     );
-
-    setProjectMenu(null);
   }
 
-  function renameProject(name) {
-    const nextName = prompt("Rename Project:", name);
-    if (!nextName || nextName === name) return;
-
-    const copy = { ...projects };
-    copy[nextName] = copy[name];
-    delete copy[name];
-    setProjects(copy);
+  function renameFolder(id) {
+    const old = folders.find(
+      (f) => f.id === id
+    );
+    const n = prompt(
+      "Rename Folder:",
+      old?.name || ""
+    );
+    if (!n) return;
 
     setFolders(
-      folders.map((f) => ({
-        ...f,
-        projects: f.projects.map((p) =>
-          p === name ? nextName : p
-        )
-      }))
+      folders.map((f) =>
+        f.id === id
+          ? { ...f, name: n }
+          : f
+      )
     );
-
-    setProjectMenu(null);
   }
 
-  function moveProjectToFolder(projectName, folderId) {
+  function deleteFolder(id) {
+    setFolders(
+      folders.filter(
+        (f) => f.id !== id
+      )
+    );
+    if (folderOpen === id)
+      setFolderOpen(null);
+  }
+
+  function rootProjects() {
+    const inside = new Set(
+      folders.flatMap(
+        (f) => f.projects
+      )
+    );
+
+    return Object.keys(
+      projects
+    ).filter((p) => !inside.has(p));
+  }
+
+  function moveProjectToFolder(
+    project,
+    folderId
+  ) {
     setFolders(
       folders.map((f) =>
         f.id === folderId
           ? {
               ...f,
-              projects: [...new Set([...f.projects, projectName])]
+              projects: [
+                ...new Set([
+                  ...f.projects,
+                  project
+                ])
+              ]
             }
           : {
               ...f,
-              projects: f.projects.filter((x) => x !== projectName)
+              projects:
+                f.projects.filter(
+                  (x) =>
+                    x !== project
+                )
             }
       )
-    );
-  }
-
-  function rootProjects() {
-    const inside = new Set(
-      folders.flatMap((f) => f.projects)
-    );
-
-    return Object.keys(projects).filter(
-      (p) => !inside.has(p)
     );
   }
 
   async function addTracks(e) {
-    const files = Array.from(e.target.files || []);
-
-    const loaded = await Promise.all(
-      files.map(
-        (file) =>
-          new Promise((resolve) => {
-            const url = URL.createObjectURL(file);
-            const probe = new Audio(url);
-
-            probe.onloadedmetadata = () =>
-              resolve({
-                id: Date.now() + Math.random(),
-                name: file.name.replace(/\.[^/.]+$/, ""),
-                url,
-                duration: probe.duration || 0
-              });
-          })
-      )
+    const files = Array.from(
+      e.target.files || []
     );
 
-    saveCurrentProject([...tracks, ...loaded]);
+    const loaded =
+      await Promise.all(
+        files.map(
+          (file) =>
+            new Promise(
+              (resolve) => {
+                const url =
+                  URL.createObjectURL(
+                    file
+                  );
+
+                const probe =
+                  new Audio(url);
+
+                probe.onloadedmetadata =
+                  () =>
+                    resolve({
+                      id:
+                        Date.now() +
+                        Math.random(),
+                      name: file.name.replace(
+                        /\.[^/.]+$/,
+                        ""
+                      ),
+                      url,
+                      duration:
+                        probe.duration ||
+                        0
+                    });
+              }
+            )
+        )
+      );
+
+    saveCurrentProject([
+      ...tracks,
+      ...loaded
+    ]);
   }
 
   function addCover(e) {
-    const file = e.target.files?.[0];
+    const file =
+      e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
+    const reader =
+      new FileReader();
+
     reader.onload = () =>
-      saveCurrentProject(tracks, reader.result);
+      saveCurrentProject(
+        tracks,
+        reader.result
+      );
+
     reader.readAsDataURL(file);
   }
 
   function deleteTrack(i) {
-    const next = tracks.filter((_, x) => x !== i);
+    const next =
+      tracks.filter(
+        (_, x) => x !== i
+      );
+
     saveCurrentProject(next);
     setSongMenu(null);
   }
 
   function moveTrack(i) {
     const pos = Number(
-      prompt("Move to position:", i + 1)
+      prompt(
+        "Move to position:",
+        i + 1
+      )
     );
+
     if (!pos) return;
 
     const next = [...tracks];
-    const item = next.splice(i, 1)[0];
+    const item =
+      next.splice(i, 1)[0];
+
     next.splice(
-      Math.max(0, Math.min(next.length, pos - 1)),
+      Math.max(
+        0,
+        Math.min(
+          next.length,
+          pos - 1
+        )
+      ),
       0,
       item
     );
@@ -278,16 +439,23 @@ export default function App() {
     setPlaying(true);
 
     setTimeout(() => {
-      const a = audioRef.current;
+      const a =
+        audioRef.current;
       a.src = tracks[i].url;
-      a.play().catch(() => {});
+      a.play().catch(
+        () => {}
+      );
     }, 20);
   }
 
   function toggle() {
-    const a = audioRef.current;
+    const a =
+      audioRef.current;
 
-    if (!a.src && tracks[0]) {
+    if (
+      !a.src &&
+      tracks[0]
+    ) {
       play(0);
       return;
     }
@@ -296,108 +464,164 @@ export default function App() {
       a.pause();
       setPlaying(false);
     } else {
-      a.play().catch(() => {});
+      a.play().catch(
+        () => {}
+      );
       setPlaying(true);
     }
   }
 
   function prev() {
-    if (index > 0) play(index - 1);
+    if (index > 0)
+      play(index - 1);
   }
 
   function next() {
-    if (index < tracks.length - 1)
+    if (
+      index <
+      tracks.length - 1
+    )
       play(index + 1);
   }
 
   function seek(e) {
-    const v = Number(e.target.value);
-    audioRef.current.currentTime = v;
-    setCurrentTime(v);
+    const val = Number(
+      e.target.value
+    );
+
+    audioRef.current.currentTime =
+      val;
+
+    setCurrentTime(val);
   }
 
   useEffect(() => {
-    const a = audioRef.current;
+    const a =
+      audioRef.current;
     if (!a) return;
 
     const update = () => {
-      setCurrentTime(a.currentTime || 0);
-      setDuration(a.duration || 0);
+      setCurrentTime(
+        a.currentTime || 0
+      );
+      setDuration(
+        a.duration || 0
+      );
     };
 
     const ended = () => {
-      if (index < tracks.length - 1)
+      if (
+        index <
+        tracks.length - 1
+      )
         play(index + 1);
-      else setPlaying(false);
+      else
+        setPlaying(false);
     };
 
-    a.addEventListener("timeupdate", update);
-    a.addEventListener("loadedmetadata", update);
-    a.addEventListener("ended", ended);
+    a.addEventListener(
+      "timeupdate",
+      update
+    );
+    a.addEventListener(
+      "loadedmetadata",
+      update
+    );
+    a.addEventListener(
+      "ended",
+      ended
+    );
 
     return () => {
-      a.removeEventListener("timeupdate", update);
-      a.removeEventListener("loadedmetadata", update);
-      a.removeEventListener("ended", ended);
+      a.removeEventListener(
+        "timeupdate",
+        update
+      );
+      a.removeEventListener(
+        "loadedmetadata",
+        update
+      );
+      a.removeEventListener(
+        "ended",
+        ended
+      );
     };
   }, [index, tracks]);
 
-  /* stylus bleibt gleich */
-  const totalSongs = Math.max(tracks.length, 1);
+  /* stylus unverändert */
+  const totalSongs =
+    Math.max(
+      tracks.length,
+      1
+    );
+
   const songProgress =
-    duration > 0 ? currentTime / duration : 0;
+    duration > 0
+      ? currentTime /
+        duration
+      : 0;
 
   const progress =
     tracks.length === 0
       ? 0
-      : (index + songProgress) / totalSongs;
+      : (index +
+          songProgress) /
+        totalSongs;
 
   const cx = 280;
   const cy = 280;
   const outerR = 188;
   const innerR = 92;
-  const ang = (28 * Math.PI) / 180;
+  const ang =
+    (28 * Math.PI) / 180;
 
   const r =
-    outerR - (outerR - innerR) * progress;
+    outerR -
+    (outerR - innerR) *
+      progress;
 
-  const tx = cx + Math.cos(ang) * r;
-  const ty = cy + Math.sin(ang) * r;
+  const tx =
+    cx +
+    Math.cos(ang) * r;
+
+  const ty =
+    cy +
+    Math.sin(ang) * r;
 
   const px = 470;
   const py = 118;
 
   const armAngle =
-    (Math.atan2(ty - py, tx - px) * 180) /
+    (Math.atan2(
+      ty - py,
+      tx - px
+    ) *
+      180) /
     Math.PI;
 
-  const styles = makeStyles(dark, text);
+  const styles =
+    makeStyles(
+      dark,
+      text
+    );
 
+  /* AUTH */
   if (view === "auth") {
     return (
       <div style={styles.auth}>
         <div style={styles.panel}>
-          <div style={styles.logo}>AURAE</div>
-
-          <button
-            style={styles.btn}
-            onClick={() =>
-              setTheme(
-                dark ? "light" : "dark"
-              )
-            }
-          >
-            {dark
-              ? "Light Mode"
-              : "Dark Mode"}
-          </button>
+          <div style={styles.logo}>
+            AURAE
+          </div>
 
           <input
             style={styles.input}
             placeholder="email"
             value={email}
             onChange={(e) =>
-              setEmail(e.target.value)
+              setEmail(
+                e.target.value
+              )
             }
           />
 
@@ -407,7 +631,9 @@ export default function App() {
             type="password"
             value={password}
             onChange={(e) =>
-              setPassword(e.target.value)
+              setPassword(
+                e.target.value
+              )
             }
           />
 
@@ -429,20 +655,40 @@ export default function App() {
     );
   }
 
+  /* HOME */
   if (view === "home") {
+    const currentFolder =
+      folders.find(
+        (f) =>
+          f.id === folderOpen
+      );
+
+    const visibleProjects =
+      folderOpen
+        ? currentFolder
+            ?.projects || []
+        : rootProjects();
+
     return (
       <div style={styles.home}>
-        <div style={styles.center}>
+        <div
+          style={
+            styles.centerHome
+          }
+        >
           <div style={styles.logo}>
             AURAE OS
           </div>
 
-          <div style={styles.row}>
+          {/* Buttons wieder mittig */}
+          <div style={styles.topBtns}>
             <button
               style={styles.btn}
               onClick={() =>
                 setTheme(
-                  dark ? "light" : "dark"
+                  dark
+                    ? "light"
+                    : "dark"
                 )
               }
             >
@@ -454,7 +700,9 @@ export default function App() {
             <button
               style={styles.btn}
               onClick={() =>
-                setShowCreate(true)
+                setShowCreate(
+                  true
+                )
               }
             >
               + new project
@@ -463,100 +711,242 @@ export default function App() {
             <button
               style={styles.btn}
               onClick={() =>
-                setShowFolder(true)
+                setShowFolder(
+                  true
+                )
               }
             >
               + folder
             </button>
+
+            {folderOpen && (
+              <button
+                style={
+                  styles.btn
+                }
+                onClick={() =>
+                  setFolderOpen(
+                    null
+                  )
+                }
+              >
+                ← back
+              </button>
+            )}
           </div>
 
           <div style={styles.grid}>
-            {folders.map((folder) => (
-              <div
-                key={folder.id}
-                style={styles.card}
-                onDragOver={(e) =>
-                  e.preventDefault()
-                }
-                onDrop={(e) =>
-                  moveProjectToFolder(
-                    e.dataTransfer.getData(
-                      "text/plain"
-                    ),
-                    folder.id
-                  )
-                }
-              >
-                <div style={styles.folderGrid}>
-                  {folder.projects
-                    .slice(0, 4)
-                    .map((p, i) => {
-                      const cover =
-                        projects[p]?.cover;
-                      return cover ? (
-                        <img
-                          key={i}
-                          src={cover}
-                          style={
-                            styles.folderImg
-                          }
-                        />
-                      ) : (
-                        <div
-                          key={i}
-                          style={
-                            styles.folderBlank
-                          }
-                        />
-                      );
-                    })}
-                </div>
-
-                <div>{folder.name}</div>
-              </div>
-            ))}
-
-            {rootProjects().map((name) => (
-              <div
-                key={name}
-                style={styles.card}
-                draggable
-                onDragStart={(e) =>
-                  e.dataTransfer.setData(
-                    "text/plain",
-                    name
-                  )
-                }
-                onClick={() =>
-                  openProject(name)
-                }
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setProjectMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    name
-                  });
-                }}
-              >
-                {projects[name]?.cover ? (
-                  <img
-                    src={
-                      projects[name].cover
+            {!folderOpen &&
+              folders.map(
+                (folder) => (
+                  <div
+                    key={
+                      folder.id
                     }
-                    style={styles.cover}
-                  />
-                ) : (
+                    style={
+                      styles.card
+                    }
+                    onDragOver={(
+                      e
+                    ) =>
+                      e.preventDefault()
+                    }
+                    onDrop={(
+                      e
+                    ) =>
+                      moveProjectToFolder(
+                        e.dataTransfer.getData(
+                          "text/plain"
+                        ),
+                        folder.id
+                      )
+                    }
+                    onClick={() =>
+                      setFolderOpen(
+                        folder.id
+                      )
+                    }
+                  >
+                    <div
+                      style={
+                        styles.folderGrid
+                      }
+                    >
+                      {folder.projects
+                        .slice(
+                          0,
+                          4
+                        )
+                        .map(
+                          (
+                            p,
+                            i
+                          ) => {
+                            const cover =
+                              projects[
+                                p
+                              ]
+                                ?.cover;
+
+                            return cover ? (
+                              <img
+                                key={
+                                  i
+                                }
+                                src={
+                                  cover
+                                }
+                                style={
+                                  styles.folderImg
+                                }
+                              />
+                            ) : (
+                              <div
+                                key={
+                                  i
+                                }
+                                style={
+                                  styles.folderBlank
+                                }
+                              />
+                            );
+                          }
+                        )}
+                    </div>
+
+                    <div>
+                      {
+                        folder.name
+                      }
+                    </div>
+
+                    <div
+                      style={
+                        styles.cardActions
+                      }
+                    >
+                      <button
+                        style={
+                          styles.smallBtn
+                        }
+                        onClick={(
+                          e
+                        ) => {
+                          e.stopPropagation();
+                          renameFolder(
+                            folder.id
+                          );
+                        }}
+                      >
+                        rename
+                      </button>
+
+                      <button
+                        style={
+                          styles.smallBtn
+                        }
+                        onClick={(
+                          e
+                        ) => {
+                          e.stopPropagation();
+                          deleteFolder(
+                            folder.id
+                          );
+                        }}
+                      >
+                        delete
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+
+            {visibleProjects.map(
+              (name) => (
+                <div
+                  key={name}
+                  style={
+                    styles.card
+                  }
+                  draggable
+                  onDragStart={(
+                    e
+                  ) =>
+                    e.dataTransfer.setData(
+                      "text/plain",
+                      name
+                    )
+                  }
+                  onClick={() =>
+                    openProject(
+                      name
+                    )
+                  }
+                >
+                  {projects[name]
+                    ?.cover ? (
+                    <img
+                      src={
+                        projects[
+                          name
+                        ].cover
+                      }
+                      style={
+                        styles.cover
+                      }
+                    />
+                  ) : (
+                    <div
+                      style={
+                        styles.blankCover
+                      }
+                    />
+                  )}
+
+                  <div>
+                    {name}
+                  </div>
+
                   <div
                     style={
-                      styles.blankCover
+                      styles.cardActions
                     }
-                  />
-                )}
+                  >
+                    <button
+                      style={
+                        styles.smallBtn
+                      }
+                      onClick={(
+                        e
+                      ) => {
+                        e.stopPropagation();
+                        renameProject(
+                          name
+                        );
+                      }}
+                    >
+                      rename
+                    </button>
 
-                <div>{name}</div>
-              </div>
-            ))}
+                    <button
+                      style={
+                        styles.smallBtn
+                      }
+                      onClick={(
+                        e
+                      ) => {
+                        e.stopPropagation();
+                        deleteProject(
+                          name
+                        );
+                      }}
+                    >
+                      delete
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
           </div>
         </div>
 
@@ -564,18 +954,30 @@ export default function App() {
           <div style={styles.overlay}>
             <div style={styles.modal}>
               <input
-                style={styles.input}
-                value={projectName}
-                onChange={(e) =>
-                  setProjectName(
-                    e.target.value
-                  )
+                style={
+                  styles.input
                 }
                 placeholder="project name"
+                value={
+                  projectName
+                }
+                onChange={(
+                  e
+                ) =>
+                  setProjectName(
+                    e.target
+                      .value
+                  )
+                }
               />
+
               <button
-                style={styles.btn}
-                onClick={createProject}
+                style={
+                  styles.btn
+                }
+                onClick={
+                  createProject
+                }
               >
                 create
               </button>
@@ -587,60 +989,41 @@ export default function App() {
           <div style={styles.overlay}>
             <div style={styles.modal}>
               <input
-                style={styles.input}
-                value={folderName}
-                onChange={(e) =>
-                  setFolderName(
-                    e.target.value
-                  )
+                style={
+                  styles.input
                 }
                 placeholder="folder name"
+                value={
+                  folderName
+                }
+                onChange={(
+                  e
+                ) =>
+                  setFolderName(
+                    e.target
+                      .value
+                  )
+                }
               />
+
               <button
-                style={styles.btn}
-                onClick={createFolder}
+                style={
+                  styles.btn
+                }
+                onClick={
+                  createFolder
+                }
               >
                 create
               </button>
             </div>
           </div>
         )}
-
-        {projectMenu && (
-          <div
-            style={{
-              ...styles.menu,
-              left: projectMenu.x,
-              top: projectMenu.y
-            }}
-          >
-            <button
-              style={styles.menuBtn}
-              onClick={() =>
-                renameProject(
-                  projectMenu.name
-                )
-              }
-            >
-              rename
-            </button>
-
-            <button
-              style={styles.menuBtn}
-              onClick={() =>
-                deleteProject(
-                  projectMenu.name
-                )
-              }
-            >
-              delete
-            </button>
-          </div>
-        )}
       </div>
     );
   }
 
+  /* STUDIO */
   return (
     <div style={styles.app}>
       <div style={styles.sidebar}>
@@ -648,7 +1031,9 @@ export default function App() {
 
         <div style={styles.meta}>
           {tracks.length} Tracks •{" "}
-          {totalDuration(tracks)}
+          {totalDuration(
+            tracks
+          )}
         </div>
 
         <label style={styles.btn}>
@@ -658,7 +1043,9 @@ export default function App() {
             multiple
             type="file"
             accept=".mp3,.wav"
-            onChange={addTracks}
+            onChange={
+              addTracks
+            }
           />
         </label>
 
@@ -668,16 +1055,23 @@ export default function App() {
             hidden
             type="file"
             accept=".png,.jpg,.jpeg"
-            onChange={addCover}
+            onChange={
+              addCover
+            }
           />
         </label>
 
         <input
           type="color"
-          value={vinylColor}
-          onChange={(e) =>
+          value={
+            vinylColor
+          }
+          onChange={(
+            e
+          ) =>
             setVinylColor(
-              e.target.value
+              e.target
+                .value
             )
           }
         />
@@ -685,60 +1079,90 @@ export default function App() {
         <button
           style={styles.btn}
           onClick={() =>
-            setView("home")
+            setView(
+              "home"
+            )
           }
         >
           home
         </button>
 
         <div style={styles.list}>
-          {tracks.map((t, i) => (
-            <div
-              key={t.id}
-              style={styles.track}
-              onClick={() =>
-                play(i)
-              }
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setSongMenu({
-                  x: e.clientX,
-                  y: e.clientY,
-                  i
-                });
-              }}
-            >
-              <span>{t.name}</span>
-              <span>
-                {formatTime(
-                  t.duration
-                )}
-              </span>
-            </div>
-          ))}
+          {tracks.map(
+            (t, i) => (
+              <div
+                key={t.id}
+                style={
+                  styles.track
+                }
+                onClick={() =>
+                  play(i)
+                }
+                onContextMenu={(
+                  e
+                ) => {
+                  e.preventDefault();
+                  setSongMenu(
+                    {
+                      x: e.clientX,
+                      y: e.clientY,
+                      i
+                    }
+                  );
+                }}
+              >
+                <span>
+                  {t.name}
+                </span>
+
+                <span>
+                  {formatTime(
+                    t.duration
+                  )}
+                </span>
+              </div>
+            )
+          )}
         </div>
       </div>
 
       <div style={styles.stage}>
-        <div style={styles.turntable}>
-          <div style={styles.plinth} />
+        <div
+          style={
+            styles.turntable
+          }
+        >
+          <div
+            style={
+              styles.plinth
+            }
+          />
 
           <div
             style={{
               ...styles.vinyl,
               background:
                 vinylColor,
-              animation: playing
-                ? "spin 1.55s linear infinite"
-                : "none"
+              animation:
+                playing
+                  ? "spin 1.55s linear infinite"
+                  : "none"
             }}
           >
-            <div style={styles.grooves} />
+            <div
+              style={
+                styles.grooves
+              }
+            />
 
             {albumCover ? (
               <img
-                src={albumCover}
-                style={styles.labelImg}
+                src={
+                  albumCover
+                }
+                style={
+                  styles.labelImg
+                }
               />
             ) : (
               <div
@@ -751,7 +1175,11 @@ export default function App() {
             )}
           </div>
 
-          <div style={styles.armBase} />
+          <div
+            style={
+              styles.armBase
+            }
+          />
 
           <div
             style={{
@@ -759,9 +1187,21 @@ export default function App() {
               transform: `rotate(${armAngle}deg)`
             }}
           >
-            <div style={styles.armTube} />
-            <div style={styles.armHead} />
-            <div style={styles.armNeedle} />
+            <div
+              style={
+                styles.armTube
+              }
+            />
+            <div
+              style={
+                styles.armHead
+              }
+            />
+            <div
+              style={
+                styles.armNeedle
+              }
+            />
           </div>
         </div>
       </div>
@@ -800,16 +1240,24 @@ export default function App() {
             currentTime
           )}{" "}
           /{" "}
-          {formatTime(duration)}
+          {formatTime(
+            duration
+          )}
         </div>
 
         <input
           type="range"
           min="0"
-          max={duration || 0}
-          value={currentTime}
+          max={
+            duration || 0
+          }
+          value={
+            currentTime
+          }
           onChange={seek}
-          style={styles.range}
+          style={
+            styles.range
+          }
         />
       </div>
 
@@ -817,23 +1265,33 @@ export default function App() {
         <div
           style={{
             ...styles.menu,
-            left: songMenu.x,
-            top: songMenu.y
+            left:
+              songMenu.x,
+            top:
+              songMenu.y
           }}
         >
           <button
-            style={styles.menuBtn}
+            style={
+              styles.menuBtn
+            }
             onClick={() =>
-              moveTrack(songMenu.i)
+              moveTrack(
+                songMenu.i
+              )
             }
           >
             move
           </button>
 
           <button
-            style={styles.menuBtn}
+            style={
+              styles.menuBtn
+            }
             onClick={() =>
-              deleteTrack(songMenu.i)
+              deleteTrack(
+                songMenu.i
+              )
             }
           >
             delete
@@ -846,7 +1304,10 @@ export default function App() {
   );
 }
 
-function makeStyles(dark, text) {
+function makeStyles(
+  dark,
+  text
+) {
   return {
     app: {
       display: "flex",
@@ -881,7 +1342,8 @@ function makeStyles(dark, text) {
       flexDirection:
         "column",
       gap: 12,
-      backdropFilter: "blur(18px)"
+      backdropFilter:
+        "blur(18px)"
     },
 
     logo: {
@@ -890,7 +1352,8 @@ function makeStyles(dark, text) {
     },
 
     btn: {
-      padding: "12px 16px",
+      padding:
+        "12px 16px",
       borderRadius: 16,
       border:
         "1px solid rgba(255,255,255,.18)",
@@ -898,7 +1361,20 @@ function makeStyles(dark, text) {
         "rgba(255,255,255,.08)",
       color: text,
       cursor: "pointer",
-      backdropFilter: "blur(20px)"
+      backdropFilter:
+        "blur(18px)"
+    },
+
+    smallBtn: {
+      padding:
+        "6px 10px",
+      borderRadius: 10,
+      border: "none",
+      background:
+        "rgba(255,255,255,.08)",
+      color: text,
+      cursor: "pointer",
+      fontSize: 11
     },
 
     input: {
@@ -911,18 +1387,23 @@ function makeStyles(dark, text) {
     },
 
     home: {
-      minHeight: "100vh",
+      minHeight:
+        "100vh",
       background: dark
         ? "#090909"
         : "#f6f6f6"
     },
 
-    center: {
-      padding: 30
+    centerHome: {
+      textAlign:
+        "center",
+      paddingTop: 80
     },
 
-    row: {
+    topBtns: {
       display: "flex",
+      justifyContent:
+        "center",
       gap: 10,
       marginBottom: 20
     },
@@ -931,7 +1412,8 @@ function makeStyles(dark, text) {
       display: "grid",
       gridTemplateColumns:
         "repeat(5,1fr)",
-      gap: 16
+      gap: 16,
+      padding: 24
     },
 
     card: {
@@ -939,14 +1421,25 @@ function makeStyles(dark, text) {
       borderRadius: 18,
       background:
         "rgba(255,255,255,.08)",
+      textAlign:
+        "center",
       cursor: "pointer",
-      textAlign: "center",
-      backdropFilter: "blur(18px)"
+      backdropFilter:
+        "blur(18px)"
+    },
+
+    cardActions: {
+      marginTop: 10,
+      display: "flex",
+      gap: 6,
+      justifyContent:
+        "center"
     },
 
     cover: {
       width: "100%",
-      aspectRatio: "4/3",
+      aspectRatio:
+        "4/3",
       objectFit: "cover",
       borderRadius: 12,
       marginBottom: 8
@@ -954,7 +1447,8 @@ function makeStyles(dark, text) {
 
     blankCover: {
       width: "100%",
-      aspectRatio: "4/3",
+      aspectRatio:
+        "4/3",
       borderRadius: 12,
       marginBottom: 8,
       background:
@@ -971,14 +1465,16 @@ function makeStyles(dark, text) {
 
     folderImg: {
       width: "100%",
-      aspectRatio: "1/1",
+      aspectRatio:
+        "1/1",
       objectFit: "cover",
       borderRadius: 8
     },
 
     folderBlank: {
       width: "100%",
-      aspectRatio: "1/1",
+      aspectRatio:
+        "1/1",
       borderRadius: 8,
       background:
         "rgba(255,255,255,.08)"
@@ -993,10 +1489,13 @@ function makeStyles(dark, text) {
       gap: 12
     },
 
-    meta: { opacity: 0.8 },
+    meta: {
+      opacity: 0.8
+    },
 
     list: {
-      overflowY: "auto",
+      overflowY:
+        "auto",
       display: "flex",
       flexDirection:
         "column",
@@ -1024,13 +1523,15 @@ function makeStyles(dark, text) {
     },
 
     turntable: {
-      position: "relative",
+      position:
+        "relative",
       width: 560,
       height: 560
     },
 
     plinth: {
-      position: "absolute",
+      position:
+        "absolute",
       left: 20,
       top: 20,
       width: 520,
@@ -1041,28 +1542,35 @@ function makeStyles(dark, text) {
     },
 
     vinyl: {
-      position: "absolute",
+      position:
+        "absolute",
       left: 85,
       top: 85,
       width: 390,
       height: 390,
-      borderRadius: "50%"
+      borderRadius:
+        "50%"
     },
 
     grooves: {
-      position: "absolute",
+      position:
+        "absolute",
       inset: 0,
-      borderRadius: "50%",
+      borderRadius:
+        "50%",
       background:
         "repeating-radial-gradient(circle, rgba(255,255,255,.14) 0px, rgba(0,0,0,.15) 2px, transparent 3px)"
     },
 
     labelImg: {
-      position: "absolute",
+      position:
+        "absolute",
       width: 150,
       height: 150,
-      borderRadius: "50%",
-      objectFit: "cover",
+      borderRadius:
+        "50%",
+      objectFit:
+        "cover",
       top: "50%",
       left: "50%",
       transform:
@@ -1070,11 +1578,14 @@ function makeStyles(dark, text) {
     },
 
     labelFallback: {
-      position: "absolute",
+      position:
+        "absolute",
       width: 150,
       height: 150,
-      borderRadius: "50%",
-      background: "#111",
+      borderRadius:
+        "50%",
+      background:
+        "#111",
       color: "#fff",
       top: "50%",
       left: "50%",
@@ -1088,18 +1599,21 @@ function makeStyles(dark, text) {
     },
 
     armBase: {
-      position: "absolute",
+      position:
+        "absolute",
       left: 452,
       top: 100,
       width: 38,
       height: 38,
-      borderRadius: "50%",
+      borderRadius:
+        "50%",
       background:
         "radial-gradient(circle,#fff,#777)"
     },
 
     arm: {
-      position: "absolute",
+      position:
+        "absolute",
       left: 470,
       top: 118,
       width: 250,
@@ -1109,7 +1623,8 @@ function makeStyles(dark, text) {
     },
 
     armTube: {
-      position: "absolute",
+      position:
+        "absolute",
       width: 220,
       height: 8,
       top: 3,
@@ -1119,28 +1634,33 @@ function makeStyles(dark, text) {
     },
 
     armHead: {
-      position: "absolute",
+      position:
+        "absolute",
       right: 8,
       top: -2,
       width: 34,
       height: 16,
       borderRadius: 5,
-      background: "#bbb"
+      background:
+        "#bbb"
     },
 
     armNeedle: {
-      position: "absolute",
+      position:
+        "absolute",
       right: 10,
       top: 12,
       width: 2,
       height: 16,
-      background: "#111",
+      background:
+        "#111",
       transform:
         "rotate(18deg)"
     },
 
     player: {
-      position: "fixed",
+      position:
+        "fixed",
       left: 290,
       right: 0,
       bottom: 0,
@@ -1158,28 +1678,32 @@ function makeStyles(dark, text) {
 
     now: {
       width: 220,
-      whiteSpace: "nowrap",
-      overflow: "hidden",
+      whiteSpace:
+        "nowrap",
+      overflow:
+        "hidden",
       textOverflow:
         "ellipsis"
     },
 
     range: {
       width: 240,
-      accentColor: dark
-        ? "#fff"
-        : "#000"
+      accentColor:
+        dark
+          ? "#fff"
+          : "#000"
     },
 
     overlay: {
-      position: "fixed",
+      position:
+        "fixed",
       inset: 0,
       background:
-        "rgba(0,0,0,.5)",
+        "rgba(0,0,0,.55)",
       display: "flex",
-      alignItems:
-        "center",
       justifyContent:
+        "center",
+      alignItems:
         "center"
     },
 
@@ -1193,14 +1717,16 @@ function makeStyles(dark, text) {
       flexDirection:
         "column",
       gap: 12,
-      backdropFilter: "blur(20px)"
+      backdropFilter:
+        "blur(18px)"
     },
 
     menu: {
-      position: "fixed",
+      position:
+        "fixed",
       zIndex: 999,
       background:
-        "rgba(30,30,30,.95)",
+        "rgba(20,20,20,.95)",
       borderRadius: 12,
       padding: 8,
       display: "flex",
@@ -1214,16 +1740,18 @@ function makeStyles(dark, text) {
       padding:
         "10px 14px",
       borderRadius: 10,
-      cursor: "pointer",
       background:
         "rgba(255,255,255,.08)",
-      color: "#fff"
+      color: "#fff",
+      cursor: "pointer"
     }
   };
 }
 
 const style =
-  document.createElement("style");
+  document.createElement(
+    "style"
+  );
 
 style.innerHTML = `
 @keyframes spin{
@@ -1240,4 +1768,3 @@ box-sizing:border-box;
 `;
 
 document.head.appendChild(style);
-
