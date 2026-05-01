@@ -18,12 +18,8 @@ export default function App() {
   );
 
   const [popup, setPopup] = useState(null);
-
-  /* FIXED */
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
-
-  const [darkMode, setDarkMode] = useState(true);
 
   const [activeProject, setActiveProject] = useState(null);
   const [tracks, setTracks] = useState([]);
@@ -36,14 +32,15 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  const [darkMode, setDarkMode] = useState(
+    localStorage.getItem("aurae_theme") !== "light"
+  );
+
   const audioRef = useRef(null);
   const current = tracks[index];
 
   const textColor = darkMode ? "#fff" : "#000";
-  const bgMain = darkMode ? "#090909" : "#f3f3f3";
-  const cardBg = darkMode
-    ? "rgba(255,255,255,.06)"
-    : "rgba(0,0,0,.06)";
+  const bgMain = darkMode ? "#090909" : "#f2f2f2";
 
   function saveProjects(next) {
     setProjects(next);
@@ -105,7 +102,6 @@ export default function App() {
     setView("auth");
   }
 
-  /* FIXED CREATE PROJECT */
   function createProject() {
     if (!projectName.trim()) return;
 
@@ -175,14 +171,18 @@ export default function App() {
     reader.readAsDataURL(file);
   }
 
-  /* OWN WEBSITE POPUP */
-  function askDeleteTrack(i) {
+  function deleteTrack(i) {
     setPopup({
       title: "Delete Track",
       text: `Delete "${tracks[i]?.name}"?`,
-      onYes: () => {
+      action: () => {
         const next = tracks.filter((_, x) => x !== i);
         saveCurrentProject(next);
+
+        if (index >= next.length) {
+          setIndex(Math.max(0, next.length - 1));
+        }
+
         setPopup(null);
       }
     });
@@ -233,6 +233,13 @@ export default function App() {
   }
 
   useEffect(() => {
+    localStorage.setItem(
+      "aurae_theme",
+      darkMode ? "dark" : "light"
+    );
+  }, [darkMode]);
+
+  useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
 
@@ -257,7 +264,7 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* Stylus unchanged */
+  /* stylus bleibt exakt gleich */
   const totalSongs = Math.max(tracks.length, 1);
   const songProgress =
     duration > 0 ? currentTime / duration : 0;
@@ -295,12 +302,20 @@ export default function App() {
 
   if (view === "auth") {
     return (
-      <div style={{ ...styles.auth, color: textColor }}>
-        <div style={{ ...styles.panel, background: cardBg }}>
+      <div
+        style={{
+          ...styles.auth,
+          color: textColor
+        }}
+      >
+        <div style={styles.panel}>
           <div style={styles.logo}>AURAE</div>
 
           <input
-            style={styles.input}
+            style={{
+              ...styles.input,
+              color: textColor
+            }}
             placeholder="email"
             value={email}
             onChange={(e) =>
@@ -309,7 +324,10 @@ export default function App() {
           />
 
           <input
-            style={styles.input}
+            style={{
+              ...styles.input,
+              color: textColor
+            }}
             placeholder="password"
             type="password"
             value={password}
@@ -318,11 +336,17 @@ export default function App() {
             }
           />
 
-          <button style={styles.btn} onClick={login}>
+          <button
+            style={styles.btn}
+            onClick={login}
+          >
             login
           </button>
 
-          <button style={styles.btn} onClick={signup}>
+          <button
+            style={styles.btn}
+            onClick={signup}
+          >
             sign up
           </button>
         </div>
@@ -335,7 +359,6 @@ export default function App() {
       <div
         style={{
           ...styles.home,
-          background: bgMain,
           color: textColor
         }}
       >
@@ -369,10 +392,7 @@ export default function App() {
               (name) => (
                 <div
                   key={name}
-                  style={{
-                    ...styles.card,
-                    background: cardBg
-                  }}
+                  style={styles.card}
                   onClick={() =>
                     openProject(name)
                   }
@@ -384,7 +404,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* FIXED CREATE PROJECT POPUP */}
         {showCreate && (
           <div style={styles.overlay}>
             <div style={styles.modal}>
@@ -401,18 +420,11 @@ export default function App() {
 
               <button
                 style={styles.btn}
-                onClick={createProject}
-              >
-                Create
-              </button>
-
-              <button
-                style={styles.btn}
-                onClick={() =>
-                  setShowCreate(false)
+                onClick={
+                  createProject
                 }
               >
-                Cancel
+                Create
               </button>
             </div>
           </div>
@@ -498,7 +510,7 @@ export default function App() {
               }
               onContextMenu={(e) => {
                 e.preventDefault();
-                askDeleteTrack(i);
+                deleteTrack(i);
               }}
             >
               <span>{t.name}</span>
@@ -519,20 +531,18 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
-              background: vinylColor,
+              background:
+                vinylColor,
               animation: playing
                 ? "spin 1.55s linear infinite"
                 : "none"
             }}
           >
-            {/* FIXED visible grooves */}
             <div
               style={{
                 ...styles.grooves,
-                mixBlendMode:
-                  darkMode
-                    ? "screen"
-                    : "multiply"
+                background:
+                  "repeating-radial-gradient(circle, rgba(0,0,0,.22) 0px, rgba(0,0,0,.22) 1px, transparent 3px)"
               }}
             />
 
@@ -560,9 +570,21 @@ export default function App() {
               transform: `rotate(${armAngle}deg)`
             }}
           >
-            <div style={styles.armTube} />
-            <div style={styles.armHead} />
-            <div style={styles.armNeedle} />
+            <div
+              style={
+                styles.armTube
+              }
+            />
+            <div
+              style={
+                styles.armHead
+              }
+            />
+            <div
+              style={
+                styles.armNeedle
+              }
+            />
           </div>
         </div>
       </div>
@@ -614,7 +636,6 @@ export default function App() {
         />
       </div>
 
-      {/* OWN DELETE POPUP */}
       {popup && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
@@ -623,7 +644,7 @@ export default function App() {
 
             <button
               style={styles.btn}
-              onClick={popup.onYes}
+              onClick={popup.action}
             >
               Delete
             </button>
@@ -649,6 +670,7 @@ const styles = {
   app: {
     display: "flex",
     height: "100vh",
+    color: "white",
     fontFamily:
       "Courier New, monospace"
   },
@@ -659,13 +681,17 @@ const styles = {
     justifyContent:
       "center",
     alignItems:
-      "center"
+      "center",
+    background:
+      "radial-gradient(circle at top,#171717,#090909)"
   },
 
   panel: {
     width: 340,
     padding: 34,
     borderRadius: 22,
+    background:
+      "rgba(255,255,255,.06)",
     display: "flex",
     flexDirection:
       "column",
@@ -678,8 +704,7 @@ const styles = {
     padding: 12,
     borderRadius: 12,
     border: "none",
-    background: "#101010",
-    color: "#fff"
+    background: "#101010"
   },
 
   btn: {
@@ -689,14 +714,18 @@ const styles = {
     border: "none",
     background:
       "rgba(255,255,255,.08)",
-    color: "inherit",
     cursor: "pointer"
   },
 
-  home: { minHeight: "100vh" },
+  home: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(circle at top,#151515,#090909)"
+  },
 
   centerHome: {
-    textAlign: "center",
+    textAlign:
+      "center",
     paddingTop: 110
   },
 
@@ -713,6 +742,8 @@ const styles = {
     minWidth: 220,
     padding: 20,
     borderRadius: 18,
+    background:
+      "rgba(255,255,255,.05)",
     cursor: "pointer"
   },
 
@@ -735,7 +766,8 @@ const styles = {
     flexDirection:
       "column",
     gap: 8,
-    overflowY: "auto"
+    overflowY: "auto",
+    minHeight: 0
   },
 
   track: {
@@ -787,9 +819,7 @@ const styles = {
   grooves: {
     position: "absolute",
     inset: 0,
-    borderRadius: "50%",
-    background:
-      "repeating-radial-gradient(circle, rgba(255,255,255,.35) 0px, rgba(0,0,0,.35) 2px, transparent 4px)"
+    borderRadius: "50%"
   },
 
   labelImg: {
@@ -912,8 +942,7 @@ const styles = {
     justifyContent:
       "center",
     alignItems:
-      "center",
-    zIndex: 999
+      "center"
   },
 
   modal: {
@@ -921,7 +950,6 @@ const styles = {
     padding: 24,
     borderRadius: 18,
     background: "#111",
-    color: "#fff",
     display: "flex",
     flexDirection:
       "column",
