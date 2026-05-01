@@ -9,36 +9,31 @@ export default function App() {
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
   );
 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
+
   const [projects, setProjects] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_projects") || "{}")
   );
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [popup, setPopup] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [projectName, setProjectName] = useState("");
 
   const [activeProject, setActiveProject] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-
   const [vinylColor, setVinylColor] = useState("#111111");
   const [albumCover, setAlbumCover] = useState(null);
 
-  const [theme, setTheme] = useState(() =>
-    localStorage.getItem("aurae_theme") || "dark"
-  );
-
-  const [dragIndex, setDragIndex] = useState(null);
-  const [menu, setMenu] = useState(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const audioRef = useRef(null);
-
   const current = tracks[index];
-
-  const isDark = theme === "dark";
 
   function saveProjects(next) {
     setProjects(next);
@@ -49,7 +44,6 @@ export default function App() {
     const next = {
       ...projects,
       [activeProject]: {
-        ...(projects[activeProject] || {}),
         tracks: nextTracks,
         cover: nextCover
       }
@@ -70,14 +64,18 @@ export default function App() {
 
   function totalDuration(list = []) {
     return formatTime(
-      list.reduce((a, t) => a + (t.duration || 0), 0)
+      list.reduce((a, b) => a + (b.duration || 0), 0)
     );
   }
 
   function login() {
     if (!users[email]) return;
     if (users[email].password !== password) return;
-    localStorage.setItem("aurae_remember", email);
+
+    if (remember) {
+      localStorage.setItem("aurae_remember", email);
+    }
+
     setView("home");
   }
 
@@ -86,6 +84,7 @@ export default function App() {
       ...users,
       [email]: { password }
     };
+
     setUsers(next);
     localStorage.setItem("aurae_users", JSON.stringify(next));
     login();
@@ -96,15 +95,34 @@ export default function App() {
     setView("auth");
   }
 
+  function createProject() {
+    if (!projectName.trim()) return;
+
+    const next = {
+      ...projects,
+      [projectName]: {
+        tracks: [],
+        cover: null
+      }
+    };
+
+    saveProjects(next);
+    setProjectName("");
+    setShowCreate(false);
+  }
+
   function openProject(name) {
-    const p = projects[name] || {};
+    const p = projects[name];
+
     setActiveProject(name);
-    setTracks(p.tracks || []);
-    setAlbumCover(p.cover || null);
+    setTracks(p?.tracks || []);
+    setAlbumCover(p?.cover || null);
+
     setIndex(0);
-    setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setPlaying(false);
+
     setView("studio");
   }
 
@@ -113,8 +131,8 @@ export default function App() {
 
     const loaded = await Promise.all(
       files.map(
-        file =>
-          new Promise(resolve => {
+        (file) =>
+          new Promise((resolve) => {
             const url = URL.createObjectURL(file);
             const probe = new Audio(url);
 
@@ -156,14 +174,7 @@ export default function App() {
   }
 
   function moveTrack(from, to) {
-    if (
-      from == null ||
-      to == null ||
-      from === to ||
-      to < 0 ||
-      to >= tracks.length
-    )
-      return;
+    if (to < 0 || to >= tracks.length || from === to) return;
 
     const arr = [...tracks];
     const item = arr.splice(from, 1)[0];
@@ -218,12 +229,6 @@ export default function App() {
     setCurrentTime(val);
   }
 
-  function toggleTheme() {
-    const next = isDark ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem("aurae_theme", next);
-  }
-
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
@@ -249,7 +254,8 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* STYLUS KORREKT: AUSSEN VINYL -> INNEN LABEL */
+  /* ===== STYLUS (RICHTIG GELASSEN) ===== */
+
   const totalSongs = Math.max(tracks.length, 1);
 
   const songProgress =
@@ -260,10 +266,33 @@ export default function App() {
       ? 0
       : (index + songProgress) / totalSongs;
 
-  const armAngle =
-    -32 + projectProgress * 26;
+  const progress = Math.min(
+    Math.max(projectProgress, 0),
+    1
+  );
 
-  const styles = getStyles(isDark, vinylColor);
+  const cx = 280;
+  const cy = 280;
+
+  const outerR = 188;
+  const innerR = 92;
+
+  const trackAngle = (28 * Math.PI) / 180;
+
+  const r =
+    outerR - (outerR - innerR) * progress;
+
+  const tx = cx + Math.cos(trackAngle) * r;
+  const ty = cy + Math.sin(trackAngle) * r;
+
+  const px = 470;
+  const py = 118;
+
+  const dx = tx - px;
+  const dy = ty - py;
+
+  const armAngle =
+    (Math.atan2(dy, dx) * 180) / Math.PI;
 
   if (view === "auth") {
     return (
@@ -275,7 +304,7 @@ export default function App() {
             style={styles.input}
             placeholder="email"
             value={email}
-            onChange={e =>
+            onChange={(e) =>
               setEmail(e.target.value)
             }
           />
@@ -285,7 +314,7 @@ export default function App() {
             placeholder="password"
             type="password"
             value={password}
-            onChange={e =>
+            onChange={(e) =>
               setPassword(e.target.value)
             }
           />
@@ -311,32 +340,23 @@ export default function App() {
   if (view === "home") {
     return (
       <div style={styles.home}>
-        <div style={styles.topbar}>
-          <button
-            style={styles.btn}
-            onClick={toggleTheme}
-          >
-            {isDark
-              ? "light mode"
-              : "dark mode"}
-          </button>
-
-          <button
-            style={styles.btn}
-            onClick={logout}
-          >
-            logout
-          </button>
-        </div>
-
         <div style={styles.centerHome}>
           <div style={styles.logo}>
             AURAE OS
           </div>
 
+          <button
+            style={styles.btn}
+            onClick={() =>
+              setShowCreate(true)
+            }
+          >
+            + new project
+          </button>
+
           <div style={styles.grid}>
             {Object.keys(projects).map(
-              name => (
+              (name) => (
                 <div
                   key={name}
                   style={styles.card}
@@ -350,20 +370,43 @@ export default function App() {
             )}
           </div>
         </div>
+
+        {showCreate && (
+          <div style={styles.overlay}>
+            <div style={styles.modal}>
+              <input
+                style={styles.input}
+                placeholder="project name"
+                value={projectName}
+                onChange={(e) =>
+                  setProjectName(
+                    e.target.value
+                  )
+                }
+              />
+
+              <button
+                style={styles.btn}
+                onClick={
+                  createProject
+                }
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div
-      style={styles.app}
-      onClick={() => setMenu(null)}
-    >
+    <div style={styles.app}>
       <div style={styles.sidebar}>
         <h3>{activeProject}</h3>
 
         <div style={styles.meta}>
-          {tracks.length} tracks •{" "}
+          {tracks.length} Tracks •{" "}
           {totalDuration(tracks)}
         </div>
 
@@ -391,69 +434,60 @@ export default function App() {
         <input
           type="color"
           value={vinylColor}
-          onChange={e =>
-            setVinylColor(e.target.value)
+          onChange={(e) =>
+            setVinylColor(
+              e.target.value
+            )
           }
         />
 
         <button
           style={styles.btn}
-          onClick={() => setView("home")}
+          onClick={() =>
+            setView("home")
+          }
         >
           home
-        </button>
-
-        <button
-          style={styles.btn}
-          onClick={toggleTheme}
-        >
-          {isDark
-            ? "light mode"
-            : "dark mode"}
         </button>
 
         <div style={styles.list}>
           {tracks.map((t, i) => (
             <div
               key={t.id}
-              style={{
-                ...styles.track,
-                opacity:
-                  dragIndex === i
-                    ? 0.45
-                    : 1
-              }}
+              style={styles.track}
               draggable
-              onDragStart={() =>
-                setDragIndex(i)
+              onDragStart={(e) =>
+                e.dataTransfer.setData(
+                  "text/plain",
+                  i
+                )
               }
-              onDragOver={e =>
+              onDragOver={(e) =>
                 e.preventDefault()
               }
-              onDrop={() => {
-                moveTrack(
-                  dragIndex,
-                  i
+              onDrop={(e) => {
+                const from = Number(
+                  e.dataTransfer.getData(
+                    "text/plain"
+                  )
                 );
-                setDragIndex(null);
+                moveTrack(from, i);
               }}
-              onDragEnd={() =>
-                setDragIndex(null)
+              onClick={() =>
+                play(i)
               }
-              onClick={() => play(i)}
-              onContextMenu={e => {
+              onContextMenu={(e) => {
                 e.preventDefault();
-                setMenu({
-                  x: e.clientX,
-                  y: e.clientY,
-                  index: i
-                });
+                if (
+                  window.confirm(
+                    `Delete "${t.name}"?`
+                  )
+                ) {
+                  deleteTrack(i);
+                }
               }}
             >
-              <span>
-                {i + 1}. {t.name}
-              </span>
-
+              <span>{t.name}</span>
               <span>
                 {formatTime(
                   t.duration
@@ -471,6 +505,15 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
+              background: `
+              radial-gradient(circle at 50% 50%, rgba(255,255,255,.08), transparent 30%),
+              repeating-radial-gradient(circle,
+              rgba(255,255,255,.08) 0px,
+              rgba(255,255,255,.02) 2px,
+              transparent 4px,
+              transparent 6px),
+              ${vinylColor}
+              `,
               animation: playing
                 ? "spin 1.55s linear infinite"
                 : "none"
@@ -502,8 +545,16 @@ export default function App() {
               transform: `rotate(${armAngle}deg)`
             }}
           >
-            <div style={styles.armTube} />
-            <div style={styles.armHead} />
+            <div
+              style={
+                styles.armTube
+              }
+            />
+            <div
+              style={
+                styles.armHead
+              }
+            />
             <div
               style={
                 styles.armNeedle
@@ -539,13 +590,14 @@ export default function App() {
 
         <div style={styles.now}>
           {current?.name ||
-            "no track loaded"}
+            "no track"}
         </div>
 
         <div>
           {formatTime(
             currentTime
-          )} /{" "}
+          )}{" "}
+          /{" "}
           {formatTime(duration)}
         </div>
 
@@ -555,344 +607,308 @@ export default function App() {
           max={duration || 0}
           value={currentTime}
           onChange={seek}
-          style={{ width: 220 }}
+          style={{ width: 240 }}
         />
       </div>
-
-      {menu && (
-        <div
-          style={{
-            ...styles.menu,
-            left: menu.x,
-            top: menu.y
-          }}
-        >
-          <div
-            style={styles.menuItem}
-            onClick={() => {
-              deleteTrack(
-                menu.index
-              );
-              setMenu(null);
-            }}
-          >
-            Delete
-          </div>
-        </div>
-      )}
 
       <audio ref={audioRef} />
     </div>
   );
 }
 
-function getStyles(isDark, vinylColor) {
-  const text = isDark
-    ? "white"
-    : "black";
+const styles = {
+  app: {
+    display: "flex",
+    height: "100vh",
+    background: "#090909",
+    color: "white",
+    fontFamily:
+      "Courier New, monospace"
+  },
 
-  const bg = isDark
-    ? "#090909"
-    : "#f5f5f5";
+  auth: {
+    height: "100vh",
+    display: "flex",
+    justifyContent:
+      "center",
+    alignItems:
+      "center",
+    background:
+      "radial-gradient(circle at top,#171717,#090909)"
+  },
 
-  return {
-    app: {
-      display: "flex",
-      height: "100vh",
-      background: bg,
-      color: text,
-      fontFamily:
-        "Courier New, monospace"
-    },
+  panel: {
+    width: 340,
+    padding: 34,
+    borderRadius: 22,
+    background:
+      "rgba(255,255,255,.06)",
+    display: "flex",
+    flexDirection:
+      "column",
+    gap: 12
+  },
 
-    auth: {
-      height: "100vh",
-      display: "flex",
-      justifyContent:
-        "center",
-      alignItems: "center",
-      background: bg,
-      color: text
-    },
+  logo: { fontSize: 44 },
 
-    panel: {
-      width: 340,
-      padding: 34,
-      borderRadius: 22,
-      background:
-        isDark
-          ? "rgba(255,255,255,.06)"
-          : "white",
-      display: "flex",
-      flexDirection: "column",
-      gap: 12
-    },
+  input: {
+    padding: 12,
+    borderRadius: 12,
+    border: "none",
+    background: "#101010",
+    color: "white"
+  },
 
-    logo: { fontSize: 44 },
+  btn: {
+    padding:
+      "12px 16px",
+    borderRadius: 16,
+    border: "none",
+    background:
+      "rgba(255,255,255,.08)",
+    color: "white",
+    cursor: "pointer"
+  },
 
-    input: {
-      padding: 12,
-      borderRadius: 12,
-      border: "none"
-    },
+  home: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(circle at top,#151515,#090909)"
+  },
 
-    btn: {
-      padding: "12px 16px",
-      borderRadius: 16,
-      border: "none",
-      cursor: "pointer"
-    },
+  centerHome: {
+    textAlign:
+      "center",
+    paddingTop: 110
+  },
 
-    home: {
-      minHeight: "100vh",
-      background: bg,
-      color: text
-    },
+  grid: {
+    display: "flex",
+    justifyContent:
+      "center",
+    gap: 14,
+    padding: 24,
+    flexWrap: "wrap"
+  },
 
-    topbar: {
-      display: "flex",
-      justifyContent:
-        "flex-end",
-      gap: 10,
-      padding: 20
-    },
+  card: {
+    minWidth: 220,
+    padding: 20,
+    borderRadius: 18,
+    background:
+      "rgba(255,255,255,.05)",
+    cursor: "pointer"
+  },
 
-    centerHome: {
-      textAlign: "center",
-      paddingTop: 100
-    },
+  meta: {
+    opacity: 0.7,
+    fontSize: 13
+  },
 
-    grid: {
-      display: "flex",
-      flexWrap: "wrap",
-      justifyContent:
-        "center",
-      gap: 14,
-      padding: 24
-    },
+  sidebar: {
+    width: 290,
+    padding: 20,
+    display: "flex",
+    flexDirection:
+      "column",
+    gap: 12
+  },
 
-    card: {
-      minWidth: 220,
-      padding: 20,
-      borderRadius: 18,
-      background:
-        isDark
-          ? "rgba(255,255,255,.05)"
-          : "white",
-      cursor: "pointer"
-    },
+  list: {
+    display: "flex",
+    flexDirection:
+      "column",
+    gap: 8,
+    overflowY: "auto",
+    minHeight: 0
+  },
 
-    sidebar: {
-      width: 290,
-      padding: 20,
-      display: "flex",
-      flexDirection: "column",
-      gap: 12
-    },
+  track: {
+    display: "flex",
+    justifyContent:
+      "space-between",
+    padding: 10,
+    borderRadius: 12,
+    background:
+      "rgba(255,255,255,.04)",
+    cursor: "grab"
+  },
 
-    meta: {
-      opacity: 0.7,
-      fontSize: 13
-    },
+  stage: {
+    flex: 1,
+    display: "flex",
+    justifyContent:
+      "center",
+    alignItems:
+      "center"
+  },
 
-    list: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8,
-      overflowY: "auto",
-      maxHeight:
-        "calc(100vh - 280px)",
-      paddingRight: 4
-    },
+  turntable: {
+    position: "relative",
+    width: 560,
+    height: 560
+  },
 
-    track: {
-      display: "flex",
-      justifyContent:
-        "space-between",
-      alignItems: "center",
-      padding: 12,
-      borderRadius: 12,
-      background:
-        isDark
-          ? "rgba(255,255,255,.04)"
-          : "#ffffff",
-      cursor: "grab",
-      userSelect: "none"
-    },
+  plinth: {
+    position: "absolute",
+    left: 20,
+    top: 20,
+    width: 520,
+    height: 520,
+    borderRadius: 28,
+    background:
+      "linear-gradient(145deg,#f9f9f9,#d9d9d9)"
+  },
 
-    stage: {
-      flex: 1,
-      display: "flex",
-      justifyContent:
-        "center",
-      alignItems: "center"
-    },
+  vinyl: {
+    position: "absolute",
+    left: 85,
+    top: 85,
+    width: 390,
+    height: 390,
+    borderRadius: "50%"
+  },
 
-    turntable: {
-      position: "relative",
-      width: 560,
-      height: 560
-    },
+  grooves: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "50%"
+  },
 
-    plinth: {
-      position: "absolute",
-      left: 20,
-      top: 20,
-      width: 520,
-      height: 520,
-      borderRadius: 28,
-      background:
-        "linear-gradient(145deg,#f7f7f7,#d8d8d8)"
-    },
+  labelImg: {
+    position: "absolute",
+    width: 150,
+    height: 150,
+    borderRadius: "50%",
+    objectFit: "cover",
+    top: "50%",
+    left: "50%",
+    transform:
+      "translate(-50%,-50%)"
+  },
 
-    vinyl: {
-      position: "absolute",
-      left: 85,
-      top: 85,
-      width: 390,
-      height: 390,
-      borderRadius: "50%",
-      background: vinylColor
-    },
+  labelFallback: {
+    position: "absolute",
+    width: 150,
+    height: 150,
+    borderRadius: "50%",
+    background: "#111",
+    top: "50%",
+    left: "50%",
+    transform:
+      "translate(-50%,-50%)",
+    display: "flex",
+    justifyContent:
+      "center",
+    alignItems:
+      "center"
+  },
 
-    grooves: {
-      position: "absolute",
-      inset: 0,
-      borderRadius: "50%",
-      background:
-        "repeating-radial-gradient(circle, rgba(255,255,255,.08) 0px, rgba(255,255,255,.08) 1px, transparent 2px, transparent 4px)"
-    },
+  armBase: {
+    position: "absolute",
+    left: 452,
+    top: 100,
+    width: 38,
+    height: 38,
+    borderRadius: "50%",
+    background:
+      "radial-gradient(circle,#fff,#777)",
+    zIndex: 95
+  },
 
-    labelImg: {
-      position: "absolute",
-      width: 150,
-      height: 150,
-      borderRadius: "50%",
-      objectFit: "cover",
-      top: "50%",
-      left: "50%",
-      transform:
-        "translate(-50%,-50%)"
-    },
+  arm: {
+    position: "absolute",
+    left: 470,
+    top: 118,
+    width: 250,
+    height: 14,
+    transformOrigin: "0% 50%",
+    transition:
+      "transform .45s cubic-bezier(.22,.61,.36,1)",
+    zIndex: 90
+  },
 
-    labelFallback: {
-      position: "absolute",
-      width: 150,
-      height: 150,
-      borderRadius: "50%",
-      background: "#111",
-      color: "white",
-      top: "50%",
-      left: "50%",
-      transform:
-        "translate(-50%,-50%)",
-      display: "flex",
-      justifyContent:
-        "center",
-      alignItems: "center"
-    },
+  armTube: {
+    position: "absolute",
+    left: 0,
+    top: 3,
+    width: 220,
+    height: 8,
+    borderRadius: 20,
+    background:
+      "linear-gradient(180deg,#f8f8f8,#bdbdbd 45%,#7d7d7d)"
+  },
 
-    armBase: {
-      position: "absolute",
-      right: 58,
-      top: 88,
-      width: 54,
-      height: 54,
-      borderRadius: "50%",
-      background:
-        "radial-gradient(circle,#fff,#777)",
-      zIndex: 80
-    },
+  armHead: {
+    position: "absolute",
+    right: 8,
+    top: -2,
+    width: 34,
+    height: 16,
+    borderRadius: 5,
+    background:
+      "linear-gradient(180deg,#f0f0f0,#a8a8a8)"
+  },
 
-    arm: {
-      position: "absolute",
-      right: 88,
-      top: 116,
-      width: 255,
-      height: 12,
-      transformOrigin:
-        "100% center",
-      transition:
-        "transform .35s linear",
-      zIndex: 70
-    },
+  armNeedle: {
+    position: "absolute",
+    right: 10,
+    top: 12,
+    width: 2,
+    height: 16,
+    background: "#111",
+    transform:
+      "rotate(18deg)"
+  },
 
-    armTube: {
-      position: "absolute",
-      right: 18,
-      top: 3,
-      width: 218,
-      height: 8,
-      borderRadius: 20,
-      background:
-        "linear-gradient(180deg,#fff,#999)"
-    },
+  player: {
+    position: "fixed",
+    left: 290,
+    right: 0,
+    bottom: 0,
+    height: 78,
+    display: "flex",
+    alignItems:
+      "center",
+    justifyContent:
+      "center",
+    gap: 10,
+    background:
+      "rgba(0,0,0,.45)"
+  },
 
-    armHead: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      width: 34,
-      height: 16,
-      borderRadius: 5,
-      background:
-        "linear-gradient(180deg,#f0f0f0,#aaa)"
-    },
+  now: {
+    width: 220,
+    overflow: "hidden",
+    whiteSpace:
+      "nowrap",
+    textOverflow:
+      "ellipsis"
+  },
 
-    armNeedle: {
-      position: "absolute",
-      left: 6,
-      top: 12,
-      width: 2,
-      height: 18,
-      background: "#111",
-      transform:
-        "rotate(30deg)"
-    },
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background:
+      "rgba(0,0,0,.55)",
+    display: "flex",
+    justifyContent:
+      "center",
+    alignItems:
+      "center"
+  },
 
-    player: {
-      position: "fixed",
-      left: 290,
-      right: 0,
-      bottom: 0,
-      height: 78,
-      display: "flex",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      gap: 10,
-      background:
-        isDark
-          ? "rgba(0,0,0,.45)"
-          : "rgba(255,255,255,.8)"
-    },
-
-    now: {
-      maxWidth: 220,
-      overflow: "hidden",
-      whiteSpace: "nowrap",
-      textOverflow:
-        "ellipsis"
-    },
-
-    menu: {
-      position: "fixed",
-      background:
-        isDark
-          ? "#111"
-          : "#fff",
-      borderRadius: 12,
-      padding: 6,
-      zIndex: 999
-    },
-
-    menuItem: {
-      padding:
-        "8px 12px",
-      cursor: "pointer"
-    }
-  };
-}
+  modal: {
+    width: 320,
+    padding: 24,
+    borderRadius: 18,
+    background: "#111",
+    display: "flex",
+    flexDirection:
+      "column",
+    gap: 12
+  }
+};
 
 const style =
   document.createElement("style");
