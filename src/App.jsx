@@ -5,6 +5,10 @@ export default function App() {
     localStorage.getItem("aurae_remember") ? "home" : "auth"
   );
 
+  const [theme, setTheme] = useState(
+    localStorage.getItem("aurae_theme") || "dark"
+  );
+
   const [users, setUsers] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
   );
@@ -17,7 +21,6 @@ export default function App() {
     JSON.parse(localStorage.getItem("aurae_projects") || "{}")
   );
 
-  const [popup, setPopup] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
 
@@ -32,15 +35,15 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const [darkMode, setDarkMode] = useState(
-    localStorage.getItem("aurae_theme") !== "light"
-  );
-
   const audioRef = useRef(null);
   const current = tracks[index];
 
-  const textColor = darkMode ? "#fff" : "#000";
-  const bgMain = darkMode ? "#090909" : "#f2f2f2";
+  const dark = theme === "dark";
+  const textColor = dark ? "#fff" : "#000";
+
+  useEffect(() => {
+    localStorage.setItem("aurae_theme", theme);
+  }, [theme]);
 
   function saveProjects(next) {
     setProjects(next);
@@ -95,11 +98,6 @@ export default function App() {
     setUsers(next);
     localStorage.setItem("aurae_users", JSON.stringify(next));
     login();
-  }
-
-  function logout() {
-    localStorage.removeItem("aurae_remember");
-    setView("auth");
   }
 
   function createProject() {
@@ -172,20 +170,12 @@ export default function App() {
   }
 
   function deleteTrack(i) {
-    setPopup({
-      title: "Delete Track",
-      text: `Delete "${tracks[i]?.name}"?`,
-      action: () => {
-        const next = tracks.filter((_, x) => x !== i);
-        saveCurrentProject(next);
+    const next = tracks.filter((_, x) => x !== i);
+    saveCurrentProject(next);
 
-        if (index >= next.length) {
-          setIndex(Math.max(0, next.length - 1));
-        }
-
-        setPopup(null);
-      }
-    });
+    if (index >= next.length) {
+      setIndex(Math.max(0, next.length - 1));
+    }
   }
 
   function play(i) {
@@ -233,13 +223,6 @@ export default function App() {
   }
 
   useEffect(() => {
-    localStorage.setItem(
-      "aurae_theme",
-      darkMode ? "dark" : "light"
-    );
-  }, [darkMode]);
-
-  useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
 
@@ -264,7 +247,7 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* stylus bleibt exakt gleich */
+  /* Stylus bleibt exakt gleich */
   const totalSongs = Math.max(tracks.length, 1);
   const songProgress =
     duration > 0 ? currentTime / duration : 0;
@@ -300,22 +283,29 @@ export default function App() {
   const armAngle =
     (Math.atan2(dy, dx) * 180) / Math.PI;
 
+  const styles = makeStyles(dark, textColor);
+
   if (view === "auth") {
     return (
-      <div
-        style={{
-          ...styles.auth,
-          color: textColor
-        }}
-      >
+      <div style={styles.auth}>
         <div style={styles.panel}>
           <div style={styles.logo}>AURAE</div>
 
+          <button
+            style={styles.themeBtn}
+            onClick={() =>
+              setTheme(
+                dark ? "light" : "dark"
+              )
+            }
+          >
+            {dark
+              ? "Light Mode"
+              : "Dark Mode"}
+          </button>
+
           <input
-            style={{
-              ...styles.input,
-              color: textColor
-            }}
+            style={styles.input}
             placeholder="email"
             value={email}
             onChange={(e) =>
@@ -324,10 +314,7 @@ export default function App() {
           />
 
           <input
-            style={{
-              ...styles.input,
-              color: textColor
-            }}
+            style={styles.input}
             placeholder="password"
             type="password"
             value={password}
@@ -356,16 +343,24 @@ export default function App() {
 
   if (view === "home") {
     return (
-      <div
-        style={{
-          ...styles.home,
-          color: textColor
-        }}
-      >
+      <div style={styles.home}>
         <div style={styles.centerHome}>
           <div style={styles.logo}>
             AURAE OS
           </div>
+
+          <button
+            style={styles.themeBtn}
+            onClick={() =>
+              setTheme(
+                dark ? "light" : "dark"
+              )
+            }
+          >
+            {dark
+              ? "Light Mode"
+              : "Dark Mode"}
+          </button>
 
           <button
             style={styles.btn}
@@ -374,17 +369,6 @@ export default function App() {
             }
           >
             + new project
-          </button>
-
-          <button
-            style={styles.btn}
-            onClick={() =>
-              setDarkMode(!darkMode)
-            }
-          >
-            {darkMode
-              ? "light mode"
-              : "dark mode"}
           </button>
 
           <div style={styles.grid}>
@@ -420,9 +404,7 @@ export default function App() {
 
               <button
                 style={styles.btn}
-                onClick={
-                  createProject
-                }
+                onClick={createProject}
               >
                 Create
               </button>
@@ -434,15 +416,22 @@ export default function App() {
   }
 
   return (
-    <div
-      style={{
-        ...styles.app,
-        background: bgMain,
-        color: textColor
-      }}
-    >
+    <div style={styles.app}>
       <div style={styles.sidebar}>
         <h3>{activeProject}</h3>
+
+        <button
+          style={styles.themeBtn}
+          onClick={() =>
+            setTheme(
+              dark ? "light" : "dark"
+            )
+          }
+        >
+          {dark
+            ? "Light Mode"
+            : "Dark Mode"}
+        </button>
 
         <div style={styles.meta}>
           {tracks.length} Tracks •{" "}
@@ -479,17 +468,6 @@ export default function App() {
             )
           }
         />
-
-        <button
-          style={styles.btn}
-          onClick={() =>
-            setDarkMode(!darkMode)
-          }
-        >
-          {darkMode
-            ? "light mode"
-            : "dark mode"}
-        </button>
 
         <button
           style={styles.btn}
@@ -538,13 +516,7 @@ export default function App() {
                 : "none"
             }}
           >
-            <div
-              style={{
-                ...styles.grooves,
-                background:
-                  "repeating-radial-gradient(circle, rgba(0,0,0,.22) 0px, rgba(0,0,0,.22) 1px, transparent 3px)"
-              }}
-            />
+            <div style={styles.grooves} />
 
             {albumCover ? (
               <img
@@ -591,14 +563,14 @@ export default function App() {
 
       <div style={styles.player}>
         <button
-          style={styles.btn}
+          style={styles.controlBtn}
           onClick={prev}
         >
           ⏮
         </button>
 
         <button
-          style={styles.btn}
+          style={styles.playBtn}
           onClick={toggle}
         >
           {playing
@@ -607,7 +579,7 @@ export default function App() {
         </button>
 
         <button
-          style={styles.btn}
+          style={styles.controlBtn}
           onClick={next}
         >
           ⏭
@@ -618,7 +590,7 @@ export default function App() {
             "no track"}
         </div>
 
-        <div>
+        <div style={styles.time}>
           {formatTime(
             currentTime
           )}{" "}
@@ -632,330 +604,397 @@ export default function App() {
           max={duration || 0}
           value={currentTime}
           onChange={seek}
-          style={{ width: 240 }}
+          style={styles.range}
         />
       </div>
-
-      {popup && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h3>{popup.title}</h3>
-            <div>{popup.text}</div>
-
-            <button
-              style={styles.btn}
-              onClick={popup.action}
-            >
-              Delete
-            </button>
-
-            <button
-              style={styles.btn}
-              onClick={() =>
-                setPopup(null)
-              }
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       <audio ref={audioRef} />
     </div>
   );
 }
 
-const styles = {
-  app: {
-    display: "flex",
-    height: "100vh",
-    color: "white",
-    fontFamily:
-      "Courier New, monospace"
-  },
+function makeStyles(dark, text) {
+  return {
+    app: {
+      display: "flex",
+      height: "100vh",
+      background: dark
+        ? "#090909"
+        : "#f6f6f6",
+      color: text,
+      fontFamily:
+        "Courier New, monospace"
+    },
 
-  auth: {
-    height: "100vh",
-    display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center",
-    background:
-      "radial-gradient(circle at top,#171717,#090909)"
-  },
+    auth: {
+      height: "100vh",
+      display: "flex",
+      justifyContent:
+        "center",
+      alignItems:
+        "center",
+      background: dark
+        ? "radial-gradient(circle at top,#171717,#090909)"
+        : "radial-gradient(circle at top,#ffffff,#e9e9e9)",
+      color: text
+    },
 
-  panel: {
-    width: 340,
-    padding: 34,
-    borderRadius: 22,
-    background:
-      "rgba(255,255,255,.06)",
-    display: "flex",
-    flexDirection:
-      "column",
-    gap: 12
-  },
+    panel: {
+      width: 340,
+      padding: 34,
+      borderRadius: 22,
+      background: dark
+        ? "rgba(255,255,255,.06)"
+        : "rgba(255,255,255,.9)",
+      display: "flex",
+      flexDirection:
+        "column",
+      gap: 12
+    },
 
-  logo: { fontSize: 44 },
+    logo: {
+      fontSize: 44,
+      color: text
+    },
 
-  input: {
-    padding: 12,
-    borderRadius: 12,
-    border: "none",
-    background: "#101010"
-  },
+    input: {
+      padding: 12,
+      borderRadius: 12,
+      border: "none",
+      background: dark
+        ? "#101010"
+        : "#fff",
+      color: text
+    },
 
-  btn: {
-    padding:
-      "12px 16px",
-    borderRadius: 16,
-    border: "none",
-    background:
-      "rgba(255,255,255,.08)",
-    cursor: "pointer"
-  },
+    btn: {
+      padding:
+        "12px 16px",
+      borderRadius: 16,
+      border: "none",
+      background: dark
+        ? "rgba(255,255,255,.08)"
+        : "#ffffff",
+      color: text,
+      cursor: "pointer"
+    },
 
-  home: {
-    minHeight: "100vh",
-    background:
-      "radial-gradient(circle at top,#151515,#090909)"
-  },
+    themeBtn: {
+      padding:
+        "12px 16px",
+      borderRadius: 16,
+      border: "none",
+      background: dark
+        ? "rgba(255,255,255,.08)"
+        : "#ffffff",
+      color: text,
+      cursor: "pointer"
+    },
 
-  centerHome: {
-    textAlign:
-      "center",
-    paddingTop: 110
-  },
+    home: {
+      minHeight: "100vh",
+      background: dark
+        ? "radial-gradient(circle at top,#151515,#090909)"
+        : "radial-gradient(circle at top,#ffffff,#ececec)",
+      color: text
+    },
 
-  grid: {
-    display: "flex",
-    justifyContent:
-      "center",
-    gap: 14,
-    padding: 24,
-    flexWrap: "wrap"
-  },
+    centerHome: {
+      textAlign:
+        "center",
+      paddingTop: 110
+    },
 
-  card: {
-    minWidth: 220,
-    padding: 20,
-    borderRadius: 18,
-    background:
-      "rgba(255,255,255,.05)",
-    cursor: "pointer"
-  },
+    grid: {
+      display: "flex",
+      justifyContent:
+        "center",
+      gap: 14,
+      padding: 24,
+      flexWrap: "wrap"
+    },
 
-  meta: {
-    opacity: 0.7,
-    fontSize: 13
-  },
+    card: {
+      minWidth: 220,
+      padding: 20,
+      borderRadius: 18,
+      background: dark
+        ? "rgba(255,255,255,.05)"
+        : "#fff",
+      cursor: "pointer",
+      color: text
+    },
 
-  sidebar: {
-    width: 290,
-    padding: 20,
-    display: "flex",
-    flexDirection:
-      "column",
-    gap: 12
-  },
+    meta: {
+      opacity: 0.8,
+      fontSize: 13,
+      color: text
+    },
 
-  list: {
-    display: "flex",
-    flexDirection:
-      "column",
-    gap: 8,
-    overflowY: "auto",
-    minHeight: 0
-  },
+    sidebar: {
+      width: 290,
+      padding: 20,
+      display: "flex",
+      flexDirection:
+        "column",
+      gap: 12
+    },
 
-  track: {
-    display: "flex",
-    justifyContent:
-      "space-between",
-    padding: 10,
-    borderRadius: 12,
-    background:
-      "rgba(255,255,255,.04)",
-    cursor: "pointer"
-  },
+    list: {
+      display: "flex",
+      flexDirection:
+        "column",
+      gap: 8,
+      overflowY: "auto",
+      minHeight: 0
+    },
 
-  stage: {
-    flex: 1,
-    display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center"
-  },
+    track: {
+      display: "flex",
+      justifyContent:
+        "space-between",
+      padding: 10,
+      borderRadius: 12,
+      background: dark
+        ? "rgba(255,255,255,.04)"
+        : "#fff",
+      cursor: "pointer",
+      color: text
+    },
 
-  turntable: {
-    position: "relative",
-    width: 560,
-    height: 560
-  },
+    stage: {
+      flex: 1,
+      display: "flex",
+      justifyContent:
+        "center",
+      alignItems:
+        "center"
+    },
 
-  plinth: {
-    position: "absolute",
-    left: 20,
-    top: 20,
-    width: 520,
-    height: 520,
-    borderRadius: 28,
-    background:
-      "linear-gradient(145deg,#f9f9f9,#d9d9d9)"
-  },
+    turntable: {
+      position: "relative",
+      width: 560,
+      height: 560
+    },
 
-  vinyl: {
-    position: "absolute",
-    left: 85,
-    top: 85,
-    width: 390,
-    height: 390,
-    borderRadius: "50%"
-  },
+    plinth: {
+      position: "absolute",
+      left: 20,
+      top: 20,
+      width: 520,
+      height: 520,
+      borderRadius: 28,
+      background:
+        "linear-gradient(145deg,#f9f9f9,#d9d9d9)"
+    },
 
-  grooves: {
-    position: "absolute",
-    inset: 0,
-    borderRadius: "50%"
-  },
+    vinyl: {
+      position: "absolute",
+      left: 85,
+      top: 85,
+      width: 390,
+      height: 390,
+      borderRadius: "50%"
+    },
 
-  labelImg: {
-    position: "absolute",
-    width: 150,
-    height: 150,
-    borderRadius: "50%",
-    objectFit: "cover",
-    top: "50%",
-    left: "50%",
-    transform:
-      "translate(-50%,-50%)"
-  },
+    grooves: {
+      position: "absolute",
+      inset: 0,
+      borderRadius: "50%",
+      background:
+        "repeating-radial-gradient(circle, rgba(255,255,255,.12) 0px, rgba(0,0,0,.16) 2px, transparent 3px)"
+    },
 
-  labelFallback: {
-    position: "absolute",
-    width: 150,
-    height: 150,
-    borderRadius: "50%",
-    background: "#111",
-    top: "50%",
-    left: "50%",
-    transform:
-      "translate(-50%,-50%)",
-    display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center"
-  },
+    labelImg: {
+      position: "absolute",
+      width: 150,
+      height: 150,
+      borderRadius: "50%",
+      objectFit: "cover",
+      top: "50%",
+      left: "50%",
+      transform:
+        "translate(-50%,-50%)"
+    },
 
-  armBase: {
-    position: "absolute",
-    left: 452,
-    top: 100,
-    width: 38,
-    height: 38,
-    borderRadius: "50%",
-    background:
-      "radial-gradient(circle,#fff,#777)",
-    zIndex: 95
-  },
+    labelFallback: {
+      position: "absolute",
+      width: 150,
+      height: 150,
+      borderRadius: "50%",
+      background: "#111",
+      color: "#fff",
+      top: "50%",
+      left: "50%",
+      transform:
+        "translate(-50%,-50%)",
+      display: "flex",
+      justifyContent:
+        "center",
+      alignItems:
+        "center"
+    },
 
-  arm: {
-    position: "absolute",
-    left: 470,
-    top: 118,
-    width: 250,
-    height: 14,
-    transformOrigin: "0% 50%",
-    transition:
-      "transform .45s cubic-bezier(.22,.61,.36,1)",
-    zIndex: 90
-  },
+    armBase: {
+      position: "absolute",
+      left: 452,
+      top: 100,
+      width: 38,
+      height: 38,
+      borderRadius: "50%",
+      background:
+        "radial-gradient(circle,#fff,#777)",
+      zIndex: 95
+    },
 
-  armTube: {
-    position: "absolute",
-    left: 0,
-    top: 3,
-    width: 220,
-    height: 8,
-    borderRadius: 20,
-    background:
-      "linear-gradient(180deg,#f8f8f8,#bdbdbd 45%,#7d7d7d)"
-  },
+    arm: {
+      position: "absolute",
+      left: 470,
+      top: 118,
+      width: 250,
+      height: 14,
+      transformOrigin:
+        "0% 50%",
+      transition:
+        "transform .45s cubic-bezier(.22,.61,.36,1)",
+      zIndex: 90
+    },
 
-  armHead: {
-    position: "absolute",
-    right: 8,
-    top: -2,
-    width: 34,
-    height: 16,
-    borderRadius: 5,
-    background:
-      "linear-gradient(180deg,#f0f0f0,#a8a8a8)"
-  },
+    armTube: {
+      position: "absolute",
+      left: 0,
+      top: 3,
+      width: 220,
+      height: 8,
+      borderRadius: 20,
+      background:
+        "linear-gradient(180deg,#f8f8f8,#bdbdbd 45%,#7d7d7d)"
+    },
 
-  armNeedle: {
-    position: "absolute",
-    right: 10,
-    top: 12,
-    width: 2,
-    height: 16,
-    background: "#111",
-    transform:
-      "rotate(18deg)"
-  },
+    armHead: {
+      position: "absolute",
+      right: 8,
+      top: -2,
+      width: 34,
+      height: 16,
+      borderRadius: 5,
+      background:
+        "linear-gradient(180deg,#f0f0f0,#a8a8a8)"
+    },
 
-  player: {
-    position: "fixed",
-    left: 290,
-    right: 0,
-    bottom: 0,
-    height: 78,
-    display: "flex",
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
-    gap: 10,
-    background:
-      "rgba(0,0,0,.45)"
-  },
+    armNeedle: {
+      position: "absolute",
+      right: 10,
+      top: 12,
+      width: 2,
+      height: 16,
+      background: "#111",
+      transform:
+        "rotate(18deg)"
+    },
 
-  now: {
-    width: 220,
-    overflow: "hidden",
-    whiteSpace:
-      "nowrap",
-    textOverflow:
-      "ellipsis"
-  },
+    player: {
+      position: "fixed",
+      left: 290,
+      right: 0,
+      bottom: 0,
+      height: 82,
+      display: "flex",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      gap: 12,
+      padding:
+        "0 20px",
+      background: dark
+        ? "rgba(10,10,10,.88)"
+        : "#ffffff",
+      borderTop: dark
+        ? "1px solid rgba(255,255,255,.08)"
+        : "1px solid #ddd",
+      backdropFilter:
+        "blur(10px)"
+    },
 
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    background:
-      "rgba(0,0,0,.55)",
-    display: "flex",
-    justifyContent:
-      "center",
-    alignItems:
-      "center"
-  },
+    controlBtn: {
+      border: "none",
+      borderRadius: 14,
+      padding:
+        "10px 14px",
+      background: dark
+        ? "rgba(255,255,255,.08)"
+        : "#f1f1f1",
+      color: text,
+      cursor: "pointer"
+    },
 
-  modal: {
-    width: 320,
-    padding: 24,
-    borderRadius: 18,
-    background: "#111",
-    display: "flex",
-    flexDirection:
-      "column",
-    gap: 12
-  }
-};
+    playBtn: {
+      border: "none",
+      borderRadius: 18,
+      padding:
+        "12px 20px",
+      background: dark
+        ? "#ffffff"
+        : "#111",
+      color: dark
+        ? "#000"
+        : "#fff",
+      cursor: "pointer",
+      fontWeight: "bold"
+    },
+
+    now: {
+      width: 220,
+      overflow: "hidden",
+      whiteSpace:
+        "nowrap",
+      textOverflow:
+        "ellipsis",
+      color: text
+    },
+
+    time: {
+      width: 90,
+      color: text
+    },
+
+    range: {
+      width: 240,
+      accentColor: dark
+        ? "#ffffff"
+        : "#000000",
+      background: dark
+        ? "#fff"
+        : "#fff"
+    },
+
+    overlay: {
+      position: "fixed",
+      inset: 0,
+      background:
+        "rgba(0,0,0,.55)",
+      display: "flex",
+      justifyContent:
+        "center",
+      alignItems:
+        "center"
+    },
+
+    modal: {
+      width: 320,
+      padding: 24,
+      borderRadius: 18,
+      background: dark
+        ? "#111"
+        : "#fff",
+      display: "flex",
+      flexDirection:
+        "column",
+      gap: 12
+    }
+  };
+}
 
 const style =
   document.createElement("style");
