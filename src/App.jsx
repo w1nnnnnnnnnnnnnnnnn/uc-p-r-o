@@ -13,24 +13,24 @@ export default function App() {
     JSON.parse(localStorage.getItem("aurae_users") || "{}")
   );
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(true);
-
   const [projects, setProjects] = useState(() =>
     JSON.parse(localStorage.getItem("aurae_projects") || "{}")
   );
 
   const [folders, setFolders] = useState(() =>
-    JSON.parse(localStorage.getItem("aurae_folders") || "{}")
+    JSON.parse(localStorage.getItem("aurae_folders") || "[]")
   );
 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
   const [showCreate, setShowCreate] = useState(false);
-  const [showFolderCreate, setShowFolderCreate] = useState(false);
+  const [showFolder, setShowFolder] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [folderName, setFolderName] = useState("");
 
-  const [activeFolder, setActiveFolder] = useState(null);
+  const [projectMenu, setProjectMenu] = useState(null);
+  const [songMenu, setSongMenu] = useState(null);
 
   const [activeProject, setActiveProject] = useState(null);
   const [tracks, setTracks] = useState([]);
@@ -43,18 +43,11 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const [trackMenu, setTrackMenu] = useState(null);
-  const [moveMode, setMoveMode] = useState(null);
-
   const audioRef = useRef(null);
   const current = tracks[index];
 
   const dark = theme === "dark";
-  const textColor = dark ? "#fff" : "#000";
-
-  useEffect(() => {
-    localStorage.setItem("aurae_theme", theme);
-  }, [theme]);
+  const text = dark ? "#fff" : "#000";
 
   useEffect(() => {
     localStorage.setItem("aurae_projects", JSON.stringify(projects));
@@ -64,23 +57,9 @@ export default function App() {
     localStorage.setItem("aurae_folders", JSON.stringify(folders));
   }, [folders]);
 
-  function saveProjects(next) {
-    setProjects(next);
-  }
-
-  function saveCurrentProject(nextTracks = tracks, nextCover = albumCover) {
-    const next = {
-      ...projects,
-      [activeProject]: {
-        ...projects[activeProject],
-        tracks: nextTracks,
-        cover: nextCover
-      }
-    };
-    saveProjects(next);
-    setTracks(nextTracks);
-    setAlbumCover(nextCover);
-  }
+  useEffect(() => {
+    localStorage.setItem("aurae_theme", theme);
+  }, [theme]);
 
   function formatTime(sec = 0) {
     const m = Math.floor(sec / 60);
@@ -99,9 +78,7 @@ export default function App() {
   function login() {
     if (!users[email]) return;
     if (users[email].password !== password) return;
-    if (remember) {
-      localStorage.setItem("aurae_remember", email);
-    }
+    localStorage.setItem("aurae_remember", email);
     setView("home");
   }
 
@@ -118,16 +95,14 @@ export default function App() {
   function createProject() {
     if (!projectName.trim()) return;
 
-    const next = {
+    setProjects({
       ...projects,
       [projectName]: {
         tracks: [],
-        cover: null,
-        folder: null
+        cover: null
       }
-    };
+    });
 
-    saveProjects(next);
     setProjectName("");
     setShowCreate(false);
   }
@@ -135,25 +110,107 @@ export default function App() {
   function createFolder() {
     if (!folderName.trim()) return;
 
-    setFolders({
+    setFolders([
       ...folders,
-      [folderName]: { name: folderName }
-    });
+      {
+        id: Date.now(),
+        name: folderName,
+        projects: []
+      }
+    ]);
 
     setFolderName("");
-    setShowFolderCreate(false);
+    setShowFolder(false);
+  }
+
+  function saveCurrentProject(nextTracks = tracks, nextCover = albumCover) {
+    setProjects({
+      ...projects,
+      [activeProject]: {
+        ...projects[activeProject],
+        tracks: nextTracks,
+        cover: nextCover
+      }
+    });
+
+    setTracks(nextTracks);
+    setAlbumCover(nextCover);
   }
 
   function openProject(name) {
     const p = projects[name];
+    if (!p) return;
+
     setActiveProject(name);
-    setTracks(p?.tracks || []);
-    setAlbumCover(p?.cover || null);
+    setTracks(p.tracks || []);
+    setAlbumCover(p.cover || null);
+    setPlaying(false);
     setIndex(0);
     setCurrentTime(0);
     setDuration(0);
-    setPlaying(false);
     setView("studio");
+  }
+
+  function deleteProject(name) {
+    const copy = { ...projects };
+    delete copy[name];
+    setProjects(copy);
+
+    setFolders(
+      folders.map((f) => ({
+        ...f,
+        projects: f.projects.filter((x) => x !== name)
+      }))
+    );
+
+    setProjectMenu(null);
+  }
+
+  function renameProject(name) {
+    const nextName = prompt("Rename Project:", name);
+    if (!nextName || nextName === name) return;
+
+    const copy = { ...projects };
+    copy[nextName] = copy[name];
+    delete copy[name];
+    setProjects(copy);
+
+    setFolders(
+      folders.map((f) => ({
+        ...f,
+        projects: f.projects.map((p) =>
+          p === name ? nextName : p
+        )
+      }))
+    );
+
+    setProjectMenu(null);
+  }
+
+  function moveProjectToFolder(projectName, folderId) {
+    setFolders(
+      folders.map((f) =>
+        f.id === folderId
+          ? {
+              ...f,
+              projects: [...new Set([...f.projects, projectName])]
+            }
+          : {
+              ...f,
+              projects: f.projects.filter((x) => x !== projectName)
+            }
+      )
+    );
+  }
+
+  function rootProjects() {
+    const inside = new Set(
+      folders.flatMap((f) => f.projects)
+    );
+
+    return Object.keys(projects).filter(
+      (p) => !inside.has(p)
+    );
   }
 
   async function addTracks(e) {
@@ -166,14 +223,13 @@ export default function App() {
             const url = URL.createObjectURL(file);
             const probe = new Audio(url);
 
-            probe.addEventListener("loadedmetadata", () => {
+            probe.onloadedmetadata = () =>
               resolve({
                 id: Date.now() + Math.random(),
                 name: file.name.replace(/\.[^/.]+$/, ""),
                 url,
                 duration: probe.duration || 0
               });
-            });
           })
       )
     );
@@ -186,42 +242,33 @@ export default function App() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = () =>
       saveCurrentProject(tracks, reader.result);
-    };
     reader.readAsDataURL(file);
   }
 
   function deleteTrack(i) {
     const next = tracks.filter((_, x) => x !== i);
     saveCurrentProject(next);
-
-    if (index >= next.length) {
-      setIndex(Math.max(0, next.length - 1));
-    }
-
-    setTrackMenu(null);
+    setSongMenu(null);
   }
 
-  function moveTrack(from, to) {
-    if (from === to) return;
+  function moveTrack(i) {
+    const pos = Number(
+      prompt("Move to position:", i + 1)
+    );
+    if (!pos) return;
+
     const next = [...tracks];
-    const item = next.splice(from, 1)[0];
-    next.splice(to, 0, item);
-    saveCurrentProject(next);
-    setMoveMode(null);
-    setTrackMenu(null);
-  }
+    const item = next.splice(i, 1)[0];
+    next.splice(
+      Math.max(0, Math.min(next.length, pos - 1)),
+      0,
+      item
+    );
 
-  function moveProjectToFolder(project, folder) {
-    const next = {
-      ...projects,
-      [project]: {
-        ...projects[project],
-        folder
-      }
-    };
-    saveProjects(next);
+    saveCurrentProject(next);
+    setSongMenu(null);
   }
 
   function play(i) {
@@ -234,7 +281,7 @@ export default function App() {
       const a = audioRef.current;
       a.src = tracks[i].url;
       a.play().catch(() => {});
-    }, 30);
+    }, 20);
   }
 
   function toggle() {
@@ -254,18 +301,19 @@ export default function App() {
     }
   }
 
-  function next() {
-    if (index < tracks.length - 1) play(index + 1);
-  }
-
   function prev() {
     if (index > 0) play(index - 1);
   }
 
+  function next() {
+    if (index < tracks.length - 1)
+      play(index + 1);
+  }
+
   function seek(e) {
-    const val = Number(e.target.value);
-    audioRef.current.currentTime = val;
-    setCurrentTime(val);
+    const v = Number(e.target.value);
+    audioRef.current.currentTime = v;
+    setCurrentTime(v);
   }
 
   useEffect(() => {
@@ -278,7 +326,8 @@ export default function App() {
     };
 
     const ended = () => {
-      if (index < tracks.length - 1) play(index + 1);
+      if (index < tracks.length - 1)
+        play(index + 1);
       else setPlaying(false);
     };
 
@@ -293,41 +342,36 @@ export default function App() {
     };
   }, [index, tracks]);
 
+  /* stylus bleibt gleich */
   const totalSongs = Math.max(tracks.length, 1);
-  const songProgress = duration > 0 ? currentTime / duration : 0;
+  const songProgress =
+    duration > 0 ? currentTime / duration : 0;
 
-  const projectProgress =
+  const progress =
     tracks.length === 0
       ? 0
       : (index + songProgress) / totalSongs;
-
-  const progress = Math.min(Math.max(projectProgress, 0), 1);
 
   const cx = 280;
   const cy = 280;
   const outerR = 188;
   const innerR = 92;
-  const trackAngle = (28 * Math.PI) / 180;
+  const ang = (28 * Math.PI) / 180;
 
-  const r = outerR - (outerR - innerR) * progress;
+  const r =
+    outerR - (outerR - innerR) * progress;
 
-  const tx = cx + Math.cos(trackAngle) * r;
-  const ty = cy + Math.sin(trackAngle) * r;
+  const tx = cx + Math.cos(ang) * r;
+  const ty = cy + Math.sin(ang) * r;
 
   const px = 470;
   const py = 118;
 
-  const dx = tx - px;
-  const dy = ty - py;
-
   const armAngle =
-    (Math.atan2(dy, dx) * 180) / Math.PI;
+    (Math.atan2(ty - py, tx - px) * 180) /
+    Math.PI;
 
-  const styles = makeStyles(dark, textColor);
-
-  const visibleProjects = Object.entries(projects).filter(
-    ([, p]) => p.folder === activeFolder
-  );
+  const styles = makeStyles(dark, text);
 
   if (view === "auth") {
     return (
@@ -336,19 +380,25 @@ export default function App() {
           <div style={styles.logo}>AURAE</div>
 
           <button
-            style={styles.themeBtn}
+            style={styles.btn}
             onClick={() =>
-              setTheme(dark ? "light" : "dark")
+              setTheme(
+                dark ? "light" : "dark"
+              )
             }
           >
-            {dark ? "Light Mode" : "Dark Mode"}
+            {dark
+              ? "Light Mode"
+              : "Dark Mode"}
           </button>
 
           <input
             style={styles.input}
             placeholder="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) =>
+              setEmail(e.target.value)
+            }
           />
 
           <input
@@ -361,11 +411,17 @@ export default function App() {
             }
           />
 
-          <button style={styles.btn} onClick={login}>
+          <button
+            style={styles.btn}
+            onClick={login}
+          >
             login
           </button>
 
-          <button style={styles.btn} onClick={signup}>
+          <button
+            style={styles.btn}
+            onClick={signup}
+          >
             sign up
           </button>
         </div>
@@ -376,80 +432,91 @@ export default function App() {
   if (view === "home") {
     return (
       <div style={styles.home}>
-        <div style={styles.centerHome}>
-          <div style={styles.logo}>AURAE OS</div>
+        <div style={styles.center}>
+          <div style={styles.logo}>
+            AURAE OS
+          </div>
 
-          <button
-            style={styles.themeBtn}
-            onClick={() =>
-              setTheme(dark ? "light" : "dark")
-            }
-          >
-            {dark ? "Light Mode" : "Dark Mode"}
-          </button>
-
-          {activeFolder && (
+          <div style={styles.row}>
             <button
               style={styles.btn}
-              onClick={() => setActiveFolder(null)}
+              onClick={() =>
+                setTheme(
+                  dark ? "light" : "dark"
+                )
+              }
             >
-              ← back
+              {dark
+                ? "Light Mode"
+                : "Dark Mode"}
             </button>
-          )}
 
-          <button
-            style={styles.btn}
-            onClick={() => setShowCreate(true)}
-          >
-            + new project
-          </button>
+            <button
+              style={styles.btn}
+              onClick={() =>
+                setShowCreate(true)
+              }
+            >
+              + new project
+            </button>
 
-          <button
-            style={styles.btn}
-            onClick={() =>
-              setShowFolderCreate(true)
-            }
-          >
-            + new folder
-          </button>
-
-          {!activeFolder && (
-            <div style={styles.grid}>
-              {Object.keys(folders).map((folder) => {
-                const items = Object.entries(projects)
-                  .filter(([, p]) => p.folder === folder)
-                  .slice(0, 4);
-
-                return (
-                  <div
-                    key={folder}
-                    style={styles.card}
-                    onClick={() =>
-                      setActiveFolder(folder)
-                    }
-                  >
-                    <div style={styles.folderPreview}>
-                      {items.map(([n, p], i) => (
-                        <div
-                          key={i}
-                          style={{
-                            ...styles.folderCell,
-                            backgroundImage: p.cover
-                              ? `url(${p.cover})`
-                              : "none"
-                          }}
-                        />
-                      ))}
-                    </div>
-                    {folder}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            <button
+              style={styles.btn}
+              onClick={() =>
+                setShowFolder(true)
+              }
+            >
+              + folder
+            </button>
+          </div>
 
           <div style={styles.grid}>
-            {visibleProjects.map(([name, p]) => (
+            {folders.map((folder) => (
+              <div
+                key={folder.id}
+                style={styles.card}
+                onDragOver={(e) =>
+                  e.preventDefault()
+                }
+                onDrop={(e) =>
+                  moveProjectToFolder(
+                    e.dataTransfer.getData(
+                      "text/plain"
+                    ),
+                    folder.id
+                  )
+                }
+              >
+                <div style={styles.folderGrid}>
+                  {folder.projects
+                    .slice(0, 4)
+                    .map((p, i) => {
+                      const cover =
+                        projects[p]?.cover;
+                      return cover ? (
+                        <img
+                          key={i}
+                          src={cover}
+                          style={
+                            styles.folderImg
+                          }
+                        />
+                      ) : (
+                        <div
+                          key={i}
+                          style={
+                            styles.folderBlank
+                          }
+                        />
+                      );
+                    })}
+                </div>
+
+                <div>{folder.name}</div>
+              </div>
+            ))}
+
+            {rootProjects().map((name) => (
               <div
                 key={name}
                 style={styles.card}
@@ -460,46 +527,37 @@ export default function App() {
                     name
                   )
                 }
-                onClick={() => openProject(name)}
+                onClick={() =>
+                  openProject(name)
+                }
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setProjectMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    name
+                  });
+                }}
               >
-                <div
-                  style={{
-                    ...styles.cover43,
-                    backgroundImage: p.cover
-                      ? `url(${p.cover})`
-                      : "none"
-                  }}
-                />
-                {name}
+                {projects[name]?.cover ? (
+                  <img
+                    src={
+                      projects[name].cover
+                    }
+                    style={styles.cover}
+                  />
+                ) : (
+                  <div
+                    style={
+                      styles.blankCover
+                    }
+                  />
+                )}
+
+                <div>{name}</div>
               </div>
             ))}
           </div>
-
-          {!activeFolder && (
-            <div style={styles.grid}>
-              {Object.keys(folders).map((folder) => (
-                <div
-                  key={folder + "_drop"}
-                  style={styles.dropZone}
-                  onDragOver={(e) =>
-                    e.preventDefault()
-                  }
-                  onDrop={(e) => {
-                    const project =
-                      e.dataTransfer.getData(
-                        "text/plain"
-                      );
-                    moveProjectToFolder(
-                      project,
-                      folder
-                    );
-                  }}
-                >
-                  Drop into {folder}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {showCreate && (
@@ -507,40 +565,76 @@ export default function App() {
             <div style={styles.modal}>
               <input
                 style={styles.input}
-                placeholder="project name"
                 value={projectName}
                 onChange={(e) =>
-                  setProjectName(e.target.value)
+                  setProjectName(
+                    e.target.value
+                  )
                 }
+                placeholder="project name"
               />
               <button
                 style={styles.btn}
                 onClick={createProject}
               >
-                Create
+                create
               </button>
             </div>
           </div>
         )}
 
-        {showFolderCreate && (
+        {showFolder && (
           <div style={styles.overlay}>
             <div style={styles.modal}>
               <input
                 style={styles.input}
-                placeholder="folder name"
                 value={folderName}
                 onChange={(e) =>
-                  setFolderName(e.target.value)
+                  setFolderName(
+                    e.target.value
+                  )
                 }
+                placeholder="folder name"
               />
               <button
                 style={styles.btn}
                 onClick={createFolder}
               >
-                Create Folder
+                create
               </button>
             </div>
+          </div>
+        )}
+
+        {projectMenu && (
+          <div
+            style={{
+              ...styles.menu,
+              left: projectMenu.x,
+              top: projectMenu.y
+            }}
+          >
+            <button
+              style={styles.menuBtn}
+              onClick={() =>
+                renameProject(
+                  projectMenu.name
+                )
+              }
+            >
+              rename
+            </button>
+
+            <button
+              style={styles.menuBtn}
+              onClick={() =>
+                deleteProject(
+                  projectMenu.name
+                )
+              }
+            >
+              delete
+            </button>
           </div>
         )}
       </div>
@@ -582,13 +676,17 @@ export default function App() {
           type="color"
           value={vinylColor}
           onChange={(e) =>
-            setVinylColor(e.target.value)
+            setVinylColor(
+              e.target.value
+            )
           }
         />
 
         <button
           style={styles.btn}
-          onClick={() => setView("home")}
+          onClick={() =>
+            setView("home")
+          }
         >
           home
         </button>
@@ -598,19 +696,23 @@ export default function App() {
             <div
               key={t.id}
               style={styles.track}
-              onClick={() => play(i)}
+              onClick={() =>
+                play(i)
+              }
               onContextMenu={(e) => {
                 e.preventDefault();
-                setTrackMenu({
+                setSongMenu({
                   x: e.clientX,
                   y: e.clientY,
-                  index: i
+                  i
                 });
               }}
             >
               <span>{t.name}</span>
               <span>
-                {formatTime(t.duration)}
+                {formatTime(
+                  t.duration
+                )}
               </span>
             </div>
           ))}
@@ -624,7 +726,8 @@ export default function App() {
           <div
             style={{
               ...styles.vinyl,
-              background: vinylColor,
+              background:
+                vinylColor,
               animation: playing
                 ? "spin 1.55s linear infinite"
                 : "none"
@@ -638,7 +741,11 @@ export default function App() {
                 style={styles.labelImg}
               />
             ) : (
-              <div style={styles.labelFallback}>
+              <div
+                style={
+                  styles.labelFallback
+                }
+              >
                 AURAE
               </div>
             )}
@@ -661,32 +768,38 @@ export default function App() {
 
       <div style={styles.player}>
         <button
-          style={styles.controlBtn}
+          style={styles.btn}
           onClick={prev}
         >
           ⏮
         </button>
 
         <button
-          style={styles.playBtn}
+          style={styles.btn}
           onClick={toggle}
         >
-          {playing ? "pause" : "play"}
+          {playing
+            ? "pause"
+            : "play"}
         </button>
 
         <button
-          style={styles.controlBtn}
+          style={styles.btn}
           onClick={next}
         >
           ⏭
         </button>
 
         <div style={styles.now}>
-          {current?.name || "no track"}
+          {current?.name ||
+            "no track"}
         </div>
 
-        <div style={styles.time}>
-          {formatTime(currentTime)} /{" "}
+        <div>
+          {formatTime(
+            currentTime
+          )}{" "}
+          /{" "}
           {formatTime(duration)}
         </div>
 
@@ -700,62 +813,31 @@ export default function App() {
         />
       </div>
 
-      {trackMenu && (
+      {songMenu && (
         <div
           style={{
-            ...styles.contextMenu,
-            left: trackMenu.x,
-            top: trackMenu.y
+            ...styles.menu,
+            left: songMenu.x,
+            top: songMenu.y
           }}
         >
-          <div
-            style={styles.contextItem}
+          <button
+            style={styles.menuBtn}
             onClick={() =>
-              deleteTrack(trackMenu.index)
+              moveTrack(songMenu.i)
             }
           >
-            Delete
-          </div>
+            move
+          </button>
 
-          <div
-            style={styles.contextItem}
+          <button
+            style={styles.menuBtn}
             onClick={() =>
-              setMoveMode(trackMenu.index)
+              deleteTrack(songMenu.i)
             }
           >
-            Move
-          </div>
-        </div>
-      )}
-
-      {moveMode !== null && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <div>
-              Move song to position:
-            </div>
-
-            {tracks.map((_, i) => (
-              <button
-                key={i}
-                style={styles.btn}
-                onClick={() =>
-                  moveTrack(moveMode, i)
-                }
-              >
-                {i + 1}
-              </button>
-            ))}
-
-            <button
-              style={styles.btn}
-              onClick={() =>
-                setMoveMode(null)
-              }
-            >
-              cancel
-            </button>
-          </div>
+            delete
+          </button>
         </div>
       )}
 
@@ -769,159 +851,176 @@ function makeStyles(dark, text) {
     app: {
       display: "flex",
       height: "100vh",
-      background: dark ? "#090909" : "#f6f6f6",
+      background: dark
+        ? "#090909"
+        : "#f6f6f6",
       color: text,
-      fontFamily: "Courier New, monospace"
+      fontFamily:
+        "Courier New, monospace"
     },
 
     auth: {
       height: "100vh",
       display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
+      justifyContent:
+        "center",
+      alignItems:
+        "center",
       background: dark
-        ? "radial-gradient(circle at top,#171717,#090909)"
-        : "radial-gradient(circle at top,#ffffff,#ececec)"
+        ? "#090909"
+        : "#f6f6f6"
     },
 
     panel: {
       width: 340,
       padding: 34,
       borderRadius: 22,
-      background: dark
-        ? "rgba(255,255,255,.06)"
-        : "rgba(255,255,255,.92)",
+      background:
+        "rgba(255,255,255,.08)",
       display: "flex",
-      flexDirection: "column",
-      gap: 12
+      flexDirection:
+        "column",
+      gap: 12,
+      backdropFilter: "blur(18px)"
     },
 
-    logo: { fontSize: 44, color: text },
-
-    input: {
-      padding: 12,
-      borderRadius: 12,
-      border: "none",
-      background: dark ? "#101010" : "#fff",
-      color: text
+    logo: {
+      fontSize: 44,
+      textAlign: "center"
     },
 
     btn: {
       padding: "12px 16px",
       borderRadius: 16,
-      border: "1px solid rgba(255,255,255,.15)",
-      background: "rgba(255,255,255,.12)",
-      backdropFilter: "blur(12px)",
+      border:
+        "1px solid rgba(255,255,255,.18)",
+      background:
+        "rgba(255,255,255,.08)",
       color: text,
-      cursor: "pointer"
+      cursor: "pointer",
+      backdropFilter: "blur(20px)"
     },
 
-    themeBtn: {
-      padding: "12px 16px",
-      borderRadius: 16,
-      border: "1px solid rgba(255,255,255,.15)",
-      background: "rgba(255,255,255,.12)",
-      backdropFilter: "blur(12px)",
-      color: text,
-      cursor: "pointer"
+    input: {
+      padding: 12,
+      borderRadius: 12,
+      border: "none",
+      background:
+        "rgba(255,255,255,.08)",
+      color: text
     },
 
     home: {
       minHeight: "100vh",
       background: dark
-        ? "radial-gradient(circle at top,#151515,#090909)"
-        : "radial-gradient(circle at top,#ffffff,#ececec)",
-      color: text
+        ? "#090909"
+        : "#f6f6f6"
     },
 
-    centerHome: {
-      textAlign: "center",
-      paddingTop: 110
+    center: {
+      padding: 30
+    },
+
+    row: {
+      display: "flex",
+      gap: 10,
+      marginBottom: 20
     },
 
     grid: {
       display: "grid",
       gridTemplateColumns:
-        "repeat(5, minmax(0,1fr))",
-      gap: 14,
-      padding: 24
+        "repeat(5,1fr)",
+      gap: 16
     },
 
     card: {
-      padding: 14,
+      padding: 12,
       borderRadius: 18,
-      background: dark
-        ? "rgba(255,255,255,.05)"
-        : "#fff",
+      background:
+        "rgba(255,255,255,.08)",
       cursor: "pointer",
-      color: text
+      textAlign: "center",
+      backdropFilter: "blur(18px)"
     },
 
-    cover43: {
+    cover: {
       width: "100%",
-      aspectRatio: "4 / 3",
+      aspectRatio: "4/3",
+      objectFit: "cover",
       borderRadius: 12,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      backgroundColor: "#333",
-      marginBottom: 10
+      marginBottom: 8
     },
 
-    folderPreview: {
+    blankCover: {
+      width: "100%",
+      aspectRatio: "4/3",
+      borderRadius: 12,
+      marginBottom: 8,
+      background:
+        "rgba(255,255,255,.08)"
+    },
+
+    folderGrid: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      gridTemplateColumns:
+        "1fr 1fr",
       gap: 4,
-      aspectRatio: "4 / 3",
-      marginBottom: 10
+      marginBottom: 8
     },
 
-    folderCell: {
+    folderImg: {
+      width: "100%",
+      aspectRatio: "1/1",
+      objectFit: "cover",
+      borderRadius: 8
+    },
+
+    folderBlank: {
+      width: "100%",
+      aspectRatio: "1/1",
       borderRadius: 8,
-      background: "#333",
-      backgroundSize: "cover",
-      backgroundPosition: "center"
+      background:
+        "rgba(255,255,255,.08)"
     },
-
-    dropZone: {
-      padding: 16,
-      borderRadius: 14,
-      border: "1px dashed #888"
-    },
-
-    meta: { opacity: 0.8, fontSize: 13 },
 
     sidebar: {
       width: 290,
       padding: 20,
       display: "flex",
-      flexDirection: "column",
+      flexDirection:
+        "column",
       gap: 12
     },
 
+    meta: { opacity: 0.8 },
+
     list: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8,
       overflowY: "auto",
-      minHeight: 0
+      display: "flex",
+      flexDirection:
+        "column",
+      gap: 8
     },
 
     track: {
       display: "flex",
-      justifyContent: "space-between",
+      justifyContent:
+        "space-between",
       padding: 10,
       borderRadius: 12,
-      background: dark
-        ? "rgba(255,255,255,.04)"
-        : "#fff",
+      background:
+        "rgba(255,255,255,.05)",
       cursor: "pointer"
     },
 
     stage: {
       flex: 1,
       display: "flex",
-      justifyContent: "center",
-      alignItems: "center"
+      justifyContent:
+        "center",
+      alignItems:
+        "center"
     },
 
     turntable: {
@@ -955,7 +1054,7 @@ function makeStyles(dark, text) {
       inset: 0,
       borderRadius: "50%",
       background:
-        "repeating-radial-gradient(circle, rgba(255,255,255,.14) 0px, rgba(0,0,0,.18) 2px, transparent 3px)"
+        "repeating-radial-gradient(circle, rgba(255,255,255,.14) 0px, rgba(0,0,0,.15) 2px, transparent 3px)"
     },
 
     labelImg: {
@@ -982,8 +1081,10 @@ function makeStyles(dark, text) {
       transform:
         "translate(-50%,-50%)",
       display: "flex",
-      justifyContent: "center",
-      alignItems: "center"
+      alignItems:
+        "center",
+      justifyContent:
+        "center"
     },
 
     armBase: {
@@ -994,8 +1095,7 @@ function makeStyles(dark, text) {
       height: 38,
       borderRadius: "50%",
       background:
-        "radial-gradient(circle,#fff,#777)",
-      zIndex: 95
+        "radial-gradient(circle,#fff,#777)"
     },
 
     arm: {
@@ -1004,21 +1104,18 @@ function makeStyles(dark, text) {
       top: 118,
       width: 250,
       height: 14,
-      transformOrigin: "0% 50%",
-      transition:
-        "transform .45s cubic-bezier(.22,.61,.36,1)",
-      zIndex: 90
+      transformOrigin:
+        "0% 50%"
     },
 
     armTube: {
       position: "absolute",
-      left: 0,
-      top: 3,
       width: 220,
       height: 8,
+      top: 3,
       borderRadius: 20,
       background:
-        "linear-gradient(180deg,#f8f8f8,#bdbdbd 45%,#7d7d7d)"
+        "linear-gradient(180deg,#f8f8f8,#7d7d7d)"
     },
 
     armHead: {
@@ -1028,8 +1125,7 @@ function makeStyles(dark, text) {
       width: 34,
       height: 16,
       borderRadius: 5,
-      background:
-        "linear-gradient(180deg,#f0f0f0,#a8a8a8)"
+      background: "#bbb"
     },
 
     armNeedle: {
@@ -1048,87 +1144,86 @@ function makeStyles(dark, text) {
       left: 290,
       right: 0,
       bottom: 0,
-      height: 82,
+      height: 78,
       display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 12,
-      padding: "0 20px",
-      background: dark ? "#111" : "#fff",
-      borderTop: dark
-        ? "1px solid #222"
-        : "1px solid #ddd"
-    },
-
-    controlBtn: {
-      border: "none",
-      borderRadius: 14,
-      padding: "10px 14px",
-      background: "rgba(255,255,255,.08)",
-      color: text,
-      cursor: "pointer"
-    },
-
-    playBtn: {
-      border: "none",
-      borderRadius: 18,
-      padding: "12px 20px",
-      background: dark ? "#fff" : "#111",
-      color: dark ? "#000" : "#fff",
-      cursor: "pointer",
-      fontWeight: "bold"
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      gap: 10,
+      background: dark
+        ? "#111"
+        : "#fff"
     },
 
     now: {
       width: 220,
-      overflow: "hidden",
       whiteSpace: "nowrap",
-      textOverflow: "ellipsis"
+      overflow: "hidden",
+      textOverflow:
+        "ellipsis"
     },
-
-    time: { width: 90 },
 
     range: {
       width: 240,
-      accentColor: dark ? "#fff" : "#000"
+      accentColor: dark
+        ? "#fff"
+        : "#000"
     },
 
     overlay: {
       position: "fixed",
       inset: 0,
-      background: "rgba(0,0,0,.55)",
+      background:
+        "rgba(0,0,0,.5)",
       display: "flex",
-      justifyContent: "center",
-      alignItems: "center"
+      alignItems:
+        "center",
+      justifyContent:
+        "center"
     },
 
     modal: {
       width: 320,
-      padding: 24,
+      padding: 20,
       borderRadius: 18,
-      background: dark ? "#111" : "#fff",
+      background:
+        "rgba(255,255,255,.08)",
       display: "flex",
-      flexDirection: "column",
-      gap: 12
+      flexDirection:
+        "column",
+      gap: 12,
+      backdropFilter: "blur(20px)"
     },
 
-    contextMenu: {
+    menu: {
       position: "fixed",
-      background: dark ? "#111" : "#fff",
-      border: "1px solid #444",
+      zIndex: 999,
+      background:
+        "rgba(30,30,30,.95)",
       borderRadius: 12,
-      overflow: "hidden",
-      zIndex: 999
+      padding: 8,
+      display: "flex",
+      flexDirection:
+        "column",
+      gap: 6
     },
 
-    contextItem: {
-      padding: "10px 14px",
-      cursor: "pointer"
+    menuBtn: {
+      border: "none",
+      padding:
+        "10px 14px",
+      borderRadius: 10,
+      cursor: "pointer",
+      background:
+        "rgba(255,255,255,.08)",
+      color: "#fff"
     }
   };
 }
 
-const style = document.createElement("style");
+const style =
+  document.createElement("style");
 
 style.innerHTML = `
 @keyframes spin{
