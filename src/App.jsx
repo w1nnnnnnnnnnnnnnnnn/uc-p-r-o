@@ -35,6 +35,10 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  /* NEU */
+  const [menu, setMenu] = useState(null);
+  const [moveMode, setMoveMode] = useState(null);
+
   const audioRef = useRef(null);
   const current = tracks[index];
 
@@ -44,6 +48,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("aurae_theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const close = () => setMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
 
   function saveProjects(next) {
     setProjects(next);
@@ -176,6 +186,15 @@ export default function App() {
     if (index >= next.length) {
       setIndex(Math.max(0, next.length - 1));
     }
+  }
+
+  /* NEU */
+  function moveTrack(from, to) {
+    if (from === to) return;
+    const arr = [...tracks];
+    const item = arr.splice(from, 1)[0];
+    arr.splice(to, 0, item);
+    saveCurrentProject(arr);
   }
 
   function play(i) {
@@ -482,13 +501,27 @@ export default function App() {
           {tracks.map((t, i) => (
             <div
               key={t.id}
-              style={styles.track}
-              onClick={() =>
-                play(i)
-              }
+              style={{
+                ...styles.track,
+                ...(moveMode === i
+                  ? styles.trackActive
+                  : {})
+              }}
+              onClick={() => {
+                if (moveMode !== null) {
+                  moveTrack(moveMode, i);
+                  setMoveMode(null);
+                  return;
+                }
+                play(i);
+              }}
               onContextMenu={(e) => {
                 e.preventDefault();
-                deleteTrack(i);
+                setMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  index: i
+                });
               }}
             >
               <span>{t.name}</span>
@@ -607,6 +640,36 @@ export default function App() {
           style={styles.range}
         />
       </div>
+
+      {menu && (
+        <div
+          style={{
+            ...styles.contextMenu,
+            left: menu.x,
+            top: menu.y
+          }}
+        >
+          <div
+            style={styles.menuItem}
+            onClick={() => {
+              deleteTrack(menu.index);
+              setMenu(null);
+            }}
+          >
+            Delete Track
+          </div>
+
+          <div
+            style={styles.menuItem}
+            onClick={() => {
+              setMoveMode(menu.index);
+              setMenu(null);
+            }}
+          >
+            Move Track
+          </div>
+        </div>
+      )}
 
       <audio ref={audioRef} />
     </div>
@@ -760,6 +823,10 @@ function makeStyles(dark, text) {
         : "#fff",
       cursor: "pointer",
       color: text
+    },
+
+    trackActive: {
+      outline: "2px solid #4da3ff"
     },
 
     stage: {
@@ -963,10 +1030,7 @@ function makeStyles(dark, text) {
       width: 240,
       accentColor: dark
         ? "#ffffff"
-        : "#000000",
-      background: dark
-        ? "#fff"
-        : "#fff"
+        : "#000000"
     },
 
     overlay: {
@@ -992,6 +1056,32 @@ function makeStyles(dark, text) {
       flexDirection:
         "column",
       gap: 12
+    },
+
+    contextMenu: {
+      position: "fixed",
+      minWidth: 170,
+      background: dark
+        ? "#111"
+        : "#fff",
+      border: dark
+        ? "1px solid #333"
+        : "1px solid #ddd",
+      borderRadius: 12,
+      overflow: "hidden",
+      zIndex: 9999,
+      boxShadow:
+        "0 10px 30px rgba(0,0,0,.25)"
+    },
+
+    menuItem: {
+      padding: "12px 14px",
+      cursor: "pointer",
+      color: text,
+      borderBottom:
+        dark
+          ? "1px solid #222"
+          : "1px solid #eee"
     }
   };
 }
