@@ -1477,8 +1477,8 @@ function makeStyles(
     },
 
     home: {
-      minHeight:
-        "100vh",
+      height: "100vh",
+      overflowY: "auto",
       background: dark
         ? "#090909"
         : "#f6f6f6",
@@ -1488,7 +1488,8 @@ function makeStyles(
     centerHome: {
       textAlign:
         "center",
-      paddingTop: 80
+      paddingTop: 80,
+      paddingBottom: 40
     },
 
     topBtns: {
