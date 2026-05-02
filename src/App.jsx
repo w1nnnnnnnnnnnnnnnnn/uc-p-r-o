@@ -1,5 +1,48 @@
 import React, { useEffect, useRef, useState } from "react";
 
+// ── IndexedDB helpers ─────────────────────────────────────────
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("aurae_audio", 1);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore("blobs");
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveBlob(id, blob) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("blobs", "readwrite");
+    tx.objectStore("blobs").put(blob, id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function loadBlob(id) {
+  const db = await openDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction("blobs", "readonly");
+    const req = tx.objectStore("blobs").get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+}
+
+async function deleteBlob(id) {
+  const db = await openDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction("blobs", "readwrite");
+    tx.objectStore("blobs").delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+  });
+}
+// ─────────────────────────────────────────────────────────────
+
 
 
 export default function App() {
@@ -240,20 +283,32 @@ export default function App() {
     setProjects(next);
   }
 
-  function openProject(name) {
+  async function openProject(name) {
     const p = projects[name];
     if (!p) return;
 
     setActiveProject(name);
-    setTracks(p.tracks || []);
     setAlbumCover(p.cover || null);
     setVinylColor(p.vinylColor || "#111111");
-
     setIndex(0);
     setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
 
+    // Restore blob URLs from IndexedDB
+    const restored = await Promise.all(
+      (p.tracks || []).map(async (t) => {
+        if (!t.id) return t;
+        const blob = await loadBlob(t.id);
+        if (!blob) return t;
+        return {
+          ...t,
+          url: URL.createObjectURL(blob)
+        };
+      })
+    );
+
+    setTracks(restored);
     setView("studio");
   }
 
@@ -370,53 +425,37 @@ export default function App() {
       e.target.files || []
     );
 
-    const loaded =
-      await Promise.all(
-        files.map(
-          (file) =>
-            new Promise(
-              (resolve) => {
-                const url =
-                  URL.createObjectURL(
-                    file
-                  );
+    const loaded = await Promise.all(
+      files.map((file) =>
+        new Promise((resolve) => {
+          const tempUrl =
+            URL.createObjectURL(file);
+          const probe = new Audio(tempUrl);
 
-                const probe =
-                  new Audio(url);
+          const finish = async (duration) => {
+            const id =
+              Date.now() + Math.random();
+            await saveBlob(id, file);
+            const url =
+              URL.createObjectURL(file);
+            URL.revokeObjectURL(tempUrl);
+            resolve({
+              id,
+              name: file.name.replace(
+                /\.[^/.]+$/,
+                ""
+              ),
+              url,
+              duration
+            });
+          };
 
-                probe.onloadedmetadata =
-                  () =>
-                    resolve({
-                      id:
-                        Date.now() +
-                        Math.random(),
-                      name: file.name.replace(
-                        /\.[^/.]+$/,
-                        ""
-                      ),
-                      url,
-                      duration:
-                        probe.duration ||
-                        0
-                    });
-
-                probe.onerror =
-                  () =>
-                    resolve({
-                      id:
-                        Date.now() +
-                        Math.random(),
-                      name: file.name.replace(
-                        /\.[^/.]+$/,
-                        ""
-                      ),
-                      url,
-                      duration: 0
-                    });
-              }
-            )
-        )
-      );
+          probe.onloadedmetadata = () =>
+            finish(probe.duration || 0);
+          probe.onerror = () => finish(0);
+        })
+      )
+    );
 
     saveCurrentProject([
       ...tracks,
@@ -442,6 +481,9 @@ export default function App() {
   }
 
   function deleteTrack(i) {
+    const track = tracks[i];
+    if (track?.id) deleteBlob(track.id);
+
     const next =
       tracks.filter(
         (_, x) => x !== i
