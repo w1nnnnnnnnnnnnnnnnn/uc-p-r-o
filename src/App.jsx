@@ -80,6 +80,15 @@ export default function App() {
     )
   );
 
+  const [projectOrder, setProjectOrder] = useState(
+    JSON.parse(
+      localStorage.getItem("aurae_project_order") || "[]"
+    )
+  );
+
+  const [dragOverProject, setDragOverProject] = useState(null);
+  const [dragOverTrack, setDragOverTrack] = useState(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] =
     useState("");
@@ -159,6 +168,13 @@ export default function App() {
       JSON.stringify(folders)
     );
   }, [folders]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "aurae_project_order",
+      JSON.stringify(projectOrder)
+    );
+  }, [projectOrder]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -390,6 +406,28 @@ export default function App() {
     return Object.keys(
       projects
     ).filter((p) => !inside.has(p));
+  }
+
+  function getOrderedProjects(list) {
+    const ordered = projectOrder.filter(
+      (n) => list.includes(n)
+    );
+    const rest = list.filter(
+      (n) => !ordered.includes(n)
+    );
+    return [...ordered, ...rest];
+  }
+
+  function moveProjectOrder(from, to) {
+    const list = getOrderedProjects(
+      Object.keys(projects)
+    );
+    const next = [...list];
+    const item = next.splice(
+      next.indexOf(from), 1
+    )[0];
+    next.splice(next.indexOf(to), 0, item);
+    setProjectOrder(next);
   }
 
   function moveProjectToFolder(
@@ -754,11 +792,14 @@ export default function App() {
           f.id === folderOpen
       );
 
-    const visibleProjects =
+    const rawVisible =
       folderOpen
         ? currentFolder
             ?.projects || []
         : rootProjects();
+
+    const visibleProjects =
+      getOrderedProjects(rawVisible);
 
     return (
       <div style={styles.home}>
@@ -956,18 +997,33 @@ export default function App() {
               (name) => (
                 <div
                   key={name}
-                  style={
-                    styles.card
-                  }
+                  style={{
+                    ...styles.card,
+                    outline: dragOverProject === name
+                      ? "2px solid rgba(255,255,255,0.5)"
+                      : "none",
+                    transition: "outline 0.15s"
+                  }}
                   draggable
-                  onDragStart={(
-                    e
-                  ) =>
-                    e.dataTransfer.setData(
-                      "text/plain",
-                      name
-                    )
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", name);
+                    e.dataTransfer.setData("aurae_project", name);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverProject(name);
+                  }}
+                  onDragLeave={() =>
+                    setDragOverProject(null)
                   }
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverProject(null);
+                    const dragged = e.dataTransfer.getData("aurae_project");
+                    if (dragged && dragged !== name) {
+                      moveProjectOrder(dragged, name);
+                    }
+                  }}
                   onClick={() =>
                     openProject(
                       name
@@ -1182,9 +1238,38 @@ export default function App() {
             (t, i) => (
               <div
                 key={t.id}
-                style={
-                  styles.track
+                style={{
+                  ...styles.track,
+                  outline: dragOverTrack === i
+                    ? "2px solid rgba(255,255,255,0.5)"
+                    : "none",
+                  opacity: dragOverTrack === i ? 0.7 : 1,
+                  transition: "outline 0.1s, opacity 0.1s"
+                }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("aurae_track", String(i));
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverTrack(i);
+                }}
+                onDragLeave={() =>
+                  setDragOverTrack(null)
                 }
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverTrack(null);
+                  const from = Number(
+                    e.dataTransfer.getData("aurae_track")
+                  );
+                  if (from === i) return;
+                  const next = [...tracks];
+                  const item = next.splice(from, 1)[0];
+                  next.splice(i, 0, item);
+                  saveCurrentProject(next);
+                  if (index === from) setIndex(i);
+                }}
                 onClick={() =>
                   play(i)
                 }
@@ -1201,7 +1286,13 @@ export default function App() {
                   );
                 }}
               >
-                <span>
+                <span style={{
+                  cursor: "grab",
+                  marginRight: 6,
+                  opacity: 0.4,
+                  fontSize: 12
+                }}>⠿</span>
+                <span style={{flex: 1}}>
                   {t.name}
                 </span>
 
