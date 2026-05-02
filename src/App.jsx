@@ -43,13 +43,11 @@ export default function App() {
 
   const [showCreate, setShowCreate] =
     useState(false);
-
   const [showFolder, setShowFolder] =
     useState(false);
 
   const [projectName, setProjectName] =
     useState("");
-
   const [folderName, setFolderName] =
     useState("");
 
@@ -68,9 +66,7 @@ export default function App() {
   const [tracks, setTracks] = useState(
     []
   );
-
   const [index, setIndex] = useState(0);
-
   const [playing, setPlaying] =
     useState(false);
 
@@ -87,11 +83,10 @@ export default function App() {
     useState(0);
 
   const audioRef = useRef(null);
+  const current = tracks[index];
 
   const dark = theme === "dark";
   const text = dark ? "#fff" : "#000";
-
-  const current = tracks[index];
 
   useEffect(() => {
     localStorage.setItem(
@@ -195,42 +190,9 @@ export default function App() {
     setShowFolder(false);
   }
 
- function saveCurrentProject(
-  nextTracks = tracks,
-  nextCover = albumCover,
-  nextVinylColor = vinylColor
-) {
-  const next = {
-    ...projects,
-    [activeProject]: {
-      ...projects[activeProject],
-      tracks: nextTracks,
-      cover: nextCover,
-      vinylColor: nextVinylColor   
-    }
-  };
-
-  setProjects(next);
-  setTracks(nextTracks);
-  setAlbumCover(nextCover);
-  setVinylColor(nextVinylColor);   
-}
-) {
-  const next = {
-    ...projects,
-    [activeProject]: {
-      ...projects[activeProject],
-      tracks: nextTracks,
-      cover: nextCover,
-      vinylColor: nextVinylColor   // 
-    }
-  };
-
-  setProjects(next);
-  setTracks(nextTracks);
-  setAlbumCover(nextCover);
-  setVinylColor(nextVinylColor);   // 
-}
+  function saveCurrentProject(
+    nextTracks = tracks,
+    nextCover = albumCover
   ) {
     const next = {
       ...projects,
@@ -253,18 +215,11 @@ export default function App() {
     setActiveProject(name);
     setTracks(p.tracks || []);
     setAlbumCover(p.cover || null);
-    setVinylColor(p.vinylColor || "#111111");
 
     setIndex(0);
     setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current.load();
-    }
 
     setView("studio");
   }
@@ -279,14 +234,14 @@ export default function App() {
     const copy = { ...projects };
     copy[n] = copy[name];
     delete copy[name];
-
     setProjects(copy);
 
     setFolders(
       folders.map((f) => ({
         ...f,
         projects: f.projects.map(
-          (p) => (p === name ? n : p)
+          (p) =>
+            p === name ? n : p
         )
       }))
     );
@@ -312,12 +267,10 @@ export default function App() {
     const old = folders.find(
       (f) => f.id === id
     );
-
     const n = prompt(
       "Rename Folder:",
       old?.name || ""
     );
-
     if (!n) return;
 
     setFolders(
@@ -335,7 +288,6 @@ export default function App() {
         (f) => f.id !== id
       )
     );
-
     if (folderOpen === id)
       setFolderOpen(null);
   }
@@ -397,9 +349,7 @@ export default function App() {
                   );
 
                 const probe =
-                  new Audio();
-
-                probe.src = url;
+                  new Audio(url);
 
                 probe.onloadedmetadata =
                   () =>
@@ -465,7 +415,6 @@ export default function App() {
     if (!pos) return;
 
     const next = [...tracks];
-
     const item =
       next.splice(i, 1)[0];
 
@@ -488,19 +437,17 @@ export default function App() {
   function play(i) {
     if (!tracks[i]) return;
 
-    const a =
-      audioRef.current;
-
     setIndex(i);
     setPlaying(true);
 
-    a.pause();
-    a.src = tracks[i].url;
-    a.load();
-
-    a.oncanplay = () => {
-      a.play().catch(() => {});
-    };
+    setTimeout(() => {
+      const a =
+        audioRef.current;
+      a.src = tracks[i].url;
+      a.play().catch(
+        () => {}
+      );
+    }, 20);
   }
 
   function toggle() {
@@ -519,7 +466,9 @@ export default function App() {
       a.pause();
       setPlaying(false);
     } else {
-      a.play().catch(() => {});
+      a.play().catch(
+        () => {}
+      );
       setPlaying(true);
     }
   }
@@ -557,7 +506,6 @@ export default function App() {
       setCurrentTime(
         a.currentTime || 0
       );
-
       setDuration(
         a.duration || 0
       );
@@ -577,12 +525,10 @@ export default function App() {
       "timeupdate",
       update
     );
-
     a.addEventListener(
       "loadedmetadata",
       update
     );
-
     a.addEventListener(
       "ended",
       ended
@@ -593,12 +539,10 @@ export default function App() {
         "timeupdate",
         update
       );
-
       a.removeEventListener(
         "loadedmetadata",
         update
       );
-
       a.removeEventListener(
         "ended",
         ended
@@ -606,6 +550,7 @@ export default function App() {
     };
   }, [index, tracks]);
 
+  /* stylus unverändert */
   const totalSongs =
     Math.max(
       tracks.length,
@@ -662,6 +607,7 @@ export default function App() {
       text
     );
 
+  /* AUTH */
   if (view === "auth") {
     return (
       <div style={styles.auth}>
@@ -711,6 +657,7 @@ export default function App() {
     );
   }
 
+  /* HOME */
   if (view === "home") {
     const currentFolder =
       folders.find(
@@ -735,15 +682,10 @@ export default function App() {
             AURAE OS
           </div>
 
-          <div
-            style={
-              styles.topBtns
-            }
-          >
+          {/* Buttons wieder mittig */}
+          <div style={styles.topBtns}>
             <button
-              style={
-                styles.btn
-              }
+              style={styles.btn}
               onClick={() =>
                 setTheme(
                   dark
@@ -758,22 +700,18 @@ export default function App() {
             </button>
 
             <button
-              style={
-                styles.btn
-              }
+              style={styles.btn}
               onClick={() =>
                 setShowCreate(
                   true
                 )
               }
             >
-              + project
+              + new project
             </button>
 
             <button
-              style={
-                styles.btn
-              }
+              style={styles.btn}
               onClick={() =>
                 setShowFolder(
                   true
@@ -810,11 +748,6 @@ export default function App() {
                     style={
                       styles.card
                     }
-                    onClick={() =>
-                      setFolderOpen(
-                        folder.id
-                      )
-                    }
                     onDragOver={(
                       e
                     ) =>
@@ -827,6 +760,11 @@ export default function App() {
                         e.dataTransfer.getData(
                           "text/plain"
                         ),
+                        folder.id
+                      )
+                    }
+                    onClick={() =>
+                      setFolderOpen(
                         folder.id
                       )
                     }
@@ -1087,6 +1025,7 @@ export default function App() {
     );
   }
 
+  /* STUDIO */
   return (
     <div style={styles.app}>
       <div style={styles.sidebar}>
@@ -1165,7 +1104,6 @@ export default function App() {
                   e
                 ) => {
                   e.preventDefault();
-
                   setSongMenu(
                     {
                       x: e.clientX,
@@ -1405,7 +1343,9 @@ function makeStyles(
       display: "flex",
       flexDirection:
         "column",
-      gap: 12
+      gap: 12,
+      backdropFilter:
+        "blur(18px)"
     },
 
     logo: {
@@ -1417,11 +1357,14 @@ function makeStyles(
       padding:
         "12px 16px",
       borderRadius: 16,
-      border: "none",
+      border:
+        "1px solid rgba(255,255,255,.18)",
       background:
         "rgba(255,255,255,.08)",
       color: text,
-      cursor: "pointer"
+      cursor: "pointer",
+      backdropFilter:
+        "blur(18px)"
     },
 
     smallBtn: {
@@ -1482,7 +1425,9 @@ function makeStyles(
         "rgba(255,255,255,.08)",
       textAlign:
         "center",
-      cursor: "pointer"
+      cursor: "pointer",
+      backdropFilter:
+        "blur(18px)"
     },
 
     cardActions: {
@@ -1496,7 +1441,7 @@ function makeStyles(
     cover: {
       width: "100%",
       aspectRatio:
-        "1/1",
+        "4/3",
       objectFit: "cover",
       borderRadius: 12,
       marginBottom: 8
@@ -1505,7 +1450,7 @@ function makeStyles(
     blankCover: {
       width: "100%",
       aspectRatio:
-        "1/1",
+        "4/3",
       borderRadius: 12,
       marginBottom: 8,
       background:
@@ -1729,11 +1674,8 @@ function makeStyles(
         "center",
       gap: 10,
       background: dark
-        ? "#090909"
-        : "#ffffff",
-      borderTop: dark
-        ? "1px solid #1f1f1f"
-        : "1px solid #ddd"
+        ? "#111"
+        : "#fff"
     },
 
     now: {
@@ -1776,7 +1718,9 @@ function makeStyles(
       display: "flex",
       flexDirection:
         "column",
-      gap: 12
+      gap: 12,
+      backdropFilter:
+        "blur(18px)"
     },
 
     menu: {
