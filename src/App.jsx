@@ -112,6 +112,10 @@ export default function App() {
   const [songMenu, setSongMenu] =
     useState(null);
 
+  const [renameModal, setRenameModal] =
+    useState(null);
+  // renameModal = { type: "project"|"folder", id, currentName, value }
+
   const [activeProject, setActiveProject] =
     useState(null);
 
@@ -329,26 +333,34 @@ export default function App() {
   }
 
   function renameProject(name) {
-    const n = prompt(
-      "Rename Project:",
-      name
-    );
-    if (!n || n === name) return;
+    setRenameModal({
+      type: "project",
+      id: name,
+      currentName: name,
+      value: name
+    });
+  }
 
+  function applyRenameProject(oldName, newName) {
+    if (!newName.trim() || newName === oldName) return;
     const copy = { ...projects };
-    copy[n] = copy[name];
-    delete copy[name];
+    copy[newName] = copy[oldName];
+    delete copy[oldName];
     setProjects(copy);
-
     setFolders(
       folders.map((f) => ({
         ...f,
         projects: f.projects.map(
-          (p) =>
-            p === name ? n : p
+          (p) => p === oldName ? newName : p
         )
       }))
     );
+    setProjectOrder(
+      projectOrder.map(
+        (p) => p === oldName ? newName : p
+      )
+    );
+    setRenameModal(null);
   }
 
   function deleteProject(name) {
@@ -368,22 +380,23 @@ export default function App() {
   }
 
   function renameFolder(id) {
-    const old = folders.find(
-      (f) => f.id === id
-    );
-    const n = prompt(
-      "Rename Folder:",
-      old?.name || ""
-    );
-    if (!n) return;
+    const folder = folders.find((f) => f.id === id);
+    setRenameModal({
+      type: "folder",
+      id,
+      currentName: folder?.name || "",
+      value: folder?.name || ""
+    });
+  }
 
+  function applyRenameFolder(id, newName) {
+    if (!newName.trim()) return;
     setFolders(
       folders.map((f) =>
-        f.id === id
-          ? { ...f, name: n }
-          : f
+        f.id === id ? { ...f, name: newName } : f
       )
     );
+    setRenameModal(null);
   }
 
   function deleteFolder(id) {
@@ -1163,6 +1176,57 @@ export default function App() {
               >
                 create
               </button>
+            </div>
+          </div>
+        )}
+
+        {renameModal && (
+          <div style={styles.overlay}
+            onClick={() => setRenameModal(null)}
+          >
+            <div style={styles.modal}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 4 }}>
+                {renameModal.type === "project" ? "Projekt umbenennen" : "Ordner umbenennen"}
+              </div>
+              <input
+                autoFocus
+                style={styles.input}
+                value={renameModal.value}
+                onChange={(e) =>
+                  setRenameModal({
+                    ...renameModal,
+                    value: e.target.value
+                  })
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    renameModal.type === "project"
+                      ? applyRenameProject(renameModal.id, renameModal.value)
+                      : applyRenameFolder(renameModal.id, renameModal.value);
+                  }
+                  if (e.key === "Escape") setRenameModal(null);
+                }}
+              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  style={styles.btn}
+                  onClick={() =>
+                    renameModal.type === "project"
+                      ? applyRenameProject(renameModal.id, renameModal.value)
+                      : applyRenameFolder(renameModal.id, renameModal.value)
+                  }
+                >
+                  speichern
+                </button>
+                <button
+                  style={styles.btn}
+                  onClick={() => setRenameModal(null)}
+                >
+                  abbrechen
+                </button>
+              </div>
             </div>
           </div>
         )}
