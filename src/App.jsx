@@ -1435,7 +1435,8 @@ function makeStyles(
         "100vh",
       background: dark
         ? "#090909"
-        : "#f6f6f6"
+        : "#f6f6f6",
+      color: text
     },
 
     centerHome: {
@@ -1717,7 +1718,8 @@ function makeStyles(
       gap: 10,
       background: dark
         ? "#111"
-        : "#fff"
+        : "#fff",
+      color: text
     },
 
     now: {
@@ -1786,7 +1788,7 @@ function makeStyles(
       borderRadius: 10,
       background:
         "rgba(255,255,255,.08)",
-      color: "#fff",
+      color: text,
       cursor: "pointer"
     }
   };
