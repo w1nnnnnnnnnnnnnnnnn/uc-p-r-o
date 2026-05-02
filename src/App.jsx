@@ -89,10 +89,25 @@ export default function App() {
   const text = dark ? "#fff" : "#000";
 
   useEffect(() => {
-    localStorage.setItem(
-      "aurae_projects",
-      JSON.stringify(projects)
-    );
+    try {
+      const slim = Object.fromEntries(
+        Object.entries(projects).map(
+          ([name, p]) => [
+            name,
+            {
+              ...p,
+              tracks: (p.tracks || []).map(
+                ({ url, ...meta }) => meta
+              )
+            }
+          ]
+        )
+      );
+      localStorage.setItem(
+        "aurae_projects",
+        JSON.stringify(slim)
+      );
+    } catch (e) {}
   }, [projects]);
 
   useEffect(() => {
@@ -361,54 +376,43 @@ export default function App() {
           (file) =>
             new Promise(
               (resolve) => {
-                const reader =
-                  new FileReader();
+                const url =
+                  URL.createObjectURL(
+                    file
+                  );
 
-                reader.onload =
-                  (ev) => {
-                    const url =
-                      ev.target
-                        .result;
+                const probe =
+                  new Audio(url);
 
-                    const probe =
-                      new Audio(
-                        url
-                      );
+                probe.onloadedmetadata =
+                  () =>
+                    resolve({
+                      id:
+                        Date.now() +
+                        Math.random(),
+                      name: file.name.replace(
+                        /\.[^/.]+$/,
+                        ""
+                      ),
+                      url,
+                      duration:
+                        probe.duration ||
+                        0
+                    });
 
-                    probe.onloadedmetadata =
-                      () =>
-                        resolve({
-                          id:
-                            Date.now() +
-                            Math.random(),
-                          name: file.name.replace(
-                            /\.[^/.]+$/,
-                            ""
-                          ),
-                          url,
-                          duration:
-                            probe.duration ||
-                            0
-                        });
-
-                    probe.onerror =
-                      () =>
-                        resolve({
-                          id:
-                            Date.now() +
-                            Math.random(),
-                          name: file.name.replace(
-                            /\.[^/.]+$/,
-                            ""
-                          ),
-                          url,
-                          duration: 0
-                        });
-                  };
-
-                reader.readAsDataURL(
-                  file
-                );
+                probe.onerror =
+                  () =>
+                    resolve({
+                      id:
+                        Date.now() +
+                        Math.random(),
+                      name: file.name.replace(
+                        /\.[^/.]+$/,
+                        ""
+                      ),
+                      url,
+                      duration: 0
+                    });
               }
             )
         )
