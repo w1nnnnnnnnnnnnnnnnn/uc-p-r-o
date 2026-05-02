@@ -193,6 +193,7 @@ export default function App() {
   function saveCurrentProject(
     nextTracks = tracks,
     nextCover = albumCover
+    vinylColor: vinylColor,
   ) {
     const next = {
       ...projects,
@@ -215,7 +216,7 @@ export default function App() {
     setActiveProject(name);
     setTracks(p.tracks || []);
     setAlbumCover(p.cover || null);
-
+    setVinylColor(p.vinylColor || "#111111");
     setIndex(0);
     setPlaying(false);
     setCurrentTime(0);
