@@ -195,9 +195,42 @@ export default function App() {
     setShowFolder(false);
   }
 
-  function saveCurrentProject(
-    nextTracks = tracks,
-    nextCover = albumCover
+ function saveCurrentProject(
+  nextTracks = tracks,
+  nextCover = albumCover,
+  nextVinylColor = vinylColor
+) {
+  const next = {
+    ...projects,
+    [activeProject]: {
+      ...projects[activeProject],
+      tracks: nextTracks,
+      cover: nextCover,
+      vinylColor: nextVinylColor   
+    }
+  };
+
+  setProjects(next);
+  setTracks(nextTracks);
+  setAlbumCover(nextCover);
+  setVinylColor(nextVinylColor);   
+}
+) {
+  const next = {
+    ...projects,
+    [activeProject]: {
+      ...projects[activeProject],
+      tracks: nextTracks,
+      cover: nextCover,
+      vinylColor: nextVinylColor   // 
+    }
+  };
+
+  setProjects(next);
+  setTracks(nextTracks);
+  setAlbumCover(nextCover);
+  setVinylColor(nextVinylColor);   // 
+}
   ) {
     const next = {
       ...projects,
