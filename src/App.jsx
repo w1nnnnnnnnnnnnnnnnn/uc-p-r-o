@@ -166,7 +166,8 @@ export default function App() {
       ...projects,
       [projectName]: {
         tracks: [],
-        cover: null
+        cover: null,
+        vinylColor: "#111111"
       }
     });
 
@@ -192,21 +193,36 @@ export default function App() {
 
   function saveCurrentProject(
     nextTracks = tracks,
-    nextCover = albumCover
-    vinylColor: vinylColor,
+    nextCover = albumCover,
+    nextVinylColor = vinylColor
   ) {
     const next = {
       ...projects,
       [activeProject]: {
         ...projects[activeProject],
         tracks: nextTracks,
-        cover: nextCover
+        cover: nextCover,
+        vinylColor: nextVinylColor
       }
     };
 
     setProjects(next);
     setTracks(nextTracks);
     setAlbumCover(nextCover);
+  }
+
+  function handleVinylColorChange(color) {
+    setVinylColor(color);
+    const next = {
+      ...projects,
+      [activeProject]: {
+        ...projects[activeProject],
+        tracks,
+        cover: albumCover,
+        vinylColor: color
+      }
+    };
+    setProjects(next);
   }
 
   function openProject(name) {
@@ -217,6 +233,7 @@ export default function App() {
     setTracks(p.tracks || []);
     setAlbumCover(p.cover || null);
     setVinylColor(p.vinylColor || "#111111");
+
     setIndex(0);
     setPlaying(false);
     setCurrentTime(0);
@@ -1072,9 +1089,8 @@ export default function App() {
           onChange={(
             e
           ) =>
-            setVinylColor(
-              e.target
-                .value
+            handleVinylColorChange(
+              e.target.value
             )
           }
         />
@@ -1442,7 +1458,7 @@ function makeStyles(
     cover: {
       width: "100%",
       aspectRatio:
-        "4/3",
+        "1/1",
       objectFit: "cover",
       borderRadius: 12,
       marginBottom: 8
@@ -1451,7 +1467,7 @@ function makeStyles(
     blankCover: {
       width: "100%",
       aspectRatio:
-        "4/3",
+        "1/1",
       borderRadius: 12,
       marginBottom: 8,
       background:
