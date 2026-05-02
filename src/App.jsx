@@ -253,6 +253,7 @@ export default function App() {
     setActiveProject(name);
     setTracks(p.tracks || []);
     setAlbumCover(p.cover || null);
+    setVinylColor(p.vinylColor || "#111111");
 
     setIndex(0);
     setPlaying(false);
