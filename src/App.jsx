@@ -361,29 +361,54 @@ export default function App() {
           (file) =>
             new Promise(
               (resolve) => {
-                const url =
-                  URL.createObjectURL(
-                    file
-                  );
+                const reader =
+                  new FileReader();
 
-                const probe =
-                  new Audio(url);
+                reader.onload =
+                  (ev) => {
+                    const url =
+                      ev.target
+                        .result;
 
-                probe.onloadedmetadata =
-                  () =>
-                    resolve({
-                      id:
-                        Date.now() +
-                        Math.random(),
-                      name: file.name.replace(
-                        /\.[^/.]+$/,
-                        ""
-                      ),
-                      url,
-                      duration:
-                        probe.duration ||
-                        0
-                    });
+                    const probe =
+                      new Audio(
+                        url
+                      );
+
+                    probe.onloadedmetadata =
+                      () =>
+                        resolve({
+                          id:
+                            Date.now() +
+                            Math.random(),
+                          name: file.name.replace(
+                            /\.[^/.]+$/,
+                            ""
+                          ),
+                          url,
+                          duration:
+                            probe.duration ||
+                            0
+                        });
+
+                    probe.onerror =
+                      () =>
+                        resolve({
+                          id:
+                            Date.now() +
+                            Math.random(),
+                          name: file.name.replace(
+                            /\.[^/.]+$/,
+                            ""
+                          ),
+                          url,
+                          duration: 0
+                        });
+                  };
+
+                reader.readAsDataURL(
+                  file
+                );
               }
             )
         )
