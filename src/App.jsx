@@ -45,6 +45,440 @@ async function deleteBlob(id) {
 
 
 
+
+// ── Turntable deck designs ────────────────────────────────────────────────
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return {r,g,b};
+}
+function lighten(hex, amt) {
+  const {r,g,b} = hexToRgb(hex);
+  const c = (v) => Math.min(255, v + amt);
+  return `rgb(${c(r)},${c(g)},${c(b)})`;
+}
+function darken(hex, amt) {
+  const {r,g,b} = hexToRgb(hex);
+  const c = (v) => Math.max(0, v - amt);
+  return `rgb(${c(r)},${c(g)},${c(b)})`;
+}
+
+function TurntableDeck({ style: s, color, armAngle = -32 }) {
+  const c = color || "#1a1a1a";
+
+  if (s === "realistic" || s === "realistic2" || s === "realistic3") {
+    const light = lighten(c, 38);
+    const mid   = lighten(c, 18);
+    const dark2 = darken(c, 10);
+    const hi    = lighten(c, 60);
+
+    // Platter center: (255,295). Arm pivot: (471,119).
+    // armAngle is passed in already computed for this geometry.
+    const ang = armAngle || -32;
+
+    // Board shape variants
+    const rx = s === "realistic" ? 6 : s === "realistic2" ? 28 : 0;
+
+    // Panel position: right for r1/r3, integrated top-bar for r2
+    const sidePanel = s !== "realistic2";
+
+    return (
+      <svg
+        viewBox="0 0 560 560"
+        style={{
+          position: "absolute",
+          left: 0, top: 0,
+          width: 560, height: 560,
+          pointerEvents: "none",
+          zIndex: 2
+        }}
+      >
+        <defs>
+          <filter id="rs">
+            <feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.5"/>
+          </filter>
+          <filter id="rs-soft">
+            <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.3"/>
+          </filter>
+          <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%"   stopColor={mid}/>
+            <stop offset="45%"  stopColor={c}/>
+            <stop offset="100%" stopColor={dark2}/>
+          </linearGradient>
+          <linearGradient id="ps" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={hi} stopOpacity="0.22"/>
+            <stop offset="35%"  stopColor={hi} stopOpacity="0.05"/>
+            <stop offset="100%" stopColor={hi} stopOpacity="0"/>
+          </linearGradient>
+          <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#e8e8e8"/>
+            <stop offset="50%"  stopColor="#a8a8a8"/>
+            <stop offset="100%" stopColor="#686868"/>
+          </linearGradient>
+          <linearGradient id="cw" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor="#c0c0c0"/>
+            <stop offset="50%"  stopColor="#888"/>
+            <stop offset="100%" stopColor="#c0c0c0"/>
+          </linearGradient>
+          <radialGradient id="knob" cx="38%" cy="35%" r="65%">
+            <stop offset="0%"   stopColor="#888"/>
+            <stop offset="100%" stopColor="#333"/>
+          </radialGradient>
+          <linearGradient id="panelg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={mid}/>
+            <stop offset="100%" stopColor={darken(c,15)}/>
+          </linearGradient>
+          <clipPath id="bclip">
+            <rect x="20" y="20" width="520" height="520" rx={rx}/>
+          </clipPath>
+        </defs>
+
+        {/* ── board ── */}
+        <rect x="20" y="20" width="520" height="520" rx={rx}
+          fill="url(#pg)" filter="url(#rs)"
+        />
+        <rect x="20" y="20" width="520" height="200" rx={rx}
+          fill="url(#ps)"
+        />
+        {/* edge highlight */}
+        <rect x="21" y="21" width="518" height="518" rx={rx}
+          fill="none" stroke={hi} strokeWidth="0.8" opacity="0.18"
+        />
+        {/* subtle grain lines */}
+        {s === "realistic3" && [60,120,180,240,300,360,420,480].map(y => (
+          <line key={y} x1="20" y1={y} x2="540" y2={y}
+            stroke={hi} strokeWidth="0.3" opacity="0.06"
+          />
+        ))}
+
+        {/* ── platter recess ── */}
+        <circle cx="255" cy="295" r="208"
+          fill={darken(c,14)} opacity="0.5"
+        />
+        <circle cx="255" cy="295" r="205"
+          fill="none" stroke={darken(c,22)} strokeWidth="4" opacity="0.7"
+        />
+        <circle cx="255" cy="295" r="209"
+          fill="none" stroke={hi} strokeWidth="0.8" opacity="0.2"
+        />
+
+        {/* ── top clips ── */}
+        {(s === "realistic" || s === "realistic3"
+          ? [[62,28],[108,28],[430,28],[476,28]]
+          : [[62,28],[108,28],[154,28],[430,28],[476,28]]
+        ).map(([x,y],i) => (
+          <g key={i}>
+            <rect x={x} y={y} width="30" height="15" rx="3"
+              fill={mid} stroke={lighten(c,28)} strokeWidth="1"
+              filter="url(#rs-soft)"
+            />
+            <rect x={x+9}  y={y+4} width="4" height="7" rx="1" fill={dark2}/>
+            <rect x={x+16} y={y+4} width="4" height="7" rx="1" fill={dark2}/>
+          </g>
+        ))}
+
+        {/* ── right control panel ── */}
+        {sidePanel ? (
+          <g>
+            <rect x="432" y="148" width="90" height="298" rx="5"
+              fill="url(#panelg)" stroke={darken(c,18)} strokeWidth="1.2"
+            />
+            {/* divider line */}
+            <line x1="432" y1="270" x2="522" y2="270"
+              stroke={darken(c,20)} strokeWidth="0.8" opacity="0.6"
+            />
+            {/* speed labels */}
+            {[["45",300],["33",336]].map(([lbl,y]) => (
+              <g key={lbl}>
+                <line x1="440" y1={y} x2="478" y2={y}
+                  stroke="#777" strokeWidth="0.8"/>
+                <text x="482" y={y+4} fill="#999" fontSize="9.5"
+                  fontFamily="monospace">{lbl}</text>
+              </g>
+            ))}
+            {/* speed slider */}
+            <rect x="460" y="222" width="7" height="58" rx="3.5"
+              fill={darken(c,22)} stroke="#444" strokeWidth="0.8"/>
+            <rect x="455" y="238" width="17" height="12" rx="3"
+              fill="#c8c8c8" filter="url(#rs-soft)"/>
+            {/* antiskating knob */}
+            <circle cx="500" cy="204" r="11"
+              fill="url(#knob)" stroke="#666" strokeWidth="1"/>
+            <line x1="500" y1="194" x2="500" y2="200"
+              stroke="#ccc" strokeWidth="1.5" strokeLinecap="round"/>
+            {/* lift lever */}
+            <rect x="438" y="166" width="16" height="42" rx="4"
+              fill={darken(c,8)} stroke="#555" strokeWidth="1"/>
+            <rect x="440" y="180" width="12" height="10" rx="2"
+              fill="#999"/>
+            {/* START button */}
+            <rect x="442" y="356" width="70" height="20" rx="3"
+              fill={darken(c,4)} stroke="#555" strokeWidth="0.8"/>
+            <text x="466" y="370" fill="#aaa" fontSize="8"
+              fontFamily="monospace">START</text>
+            {/* STOP button */}
+            <rect x="442" y="381" width="70" height="20" rx="3"
+              fill={darken(c,4)} stroke="#555" strokeWidth="0.8"/>
+            <text x="467" y="395" fill="#aaa" fontSize="8"
+              fontFamily="monospace">STOP</text>
+          </g>
+        ) : (
+          /* realistic2: top-bar panel */
+          <g>
+            <rect x="30" y="28" width="498" height="38" rx="4"
+              fill="url(#panelg)" stroke={darken(c,18)} strokeWidth="1"/>
+            <text x="44" y="52" fill="#999" fontSize="8" fontFamily="monospace">33</text>
+            <text x="64" y="52" fill="#999" fontSize="8" fontFamily="monospace">45</text>
+            <circle cx="420" cy="47" r="9" fill="url(#knob)" stroke="#555" strokeWidth="1"/>
+            <rect x="450" y="36" width="50" height="14" rx="2"
+              fill={darken(c,4)} stroke="#555" strokeWidth="0.8"/>
+            <text x="460" y="47" fill="#aaa" fontSize="7.5" fontFamily="monospace">START</text>
+            <circle cx="392" cy="47" r="9" fill="url(#knob)" stroke="#555" strokeWidth="1"/>
+          </g>
+        )}
+
+        {/* ── pivot base ── */}
+        <circle cx="471" cy="119" r="24"
+          fill={mid} stroke={lighten(c,35)} strokeWidth="1.5"
+          filter="url(#rs-soft)"
+        />
+        <circle cx="471" cy="119" r="12" fill="url(#ag)"/>
+        <circle cx="471" cy="119" r="5"  fill="#e0e0e0"/>
+        <circle cx="469" cy="117" r="1.5" fill="#fff" opacity="0.6"/>
+
+        {/* ── tonearm (rotates) ── */}
+        <g transform={`rotate(${ang} 471 119)`}>
+          {/* main tube */}
+          <rect x="248" y="114.5" width="222" height="9" rx="4.5"
+            fill="url(#ag)"
+          />
+          {/* tube highlight */}
+          <rect x="252" y="115" width="214" height="3" rx="1.5"
+            fill="#e0e0e0" opacity="0.35"
+          />
+          {/* headshell */}
+          <rect x="236" y="109" width="26" height="20" rx="3"
+            fill="#b8b8b8" stroke="#888" strokeWidth="0.8"
+          />
+          <rect x="238" y="111" width="22" height="5" rx="1"
+            fill="#d0d0d0" opacity="0.5"
+          />
+          {/* cartridge */}
+          <rect x="240" y="120" width="18" height="10" rx="2"
+            fill="#444" stroke="#666" strokeWidth="0.6"
+          />
+          {/* stylus */}
+          <line x1="249" y1="130" x2="251" y2="146"
+            stroke="#333" strokeWidth="1.8" strokeLinecap="round"
+          />
+          {/* counterweight */}
+          <ellipse cx="480" cy="119" rx="12" ry="8"
+            fill="url(#cw)" stroke="#999" strokeWidth="0.8"
+          />
+          <line x1="468" y1="119" x2="492" y2="119"
+            stroke={mid} strokeWidth="1" opacity="0.4"
+          />
+        </g>
+
+        {/* ── spindle ── */}
+        <circle cx="255" cy="295" r="5"
+          fill={mid} stroke="#bbb" strokeWidth="1"
+        />
+        <circle cx="255" cy="295" r="2" fill="#ddd"/>
+      </svg>
+    );
+  }
+
+  // ── non-realistic designs use deckColor ───────────────────────────────
+  const plinthMap = {
+    classic: `linear-gradient(145deg,${lighten(c,80)},${lighten(c,40)})`,
+    dark:    `linear-gradient(145deg,${lighten(c,20)},${c})`,
+    chrome:  `linear-gradient(135deg,${lighten(c,70)},${lighten(c,30)},${lighten(c,60)},${c},${lighten(c,50)})`,
+    wood:    `linear-gradient(160deg,${lighten(c,30)},${c},${lighten(c,18)},${darken(c,10)},${lighten(c,22)})`,
+    minimal: `rgba(255,255,255,0.04)`
+  };
+
+  const border = s === "minimal" ? "rgba(255,255,255,0.12)" : lighten(c,20);
+  const screws = s === "minimal" ? "rgba(255,255,255,0.15)" : lighten(c,35);
+  const accent = s === "minimal" ? "rgba(255,255,255,0.06)" : darken(c,5);
+
+  return (
+    <svg
+      viewBox="0 0 560 560"
+      style={{
+        position: "absolute",
+        left: 0, top: 0,
+        width: 560, height: 560,
+        pointerEvents: "none",
+        zIndex: 2
+      }}
+    >
+      <defs>
+        <filter id="deck-shadow">
+          <feDropShadow dx="2" dy="4" stdDeviation="6" floodOpacity="0.25"/>
+        </filter>
+        {/* Plinth shape with vinyl hole cut out via evenodd */}
+        <clipPath id="plinth-clip">
+          <rect x="20" y="20" width="520" height="520" rx="28"/>
+        </clipPath>
+      </defs>
+      {/* Plinth with evenodd hole for vinyl — center (280,280) r=196 */}
+      <path
+        d="M48,20 L512,20 Q540,20 540,48 L540,512 Q540,540 512,540 L48,540 Q20,540 20,512 L20,48 Q20,20 48,20 Z M280,84 A196,196 0 1,0 280.001,84 Z"
+        fill={plinthMap[s] || plinthMap.classic}
+        fillRule="evenodd"
+        filter="url(#deck-shadow)"
+      />
+      {/* Border ring around plinth */}
+      <rect x="20" y="20" width="520" height="520" rx="28"
+        fill="none" stroke={border} strokeWidth="1.5"
+      />
+      {/* Platter recess ring */}
+      <circle cx="280" cy="280" r="192"
+        fill="none" stroke={darken(c,15)} strokeWidth="3" opacity="0.5"
+      />
+      <circle cx="280" cy="280" r="194"
+        fill="none" stroke={lighten(c,20)} strokeWidth="1" opacity="0.2"
+      />
+      {/* Inner recess */}
+      <rect x="42" y="42" width="476" height="476" rx="20"
+        fill="none" stroke={accent} strokeWidth="1" opacity="0.4"
+      />
+      {/* Corner screws */}
+      {[[52,52],[508,52],[52,508],[508,508]].map(([cx,cy],i) => (
+        <g key={i}>
+          <circle cx={cx} cy={cy} r="7" fill={screws} opacity="0.8"/>
+          <line x1={cx-4} y1={cy} x2={cx+4} y2={cy} stroke={accent} strokeWidth="1.2"/>
+          <line x1={cx} y1={cy-4} x2={cx} y2={cy+4} stroke={accent} strokeWidth="1.2"/>
+        </g>
+      ))}
+      {/* Tonearm pivot */}
+      <circle cx="471" cy="119" r="19"
+        fill={lighten(c,18)} stroke={border} strokeWidth="1.5"
+      />
+      <circle cx="471" cy="119" r="8" fill={screws} opacity="0.9"/>
+      {/* Speed dots */}
+      <circle cx="68" cy="492" r="5" fill={screws} opacity="0.7"/>
+      <circle cx="84" cy="492" r="5" fill={screws} opacity="0.4"/>
+      <rect x="460" y="490" width="52" height="14" rx="3"
+        fill={accent} opacity="0.5"
+      />
+      {/* Tonearm rendered in SVG so it's above vinyl */}
+      <g transform={`rotate(${armAngle || -32} 471 119)`}>
+        <rect x="258" y="115.5" width="212" height="7" rx="3.5"
+          fill="linear-gradient(180deg,#e0e0e0,#888)"
+          stroke="#aaa" strokeWidth="0.5"
+        />
+        <rect x="258" y="115.5" width="212" height="7" rx="3.5"
+          fill="#c0c0c0" opacity="0.9"
+        />
+        <rect x="258" y="115.5" width="212" height="3" rx="1.5"
+          fill="#ebebeb" opacity="0.4"
+        />
+        <rect x="248" y="111" width="20" height="16" rx="3"
+          fill="#aaa" stroke="#888" strokeWidth="0.8"/>
+        <line x1="258" y1="127" x2="260" y2="140"
+          stroke="#444" strokeWidth="1.8" strokeLinecap="round"/>
+        <ellipse cx="478" cy="119" rx="10" ry="7"
+          fill="#999" stroke="#bbb" strokeWidth="0.8"/>
+      </g>
+    </svg>
+  );
+}
+
+// Seeded pseudo-random for deterministic splatter
+function seededRand(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function SplatterOverlay({ color }) {
+  const cx = 195, cy = 195;
+  const rand = seededRand(42);
+
+  const streaks = [];
+  const dots = [];
+  const count = 52;
+
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * 2 * Math.PI + (rand() - 0.5) * 0.38;
+    const innerR = 68 + rand() * 22;
+    const outerR = 148 + rand() * 46;
+    const width = 3.5 + rand() * 9;
+    const opacity = 0.55 + rand() * 0.45;
+    const wobble = (rand() - 0.5) * 0.13;
+
+    const x1 = cx + Math.cos(angle) * innerR;
+    const y1 = cy + Math.sin(angle) * innerR;
+    const x2 = cx + Math.cos(angle + wobble) * outerR;
+    const y2 = cy + Math.sin(angle + wobble) * outerR;
+    const midX = (x1 + x2) / 2 + (rand() - 0.5) * 14;
+    const midY = (y1 + y2) / 2 + (rand() - 0.5) * 14;
+
+    streaks.push(
+      <path
+        key={"s" + i}
+        d={`M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`}
+        stroke={color}
+        strokeWidth={width}
+        strokeLinecap="round"
+        fill="none"
+        opacity={opacity}
+      />
+    );
+  }
+
+  // scattered dots
+  for (let i = 0; i < 55; i++) {
+    const angle = rand() * 2 * Math.PI;
+    const r = 72 + rand() * 118;
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    const radius = 1.5 + rand() * 5.5;
+    const opacity = 0.4 + rand() * 0.6;
+    dots.push(
+      <circle
+        key={"d" + i}
+        cx={x} cy={y} r={radius}
+        fill={color}
+        opacity={opacity}
+      />
+    );
+  }
+
+  return (
+    <svg
+      viewBox="0 0 390 390"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        borderRadius: "50%",
+        pointerEvents: "none",
+        overflow: "hidden"
+      }}
+    >
+      <defs>
+        <clipPath id="splatter-clip">
+          <circle cx="195" cy="195" r="195"/>
+        </clipPath>
+        <filter id="splatter-blur">
+          <feGaussianBlur stdDeviation="0.8"/>
+        </filter>
+      </defs>
+      <g clipPath="url(#splatter-clip)" filter="url(#splatter-blur)">
+        {streaks}
+        {dots}
+      </g>
+    </svg>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState(
     localStorage.getItem("aurae_remember")
@@ -128,6 +562,21 @@ export default function App() {
 
   const [vinylColor, setVinylColor] =
     useState("#111111");
+
+  const [splatterColor, setSplatterColor] =
+    useState("#3a7bd5");
+
+  const [splatterOn, setSplatterOn] =
+    useState(false);
+
+  const [vinylOpacity, setVinylOpacity] =
+    useState(1);
+
+  const [deckStyle, setDeckStyle] =
+    useState("classic");
+
+  const [deckColor, setDeckColor] =
+    useState("#1a1a1a");
 
   const [albumCover, setAlbumCover] =
     useState(null);
@@ -280,7 +729,12 @@ export default function App() {
         ...projects[activeProject],
         tracks: nextTracks,
         cover: nextCover,
-        vinylColor: nextVinylColor
+        vinylColor: nextVinylColor,
+        splatterColor,
+        splatterOn,
+        vinylOpacity,
+        deckStyle,
+        deckColor
       }
     };
 
@@ -297,7 +751,99 @@ export default function App() {
         ...projects[activeProject],
         tracks,
         cover: albumCover,
-        vinylColor: color
+        vinylColor: color,
+        splatterColor,
+        splatterOn
+      }
+    };
+    setProjects(next);
+  }
+
+  function handleSplatterColorChange(color) {
+    setSplatterColor(color);
+    const next = {
+      ...projects,
+      [activeProject]: {
+        ...projects[activeProject],
+        tracks,
+        cover: albumCover,
+        vinylColor,
+        splatterColor: color,
+        splatterOn
+      }
+    };
+    setProjects(next);
+  }
+
+  function handleSplatterToggle(val) {
+    setSplatterOn(val);
+    const next = {
+      ...projects,
+      [activeProject]: {
+        ...projects[activeProject],
+        tracks,
+        cover: albumCover,
+        vinylColor,
+        splatterColor,
+        splatterOn: val,
+        vinylOpacity,
+        deckStyle
+      }
+    };
+    setProjects(next);
+  }
+
+  function handleOpacityChange(val) {
+    setVinylOpacity(val);
+    const next = {
+      ...projects,
+      [activeProject]: {
+        ...projects[activeProject],
+        tracks,
+        cover: albumCover,
+        vinylColor,
+        splatterColor,
+        splatterOn,
+        vinylOpacity: val,
+        deckStyle
+      }
+    };
+    setProjects(next);
+  }
+
+  function handleDeckStyleChange(val) {
+    setDeckStyle(val);
+    const next = {
+      ...projects,
+      [activeProject]: {
+        ...projects[activeProject],
+        tracks,
+        cover: albumCover,
+        vinylColor,
+        splatterColor,
+        splatterOn,
+        vinylOpacity,
+        deckStyle: val,
+        deckColor
+      }
+    };
+    setProjects(next);
+  }
+
+  function handleDeckColorChange(val) {
+    setDeckColor(val);
+    const next = {
+      ...projects,
+      [activeProject]: {
+        ...projects[activeProject],
+        tracks,
+        cover: albumCover,
+        vinylColor,
+        splatterColor,
+        splatterOn,
+        vinylOpacity,
+        deckStyle,
+        deckColor: val
       }
     };
     setProjects(next);
@@ -310,6 +856,11 @@ export default function App() {
     setActiveProject(name);
     setAlbumCover(p.cover || null);
     setVinylColor(p.vinylColor || "#111111");
+    setSplatterColor(p.splatterColor || "#3a7bd5");
+    setSplatterOn(p.splatterOn || false);
+    setVinylOpacity(p.vinylOpacity !== undefined ? p.vinylOpacity : 1);
+    setDeckStyle(p.deckStyle || "classic");
+    setDeckColor(p.deckColor || "#1a1a1a");
     setIndex(0);
     setPlaying(false);
     setCurrentTime(0);
@@ -710,36 +1261,41 @@ export default function App() {
           songProgress) /
         totalSongs;
 
-  const cx = 280;
-  const cy = 280;
-  const outerR = 188;
-  const innerR = 92;
-  const ang =
-    (28 * Math.PI) / 180;
+  const isRealistic = ["realistic","realistic2","realistic3"].includes(deckStyle);
+  const isSingle = tracks.length <= 3 && tracks.length > 0;
 
-  const r =
-    outerR -
-    (outerR - innerR) *
-      progress;
+  // Classic deck geometry
+  const cx = 280, cy = 280;
+  // Realistic deck geometry (vinyl center at 255,295)
+  const rcx = 255, rcy = 295;
 
-  const tx =
-    cx +
-    Math.cos(ang) * r;
+  const activeCx = isRealistic ? rcx : cx;
+  const activeCy = isRealistic ? rcy : cy;
 
-  const ty =
-    cy +
-    Math.sin(ang) * r;
+  // Vinyl radii — realistic is smaller, single is smallest
+  const vinylRadius = isRealistic
+    ? (isSingle ? 100 : 140)
+    : (isSingle ? 110 : 188);
 
-  const px = 470;
-  const py = 118;
+  const outerR = vinylRadius - 14;   // outermost groove
+  const innerR = isRealistic
+    ? (isSingle ? 42 : 55)
+    : (isSingle ? 45 : 92);          // innermost groove (label edge)
+
+  // Pivot point
+  const px = 470, py = 118;
+
+  // Angle from vinyl center toward pivot — needle stays on that axis
+  const ang = Math.atan2(py - activeCy, px - activeCx);
+
+  const r = outerR - (outerR - innerR) * progress;
+
+  // Needle contact point on vinyl
+  const tx = activeCx + Math.cos(ang) * r;
+  const ty = activeCy + Math.sin(ang) * r;
 
   const armAngle =
-    (Math.atan2(
-      ty - py,
-      tx - px
-    ) *
-      180) /
-    Math.PI;
+    (Math.atan2(ty - py, tx - px) * 180) / Math.PI;
 
   const styles =
     makeStyles(
@@ -1272,19 +1828,82 @@ export default function App() {
           />
         </label>
 
-        <input
-          type="color"
-          value={
-            vinylColor
-          }
-          onChange={(
-            e
-          ) =>
-            handleVinylColorChange(
-              e.target.value
-            )
-          }
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, opacity: 0.7 }}>vinyl</span>
+          <input
+            type="color"
+            value={vinylColor}
+            onChange={(e) =>
+              handleVinylColorChange(e.target.value)
+            }
+          />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, opacity: 0.7 }}>opacity</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={vinylOpacity}
+            onChange={(e) =>
+              handleOpacityChange(Number(e.target.value))
+            }
+            style={{ flex: 1, accentColor: dark ? "#fff" : "#000" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", marginBottom: 2 }}>
+            <span style={{ fontSize: 12, opacity: 0.7 }}>deck</span>
+            <input
+              type="color"
+              value={deckColor}
+              onChange={(e) => handleDeckColorChange(e.target.value)}
+              title="deck farbe"
+            />
+          </div>
+          {["classic","dark","chrome","wood","minimal","realistic","realistic2","realistic3"].map((s) => (
+            <button
+              key={s}
+              style={{
+                ...styles.smallBtn,
+                background: deckStyle === s
+                  ? "rgba(255,255,255,0.28)"
+                  : "rgba(255,255,255,0.07)",
+                flex: 1
+              }}
+              onClick={() => handleDeckStyleChange(s)}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, opacity: 0.7 }}>splatter</span>
+          <input
+            type="color"
+            value={splatterColor}
+            onChange={(e) =>
+              handleSplatterColorChange(e.target.value)
+            }
+          />
+          <button
+            style={{
+              ...styles.smallBtn,
+              background: splatterOn
+                ? "rgba(255,255,255,0.25)"
+                : "rgba(255,255,255,0.08)"
+            }}
+            onClick={() =>
+              handleSplatterToggle(!splatterOn)
+            }
+          >
+            {splatterOn ? "on" : "off"}
+          </button>
+        </div>
 
         <button
           style={styles.btn}
@@ -1377,17 +1996,18 @@ export default function App() {
             styles.turntable
           }
         >
-          <div
-            style={
-              styles.plinth
-            }
-          />
+          <TurntableDeck style={deckStyle} color={deckColor} armAngle={armAngle} zIndex={2} />
 
           <div
             style={{
               ...styles.vinyl,
-              background:
-                vinylColor,
+              width:  vinylRadius * 2,
+              height: vinylRadius * 2,
+              left: activeCx - vinylRadius,
+              top:  activeCy - vinylRadius,
+              background: vinylColor,
+              opacity: vinylOpacity,
+              zIndex: 1,
               animation:
                 playing
                   ? "spin 1.55s linear infinite"
@@ -1400,54 +2020,51 @@ export default function App() {
               }
             />
 
+            {splatterOn && (
+              <SplatterOverlay color={splatterColor} />
+            )}
+
             {albumCover ? (
               <img
-                src={
-                  albumCover
-                }
-                style={
-                  styles.labelImg
-                }
+                src={albumCover}
+                style={{
+                  ...styles.labelImg,
+                  width:  Math.round(vinylRadius * (isSingle ? 0.68 : 0.75)),
+                  height: Math.round(vinylRadius * (isSingle ? 0.68 : 0.75))
+                }}
               />
             ) : (
               <div
-                style={
-                  styles.labelFallback
-                }
+                style={{
+                  ...styles.labelFallback,
+                  width:  Math.round(vinylRadius * (isSingle ? 0.68 : 0.75)),
+                  height: Math.round(vinylRadius * (isSingle ? 0.68 : 0.75)),
+                  fontSize: isSingle ? 9 : 14,
+                  background: isSingle ? "#c0392b" : "#111"
+                }}
               >
-                AURAE
+                {isSingle ? "7"" : "AURAE"}
               </div>
+            )}
+            {/* Single: large center hole */}
+            {isSingle && (
+              <div style={{
+                position: "absolute",
+                width: Math.round(vinylRadius * 0.22),
+                height: Math.round(vinylRadius * 0.22),
+                borderRadius: "50%",
+                background: "transparent",
+                border: "2px solid rgba(255,255,255,0.15)",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%,-50%)",
+                zIndex: 10,
+                boxShadow: "0 0 0 3px rgba(0,0,0,0.5)"
+              }}/>
             )}
           </div>
 
-          <div
-            style={
-              styles.armBase
-            }
-          />
-
-          <div
-            style={{
-              ...styles.arm,
-              transform: `rotate(${armAngle}deg)`
-            }}
-          >
-            <div
-              style={
-                styles.armTube
-              }
-            />
-            <div
-              style={
-                styles.armHead
-              }
-            />
-            <div
-              style={
-                styles.armNeedle
-              }
-            />
-          </div>
+          {/* Non-realistic arm is now inside the SVG deck, nothing to render here */}
         </div>
       </div>
 
