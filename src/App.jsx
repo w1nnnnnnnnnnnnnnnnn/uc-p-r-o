@@ -64,7 +64,7 @@ function darken(hex, amt) {
   return `rgb(${c(r)},${c(g)},${c(b)})`;
 }
 
-function TurntableDeck({ style: s, color, armAngle = -32 }) {
+function TurntableDeck({ style: s, color, armAngle = -32, vinylRadius = 188 }) {
   const c = color || "#1a1a1a";
 
   if (s === "realistic" || s === "realistic2" || s === "realistic3") {
@@ -134,10 +134,18 @@ function TurntableDeck({ style: s, color, armAngle = -32 }) {
           </clipPath>
         </defs>
 
-        {/* ── board ── */}
-        <rect x="20" y="20" width="520" height="520" rx={rx}
-          fill="url(#pg)" filter="url(#rs)"
-        />
+        {/* ── board with vinyl hole (evenodd, dynamic radius) ── */}
+        {(()=>{
+          const vr = vinylRadius + 6;
+          const vy = 295 - vr; // top of hole circle
+          const hole = `M255,${vy} A${vr},${vr} 0 1,0 255.001,${vy} Z`;
+          const board = rx===0
+            ? `M20,20 L540,20 L540,540 L20,540 Z`
+            : rx===6
+            ? `M26,20 Q20,20 20,26 L20,534 Q20,540 26,540 L534,540 Q540,540 540,534 L540,26 Q540,20 534,20 Z`
+            : `M48,20 Q20,20 20,48 L20,512 Q20,540 48,540 L512,540 Q540,540 540,512 L540,48 Q540,20 512,20 Z`;
+          return <path d={`${board} ${hole}`} fill="url(#pg)" fillRule="evenodd" filter="url(#rs)"/>;
+        })()}
         <rect x="20" y="20" width="520" height="200" rx={rx}
           fill="url(#ps)"
         />
@@ -152,15 +160,15 @@ function TurntableDeck({ style: s, color, armAngle = -32 }) {
           />
         ))}
 
-        {/* ── platter recess ── */}
+        {/* ── platter recess ring only — no fill so vinyl shows ── */}
+        <circle cx="255" cy="295" r="212"
+          fill="none" stroke={darken(c,22)} strokeWidth="5" opacity="0.8"
+        />
+        <circle cx="255" cy="295" r="215"
+          fill="none" stroke={hi} strokeWidth="1" opacity="0.25"
+        />
         <circle cx="255" cy="295" r="208"
-          fill={darken(c,14)} opacity="0.5"
-        />
-        <circle cx="255" cy="295" r="205"
-          fill="none" stroke={darken(c,22)} strokeWidth="4" opacity="0.7"
-        />
-        <circle cx="255" cy="295" r="209"
-          fill="none" stroke={hi} strokeWidth="0.8" opacity="0.2"
+          fill="none" stroke={darken(c,30)} strokeWidth="2" opacity="0.5"
         />
 
         {/* ── top clips ── */}
@@ -247,38 +255,26 @@ function TurntableDeck({ style: s, color, armAngle = -32 }) {
         <circle cx="471" cy="119" r="5"  fill="#e0e0e0"/>
         <circle cx="469" cy="117" r="1.5" fill="#fff" opacity="0.6"/>
 
-        {/* ── tonearm (rotates) ── */}
-        <g transform={`rotate(${ang} 471 119)`}>
-          {/* main tube */}
-          <rect x="248" y="114.5" width="222" height="9" rx="4.5"
-            fill="url(#ag)"
-          />
-          {/* tube highlight */}
-          <rect x="252" y="115" width="214" height="3" rx="1.5"
-            fill="#e0e0e0" opacity="0.35"
-          />
+        {/* ── tonearm — pivot (471,119), needle tip at (301,119) unrotated = 170px left ── */}
+        <g transform={`rotate(${armAngle} 471 119)`}>
+          {/* arm tube */}
+          <rect x="301" y="114.5" width="170" height="9" rx="4.5" fill="url(#ag)"/>
+          <rect x="303" y="115" width="164" height="3.5" rx="1.5" fill="#e0e0e0" opacity="0.35"/>
           {/* headshell */}
-          <rect x="236" y="109" width="26" height="20" rx="3"
-            fill="#b8b8b8" stroke="#888" strokeWidth="0.8"
-          />
-          <rect x="238" y="111" width="22" height="5" rx="1"
-            fill="#d0d0d0" opacity="0.5"
-          />
+          <rect x="288" y="109" width="24" height="20" rx="3"
+            fill="#b8b8b8" stroke="#888" strokeWidth="0.8"/>
+          <rect x="290" y="110" width="20" height="5" rx="1" fill="#d0d0d0" opacity="0.5"/>
           {/* cartridge */}
-          <rect x="240" y="120" width="18" height="10" rx="2"
-            fill="#444" stroke="#666" strokeWidth="0.6"
-          />
-          {/* stylus */}
-          <line x1="249" y1="130" x2="251" y2="146"
-            stroke="#333" strokeWidth="1.8" strokeLinecap="round"
-          />
+          <rect x="291" y="120" width="16" height="10" rx="2"
+            fill="#444" stroke="#666" strokeWidth="0.6"/>
+          {/* stylus — tip exactly at (301, 119) = pivot y */}
+          <line x1="299" y1="130" x2="299" y2="119"
+            stroke="#222" strokeWidth="2" strokeLinecap="round"/>
+          <circle cx="299" cy="119" r="2.5" fill="#111"/>
           {/* counterweight */}
-          <ellipse cx="480" cy="119" rx="12" ry="8"
-            fill="url(#cw)" stroke="#999" strokeWidth="0.8"
-          />
-          <line x1="468" y1="119" x2="492" y2="119"
-            stroke={mid} strokeWidth="1" opacity="0.4"
-          />
+          <ellipse cx="491" cy="119" rx="13" ry="9"
+            fill="url(#cw)" stroke="#999" strokeWidth="0.8"/>
+          <ellipse cx="491" cy="119" rx="6" ry="4" fill="#666" opacity="0.6"/>
         </g>
 
         {/* ── spindle ── */}
@@ -290,18 +286,28 @@ function TurntableDeck({ style: s, color, armAngle = -32 }) {
     );
   }
 
-  // ── non-realistic designs use deckColor ───────────────────────────────
+  // ── non-realistic designs: each style has its own look, c is accent tint ──
   const plinthMap = {
-    classic: `linear-gradient(145deg,${lighten(c,80)},${lighten(c,40)})`,
-    dark:    `linear-gradient(145deg,${lighten(c,20)},${c})`,
-    chrome:  `linear-gradient(135deg,${lighten(c,70)},${lighten(c,30)},${lighten(c,60)},${c},${lighten(c,50)})`,
-    wood:    `linear-gradient(160deg,${lighten(c,30)},${c},${lighten(c,18)},${darken(c,10)},${lighten(c,22)})`,
-    minimal: `rgba(255,255,255,0.04)`
+    classic: `linear-gradient(145deg,#f0eeeb,#ccc8c0)`,   // warm light grey
+    dark:    `linear-gradient(145deg,#2b2b2b,#111)`,       // near-black
+    chrome:  `linear-gradient(135deg,#e8e8e8,#b0b0b0,#e0e0e0,#909090,#d8d8d8)`, // chrome
+    wood:    `linear-gradient(155deg,#9c6d3e,#6b3f1e,#a87840,#5a3010,#8a5c2e)`, // walnut
+    minimal: `rgba(255,255,255,0.03)`
   };
 
-  const border = s === "minimal" ? "rgba(255,255,255,0.12)" : lighten(c,20);
-  const screws = s === "minimal" ? "rgba(255,255,255,0.15)" : lighten(c,35);
-  const accent = s === "minimal" ? "rgba(255,255,255,0.06)" : darken(c,5);
+  // border/screws/accent derived per style (not from deckColor)
+  const styleMeta = {
+    classic: { border:"#b0aea8", screws:"#c8c5be", accent:"#a0a0a0" },
+    dark:    { border:"#3a3a3a", screws:"#555",    accent:"#222" },
+    chrome:  { border:"#aaa",    screws:"#d0d0d0", accent:"#888" },
+    wood:    { border:"#4a2e10", screws:"#7a5028", accent:"#5a3820" },
+    minimal: { border:"rgba(255,255,255,0.12)", screws:"rgba(255,255,255,0.18)", accent:"rgba(255,255,255,0.05)" },
+  };
+  const meta = styleMeta[s] || styleMeta.classic;
+  // deckColor (c) used as subtle overlay tint on screws/pivot
+  const border = meta.border;
+  const screws = meta.screws;
+  const accent = meta.accent;
 
   return (
     <svg
@@ -323,9 +329,9 @@ function TurntableDeck({ style: s, color, armAngle = -32 }) {
           <rect x="20" y="20" width="520" height="520" rx="28"/>
         </clipPath>
       </defs>
-      {/* Plinth with evenodd hole for vinyl — center (280,280) r=196 */}
+      {/* Plinth with evenodd hole for vinyl — center (280,280) */}
       <path
-        d="M48,20 L512,20 Q540,20 540,48 L540,512 Q540,540 512,540 L48,540 Q20,540 20,512 L20,48 Q20,20 48,20 Z M280,84 A196,196 0 1,0 280.001,84 Z"
+        d={`M48,20 Q20,20 20,48 L20,512 Q20,540 48,540 L512,540 Q540,540 540,512 L540,48 Q540,20 512,20 Z M280,${280-(vinylRadius+8)} A${vinylRadius+8},${vinylRadius+8} 0 1,0 280.001,${280-(vinylRadius+8)} Z`}
         fill={plinthMap[s] || plinthMap.classic}
         fillRule="evenodd"
         filter="url(#deck-shadow)"
@@ -364,24 +370,23 @@ function TurntableDeck({ style: s, color, armAngle = -32 }) {
       <rect x="460" y="490" width="52" height="14" rx="3"
         fill={accent} opacity="0.5"
       />
-      {/* Tonearm rendered in SVG so it's above vinyl */}
+      {/* Tonearm — pivot at (471,119). Needle tip at (306,119) unrotated = 165px left of pivot */}
       <g transform={`rotate(${armAngle || -32} 471 119)`}>
-        <rect x="258" y="115.5" width="212" height="7" rx="3.5"
-          fill="linear-gradient(180deg,#e0e0e0,#888)"
-          stroke="#aaa" strokeWidth="0.5"
-        />
-        <rect x="258" y="115.5" width="212" height="7" rx="3.5"
-          fill="#c0c0c0" opacity="0.9"
-        />
-        <rect x="258" y="115.5" width="212" height="3" rx="1.5"
-          fill="#ebebeb" opacity="0.4"
-        />
-        <rect x="248" y="111" width="20" height="16" rx="3"
-          fill="#aaa" stroke="#888" strokeWidth="0.8"/>
-        <line x1="258" y1="127" x2="260" y2="140"
-          stroke="#444" strokeWidth="1.8" strokeLinecap="round"/>
-        <ellipse cx="478" cy="119" rx="10" ry="7"
-          fill="#999" stroke="#bbb" strokeWidth="0.8"/>
+        {/* arm tube: from needle tip x=306 to pivot x=471 */}
+        <rect x="306" y="116" width="165" height="6" rx="3" fill="#c8c8c8"/>
+        <rect x="306" y="116" width="165" height="2.5" rx="1" fill="#e8e8e8" opacity="0.5"/>
+        {/* headshell at needle end */}
+        <rect x="294" y="111" width="20" height="16" rx="3" fill="#b0b0b0" stroke="#888" strokeWidth="0.8"/>
+        <rect x="296" y="112" width="16" height="4" rx="1" fill="#d0d0d0" opacity="0.5"/>
+        {/* cartridge */}
+        <rect x="297" y="120" width="14" height="8" rx="2" fill="#333" stroke="#555" strokeWidth="0.6"/>
+        {/* stylus — hangs straight down from cartridge, tip at y=119 (pivot y) */}
+        <line x1="304" y1="128" x2="304" y2="119"
+          stroke="#222" strokeWidth="1.8" strokeLinecap="round"/>
+        <circle cx="304" cy="119" r="2" fill="#111"/>
+        {/* counterweight right of pivot */}
+        <ellipse cx="491" cy="119" rx="12" ry="8" fill="#888" stroke="#aaa" strokeWidth="0.8"/>
+        <ellipse cx="491" cy="119" rx="5" ry="3.5" fill="#666"/>
       </g>
     </svg>
   );
@@ -1241,25 +1246,12 @@ export default function App() {
     };
   }, [index, tracks]);
 
-  /* stylus unverändert */
-  const totalSongs =
-    Math.max(
-      tracks.length,
-      1
-    );
-
-  const songProgress =
-    duration > 0
-      ? currentTime /
-        duration
-      : 0;
-
-  const progress =
-    tracks.length === 0
-      ? 0
-      : (index +
-          songProgress) /
-        totalSongs;
+  // Arm position: song 1 = outer groove, last song = inner groove (like a real record).
+  // Each song gets an equal slice of the groove area regardless of how many songs there are.
+  const totalSongs = Math.max(tracks.length, 1);
+  const songProgress = duration > 0 ? currentTime / duration : 0;
+  // progress: 0=outer groove, 1=inner groove. -0.15=parked outside vinyl when no tracks.
+  const progress = tracks.length === 0 ? -0.15 : (index + songProgress) / totalSongs;
 
   const isRealistic = ["realistic","realistic2","realistic3"].includes(deckStyle);
   const isSingle = tracks.length <= 3 && tracks.length > 0;
@@ -1277,10 +1269,10 @@ export default function App() {
     ? (isSingle ? 100 : 140)
     : (isSingle ? 110 : 188);
 
-  const outerR = vinylRadius - 14;   // outermost groove
+  const outerR = vinylRadius - 12;   // outermost groove (just inside vinyl edge)
   const innerR = isRealistic
-    ? (isSingle ? 42 : 55)
-    : (isSingle ? 45 : 92);          // innermost groove (label edge)
+    ? (isSingle ? 38 : 52)
+    : (isSingle ? 42 : 88);          // innermost groove (just outside label)
 
   // Pivot point
   const px = 470, py = 118;
@@ -1294,8 +1286,10 @@ export default function App() {
   const tx = activeCx + Math.cos(ang) * r;
   const ty = activeCy + Math.sin(ang) * r;
 
+  // armAngle: needle is LEFT of pivot in unrotated state (180° offset)
+  // rotate(atan2-180) puts needle exactly at contact point tx,ty
   const armAngle =
-    (Math.atan2(ty - py, tx - px) * 180) / Math.PI;
+    (Math.atan2(ty - py, tx - px) * 180) / Math.PI - 180;
 
   const styles =
     makeStyles(
@@ -1996,7 +1990,7 @@ export default function App() {
             styles.turntable
           }
         >
-          <TurntableDeck style={deckStyle} color={deckColor} armAngle={armAngle} zIndex={2} />
+          <TurntableDeck style={deckStyle} color={deckColor} armAngle={armAngle} vinylRadius={vinylRadius} zIndex={2} />
 
           <div
             style={{
@@ -2043,7 +2037,7 @@ export default function App() {
                   background: isSingle ? "#c0392b" : "#111"
                 }}
               >
-                {isSingle ? "7"" : "AURAE"}
+                {isSingle ? `7"` : "AURAE"}
               </div>
             )}
             {/* Single: large center hole */}
@@ -2633,3 +2627,4 @@ box-sizing:border-box;
 `;
 
 document.head.appendChild(style);
+
