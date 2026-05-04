@@ -71,7 +71,7 @@ const loadAllProjectNames = () =>
     r.onerror = () => res([]);
   });
 
-// Color helpers
+// Helpers
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
@@ -105,6 +105,10 @@ function normalizeDeckStyle(style) {
   return style || "classic";
 }
 
+function holePath(cx, cy, r) {
+  return `M${cx},${cy - r} A${r},${r} 0 1,0 ${cx + 0.001},${cy - r} Z`;
+}
+
 const DEFAULT_VINYL_COLORS = ["#111111", "#304ffe", "#00d4aa", "#ff4d6d"];
 const DECK_STYLES = ["classic", "dark", "chrome", "wood", "minimal", "realistic1", "realistic2", "realistic3"];
 const VINYL_GRADIENTS = ["solid", "radial", "linear", "conic", "aurora"];
@@ -129,732 +133,541 @@ function getVinylBackground(colors, mode) {
   `;
 }
 
-// Decks use a transparent cutout. The vinyl is rendered behind the SVG,
-// so realistic1, realistic2 and realistic3 all show the vinyl correctly.
+function seededRand(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
 
-// CHROME
-function ChromeDeck({ armAngle, armLen, vinylRadius }) {
-  const vr = vinylRadius + 8;
-  const cx = 280;
-  const cy = 280;
-  const hole = `M${cx},${cy - vr} A${vr},${vr} 0 1,0 ${cx + 0.001},${cy - vr} Z`;
-  const board = `M60,20 L500,20 L540,60 L540,420 L500,540 L20,540 L20,60 Z`;
-
+// Deck style primitives
+function DeckDefs({ id, base = "#20242c", accent = "#ffffff" }) {
   return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", left: 0, top: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
-      <defs>
-        <linearGradient id="chr-base" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#d8d8d8" />
-          <stop offset="30%" stopColor="#b0b0b0" />
-          <stop offset="60%" stopColor="#c8c8c8" />
-          <stop offset="100%" stopColor="#888" />
-        </linearGradient>
-        <linearGradient id="chr-panel" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#e8e8e8" />
-          <stop offset="50%" stopColor="#c0c0c0" />
-          <stop offset="100%" stopColor="#909090" />
-        </linearGradient>
-        <linearGradient id="chr-accent" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#00d4ff" />
-          <stop offset="100%" stopColor="#0088cc" />
-        </linearGradient>
-        <linearGradient id="chr-arm" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f0f0f0" />
-          <stop offset="40%" stopColor="#c0c0c0" />
-          <stop offset="100%" stopColor="#808080" />
-        </linearGradient>
-        <filter id="chr-glow">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
-        <filter id="chr-shadow">
-          <feDropShadow dx="0" dy="6" stdDeviation="10" floodOpacity="0.4" />
-        </filter>
-        <pattern id="chr-brush" x="0" y="0" width="4" height="560" patternUnits="userSpaceOnUse">
-          <rect x="0" y="0" width="4" height="560" fill="none" />
-          <line x1="0" y1="0" x2="4" y2="560" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
-        </pattern>
-      </defs>
-
-      <path d={`${board} ${hole}`} fill="url(#chr-base)" fillRule="evenodd" filter="url(#chr-shadow)" />
-      <path d={`${board} ${hole}`} fill="url(#chr-brush)" fillRule="evenodd" opacity="0.6" />
-
-      <polygon points="20,60 80,20 140,20 20,140" fill="url(#chr-accent)" opacity="0.7" />
-      <polygon points="500,540 540,540 540,480" fill="url(#chr-accent)" opacity="0.5" />
-
-      {Array.from({ length: 18 }).map((_, i) => (
-        <circle key={i} cx={80 + i * 22} cy={32} r="3" fill="#00d4ff" opacity={0.6 + Math.sin(i) * 0.4} filter="url(#chr-glow)" />
-      ))}
-
-      <rect x="448" y="80" width="78" height="360" rx="10" fill="rgba(255,255,255,0.22)" stroke="rgba(0,212,255,0.38)" strokeWidth="1.5" />
-      {Array.from({ length: 20 }).map((_, i) => (
-        <line key={i} x1="448" y1={80 + i * 18} x2="526" y2={80 + i * 18} stroke="rgba(0,0,0,0.08)" strokeWidth="0.5" />
-      ))}
-      <line x1="452" y1="84" x2="452" y2="436" stroke="url(#chr-accent)" strokeWidth="2" opacity="0.8" />
-
-      <rect x="456" y="90" width="60" height="50" rx="7" fill="#0a0a0a" />
-      <text x="486" y="106" fill="#00d4ff" fontSize="7" fontFamily="monospace" textAnchor="middle" letterSpacing="1">OUTPUT</text>
-      {Array.from({ length: 8 }).map((_, i) => (
-        <rect
-          key={i}
-          x={458 + i * 6}
-          y={115}
-          width="4"
-          height={22 - i * 1.5}
-          rx="1"
-          fill={i < 5 ? "#00d4ff" : i < 7 ? "#88ff00" : "#ff4400"}
-          opacity={0.3 + i * 0.09}
-        />
-      ))}
-
-      {[["33", 460, 168], ["45", 490, 168], ["78", 475, 192]].map(([lbl, x, y]) => (
-        <g key={lbl}>
-          <polygon
-            points={`${x},${y - 10} ${x + 9},${y - 5} ${x + 9},${y + 5} ${x},${y + 10} ${x - 9},${y + 5} ${x - 9},${y - 5}`}
-            fill="#1a1a1a"
-            stroke="rgba(0,212,255,0.5)"
-            strokeWidth="1"
-          />
-          <text x={x} y={y + 4} fill="#00d4ff" fontSize="7" fontFamily="monospace" textAnchor="middle">{lbl}</text>
-        </g>
-      ))}
-
-      {[[487, 240, "GAIN"], [487, 290, "TRIM"], [487, 340, "EQ"]].map(([x, y, lbl]) => (
-        <g key={lbl}>
-          <circle cx={x} cy={y} r="16" fill="#1a1a1a" stroke="rgba(0,212,255,0.4)" strokeWidth="1.5" />
-          <circle cx={x} cy={y} r="11" fill="#2a2a2a" />
-          <line x1={x} y1={y - 6} x2={x} y2={y - 11} stroke="#00d4ff" strokeWidth="2" strokeLinecap="round" />
-          <text x={x} y={y + 28} fill="#666" fontSize="6" fontFamily="monospace" textAnchor="middle">{lbl}</text>
-        </g>
-      ))}
-
-      <circle cx={cx} cy={cy} r={vr + 12} fill="none" stroke="rgba(0,212,255,0.2)" strokeWidth="8" />
-      <circle cx={cx} cy={cy} r={vr + 16} fill="none" stroke="rgba(0,212,255,0.15)" strokeWidth="2" />
-      <circle cx={cx} cy={cy} r={vr + 4} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="3" />
-
-      <circle cx="471" cy="119" r="22" fill="url(#chr-panel)" stroke="rgba(0,212,255,0.5)" strokeWidth="1.5" />
-      <circle cx="471" cy="119" r="13" fill="#1a1a1a" />
-      <circle cx="471" cy="119" r="5" fill="url(#chr-accent)" />
-
-      {(() => {
-        const nx = 471 - armLen;
-        return (
-          <g transform={`rotate(${armAngle} 471 119)`}>
-            <rect x={nx} y="115" width={armLen} height="8" rx="4" fill="url(#chr-arm)" />
-            <rect x={nx + 2} y="115.5" width={armLen - 4} height="3" rx="1.5" fill="rgba(255,255,255,0.4)" />
-            <rect x={nx - 14} y="110" width="22" height="18" rx="3" fill="#c0c0c0" stroke="rgba(0,212,255,0.5)" strokeWidth="0.8" />
-            <rect x={nx - 12} y="121" width="16" height="8" rx="2" fill="#111" />
-            <line x1={nx - 4} y1="129" x2={nx - 4} y2="119" stroke="#00d4ff" strokeWidth="1.5" strokeLinecap="round" />
-            <circle cx={nx - 4} cy="119" r="2" fill="#00d4ff" />
-            <ellipse cx="491" cy="119" rx="12" ry="8" fill="url(#chr-panel)" stroke="rgba(0,212,255,0.4)" strokeWidth="0.8" />
-          </g>
-        );
-      })()}
-
-      {[[36, 36], [524, 36], [36, 524], [524, 524]].map(([x, y], i) => (
-        <g key={i}>
-          <circle cx={x} cy={y} r="6" fill="#c0c0c0" stroke="#888" strokeWidth="1" />
-          <circle cx={x} cy={y} r="2" fill="#666" />
-        </g>
-      ))}
-
-      <circle cx={cx} cy={cy} r="5" fill="url(#chr-panel)" stroke="rgba(0,212,255,0.5)" strokeWidth="1" />
-      <circle cx={cx} cy={cy} r="2" fill="#00d4ff" />
-    </svg>
+    <defs>
+      <filter id={`${id}-shadow`}>
+        <feDropShadow dx="0" dy="14" stdDeviation="18" floodOpacity="0.34" />
+      </filter>
+      <filter id={`${id}-soft`}>
+        <feDropShadow dx="0" dy="3" stdDeviation="5" floodOpacity="0.25" />
+      </filter>
+      <filter id={`${id}-glow`}>
+        <feGaussianBlur stdDeviation="4" result="blur" />
+        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+      </filter>
+      <linearGradient id={`${id}-glass`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor={lighten(base, 64)} stopOpacity="0.9" />
+        <stop offset="42%" stopColor={base} stopOpacity="0.78" />
+        <stop offset="100%" stopColor={darken(base, 34)} stopOpacity="0.95" />
+      </linearGradient>
+      <linearGradient id={`${id}-shine`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#fff" stopOpacity="0.25" />
+        <stop offset="58%" stopColor="#fff" stopOpacity="0.05" />
+        <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+      </linearGradient>
+      <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#f2f2f2" />
+        <stop offset="48%" stopColor="#acacac" />
+        <stop offset="100%" stopColor="#606060" />
+      </linearGradient>
+      <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="68%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.92" />
+        <stop offset="48%" stopColor="#b8b8b8" />
+        <stop offset="100%" stopColor="#3f3f3f" />
+      </radialGradient>
+      <linearGradient id={`${id}-accent`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor={accent} />
+        <stop offset="100%" stopColor={lighten(accent, 34)} />
+      </linearGradient>
+    </defs>
   );
 }
 
-// DARK
-function DarkDeck({ armAngle, armLen, vinylRadius }) {
-  const vr = vinylRadius + 8;
-  const cx = 280;
-  const cy = 280;
-  const hole = `M${cx},${cy - vr} A${vr},${vr} 0 1,0 ${cx + 0.001},${cy - vr} Z`;
-  const board = `M20,20 L540,20 L540,540 L20,540 Z`;
+function Tonearm({ id, pivotX = 471, pivotY = 119, armAngle, armLen, accent = "#111" }) {
+  const nx = pivotX - armLen;
 
   return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", left: 0, top: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
-      <defs>
-        <linearGradient id="dk-base" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#2a2a2a" />
-          <stop offset="50%" stopColor="#111" />
-          <stop offset="100%" stopColor="#0a0a0a" />
-        </linearGradient>
-        <linearGradient id="dk-arm" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#555" />
-          <stop offset="100%" stopColor="#222" />
-        </linearGradient>
-        <linearGradient id="dk-red" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#cc0000" />
-          <stop offset="100%" stopColor="#880000" />
-        </linearGradient>
-        <filter id="dk-shadow">
-          <feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.7" floodColor="#000" />
-        </filter>
-        <pattern id="dk-grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-          <rect x="0" y="0" width="20" height="20" fill="none" />
-          <line x1="0" y1="0" x2="20" y2="20" stroke="rgba(255,255,255,0.02)" strokeWidth="0.5" />
-          <line x1="20" y1="0" x2="0" y2="20" stroke="rgba(255,255,255,0.02)" strokeWidth="0.5" />
-        </pattern>
-      </defs>
-
-      <path d={`${board} ${hole}`} fill="url(#dk-base)" fillRule="evenodd" filter="url(#dk-shadow)" />
-      <path d={`${board} ${hole}`} fill="url(#dk-grid)" fillRule="evenodd" opacity="0.8" />
-      <rect x="20" y="20" width="520" height="520" fill="none" stroke="#333" strokeWidth="4" />
-      <rect x="24" y="24" width="512" height="512" fill="none" stroke="#444" strokeWidth="1" />
-      <rect x="28" y="28" width="504" height="504" fill="none" stroke="#222" strokeWidth="1" />
-      <rect x="20" y="20" width="520" height="6" fill="url(#dk-red)" />
-      <rect x="20" y="534" width="520" height="6" fill="url(#dk-red)" />
-
-      {Array.from({ length: 8 }).map((_, i) => (
-        <line key={i} x1={28 + i * 14} y1="528" x2={28 + (i + 1) * 14} y2="514" stroke="#cc0000" strokeWidth="3" opacity="0.4" />
-      ))}
-
-      <rect x="436" y="30" width="96" height="504" fill="#1a1a1a" stroke="#333" strokeWidth="2" />
-      {[80, 140, 200, 260, 320, 380, 440, 500].map((y) => (
-        <line key={y} x1="436" y1={y} x2="532" y2={y} stroke="#2a2a2a" strokeWidth="2" />
-      ))}
-
-      <rect x="444" y="36" width="80" height="36" rx="4" fill="#0a0a0a" stroke="#444" strokeWidth="1.5" />
-      <text x="484" y="50" fill="#cc0000" fontSize="8" fontFamily="monospace" textAnchor="middle" letterSpacing="2">POWER</text>
-      <rect x="460" y="54" width="48" height="14" rx="7" fill="#cc0000" />
-      <rect x="461" y="55" width="22" height="12" rx="6" fill="#ff3333" />
-      <text x="474" y="64" fill="#fff" fontSize="7" fontFamily="monospace" textAnchor="middle">ON</text>
-
-      {[[484, 116, "SPEED"], [484, 180, "PITCH"], [484, 244, "FILTER"]].map(([x, y, lbl]) => (
-        <g key={lbl}>
-          <circle cx={x} cy={y} r="22" fill="#0a0a0a" stroke="#444" strokeWidth="3" />
-          <circle cx={x} cy={y} r="17" fill="#1a1a1a" stroke="#333" strokeWidth="1" />
-          {[0, 90, 180, 270].map((a) => (
-            <circle key={a} cx={x + 17 * Math.cos((a * Math.PI) / 180)} cy={y + 17 * Math.sin((a * Math.PI) / 180)} r="2.5" fill="#0a0a0a" stroke="#555" strokeWidth="0.8" />
-          ))}
-          <line x1={x} y1={y - 8} x2={x} y2={y - 17} stroke="#cc0000" strokeWidth="3" strokeLinecap="square" />
-          <text x={x} y={y + 35} fill="#555" fontSize="6" fontFamily="monospace" textAnchor="middle" letterSpacing="1">{lbl}</text>
-        </g>
-      ))}
-
-      <rect x="462" y="280" width="44" height="130" rx="4" fill="#0a0a0a" stroke="#333" strokeWidth="1.5" />
-      <rect x="470" y="290" width="8" height="110" rx="4" fill="#222" />
-      <rect x="458" y="320" width="52" height="20" rx="6" fill="#333" stroke="#555" strokeWidth="1" />
-      {Array.from({ length: 7 }).map((_, i) => (
-        <line key={i} x1="455" y1={290 + i * 15} x2="462" y2={290 + i * 15} stroke="#444" strokeWidth="1" />
-      ))}
-      <text x="484" y="422" fill="#555" fontSize="6" fontFamily="monospace" textAnchor="middle">VOL</text>
-
-      {[["START", "#003300", "#00aa00", 430], ["STOP", "#330000", "#cc0000", 468]].map(([lbl, bg, fg, y]) => (
-        <g key={lbl}>
-          <rect x="448" y={y} width="76" height="30" rx="6" fill={bg} stroke={fg} strokeWidth="1.5" />
-          <text x="486" y={y + 19} fill={fg} fontSize="9" fontFamily="monospace" textAnchor="middle" letterSpacing="1">{lbl}</text>
-        </g>
-      ))}
-
-      <circle cx={cx} cy={cy} r={vr + 10} fill="none" stroke="#333" strokeWidth="6" />
-      <circle cx={cx} cy={cy} r={vr + 13} fill="none" stroke="#222" strokeWidth="2" />
-      <circle cx={cx} cy={cy} r={vr + 6} fill="none" stroke="#444" strokeWidth="1" />
-
-      <circle cx="471" cy="119" r="20" fill="#1a1a1a" stroke="#444" strokeWidth="3" />
-      <circle cx="471" cy="119" r="10" fill="#cc0000" />
-      <circle cx="471" cy="119" r="4" fill="#0a0a0a" />
-
-      {(() => {
-        const nx = 471 - armLen;
-        return (
-          <g transform={`rotate(${armAngle} 471 119)`}>
-            <rect x={nx} y="115" width={armLen} height="8" rx="0" fill="url(#dk-arm)" />
-            <rect x={nx + 2} y="115.5" width={armLen - 4} height="2" rx="0" fill="rgba(255,255,255,0.15)" />
-            <rect x={nx - 14} y="110" width="22" height="18" rx="0" fill="#2a2a2a" stroke="#555" strokeWidth="1" />
-            <rect x={nx - 12} y="121" width="16" height="8" rx="0" fill="#cc0000" />
-            <line x1={nx - 4} y1="129" x2={nx - 4} y2="119" stroke="#444" strokeWidth="2" strokeLinecap="square" />
-            <ellipse cx="491" cy="119" rx="12" ry="7" fill="#1a1a1a" stroke="#444" strokeWidth="1.5" />
-          </g>
-        );
-      })()}
-
-      {[[28, 28], [532, 28], [28, 532], [532, 532]].map(([x, y], i) => (
-        <g key={i}>
-          <rect x={x - 8} y={y - 8} width="16" height="16" rx="0" fill="#1a1a1a" stroke="#555" strokeWidth="1.5" />
-          <line x1={x - 5} y1={y} x2={x + 5} y2={y} stroke="#666" strokeWidth="1.5" />
-          <line x1={x} y1={y - 5} x2={x} y2={y + 5} stroke="#666" strokeWidth="1.5" />
-        </g>
-      ))}
-
-      <circle cx={cx} cy={cy} r="5" fill="#333" stroke="#555" strokeWidth="1.5" />
-      <rect x={cx - 2} y={cy - 2} width="4" height="4" fill="#cc0000" />
-    </svg>
-  );
-}
-
-// WOOD
-function WoodDeck({ armAngle, armLen, vinylRadius }) {
-  const vr = vinylRadius + 8;
-  const cx = 280;
-  const cy = 280;
-  const hole = `M${cx},${cy - vr} A${vr},${vr} 0 1,0 ${cx + 0.001},${cy - vr} Z`;
-  const board = `M32,20 Q20,20 20,32 L20,528 Q20,540 32,540 L528,540 Q540,540 540,528 L540,32 Q540,20 528,20 Z`;
-
-  return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", left: 0, top: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
-      <defs>
-        <linearGradient id="wd-grain1" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#8B5E3C" />
-          <stop offset="8%" stopColor="#7A4F2D" />
-          <stop offset="16%" stopColor="#9C6B3E" />
-          <stop offset="25%" stopColor="#6B3F1E" />
-          <stop offset="33%" stopColor="#8A5430" />
-          <stop offset="42%" stopColor="#7B4A26" />
-          <stop offset="50%" stopColor="#9D6840" />
-          <stop offset="58%" stopColor="#6C4020" />
-          <stop offset="67%" stopColor="#8C5835" />
-          <stop offset="75%" stopColor="#7A4D2A" />
-          <stop offset="83%" stopColor="#966239" />
-          <stop offset="92%" stopColor="#6E4222" />
-          <stop offset="100%" stopColor="#855530" />
-        </linearGradient>
-        <linearGradient id="wd-grain2" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-          <stop offset="15%" stopColor="rgba(0,0,0,0.08)" />
-          <stop offset="30%" stopColor="rgba(0,0,0,0)" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.04)" />
-          <stop offset="70%" stopColor="rgba(0,0,0,0.06)" />
-          <stop offset="85%" stopColor="rgba(0,0,0,0)" />
-          <stop offset="100%" stopColor="rgba(0,0,0,0.05)" />
-        </linearGradient>
-        <linearGradient id="wd-brass" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#d4a843" />
-          <stop offset="40%" stopColor="#c8952a" />
-          <stop offset="70%" stopColor="#e0b84a" />
-          <stop offset="100%" stopColor="#a07820" />
-        </linearGradient>
-        <linearGradient id="wd-arm" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#e0b84a" />
-          <stop offset="50%" stopColor="#c8952a" />
-          <stop offset="100%" stopColor="#9a7018" />
-        </linearGradient>
-        <filter id="wd-shadow">
-          <feDropShadow dx="0" dy="6" stdDeviation="12" floodOpacity="0.5" floodColor="#2a1505" />
-        </filter>
-        <pattern id="wd-lines" x="0" y="0" width="1" height="8" patternUnits="userSpaceOnUse">
-          <line x1="0" y1="0" x2="560" y2="0" stroke="rgba(0,0,0,0.06)" strokeWidth="0.8" />
-          <line x1="0" y1="4" x2="560" y2="4" stroke="rgba(255,255,255,0.03)" strokeWidth="0.4" />
-        </pattern>
-      </defs>
-
-      <path d={`${board} ${hole}`} fill="url(#wd-grain1)" fillRule="evenodd" filter="url(#wd-shadow)" />
-      <path d={`${board} ${hole}`} fill="url(#wd-grain2)" fillRule="evenodd" opacity="0.9" />
-      <path d={`${board} ${hole}`} fill="url(#wd-lines)" fillRule="evenodd" opacity="0.8" />
-      <ellipse cx="200" cy="180" rx="180" ry="100" fill="rgba(255,255,255,0.06)" transform="rotate(-20 200 180)" />
-
-      <rect x="28" y="28" width="504" height="504" rx="10" fill="none" stroke="url(#wd-brass)" strokeWidth="3" />
-      <rect x="32" y="32" width="496" height="496" rx="8" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="1" />
-      <rect x="38" y="38" width="484" height="484" rx="6" fill="none" stroke="rgba(212,168,67,0.3)" strokeWidth="1" />
-
-      <path
-        d="M430,38 Q438,38 438,46 L438,514 Q438,522 430,522 L528,522 Q536,522 536,514 L536,46 Q536,38 528,38 Z"
-        fill="rgba(0,0,0,0.25)"
-        stroke="url(#wd-brass)"
-        strokeWidth="1.5"
-      />
-
-      <rect x="434" y="42" width="98" height="18" rx="5" fill="url(#wd-brass)" opacity="0.8" />
-      <text x="483" y="54" fill="#4a3000" fontSize="7.5" fontFamily="serif" textAnchor="middle" letterSpacing="1.5">CONTROLS</text>
-
-      {[[483, 100, "VOLUME"], [483, 180, "BASS"], [483, 260, "TREBLE"], [483, 340, "BALANCE"]].map(([x, y, lbl]) => (
-        <g key={lbl}>
-          <circle cx={x} cy={y} r="24" fill="#2a1a08" stroke="url(#wd-brass)" strokeWidth="2.5" />
-          <circle cx={x} cy={y} r="20" fill="#1a0e04" />
-          {Array.from({ length: 12 }).map((_, i) => {
-            const a = (i * 30 * Math.PI) / 180;
-            return (
-              <line
-                key={i}
-                x1={x + 16 * Math.cos(a)}
-                y1={y + 16 * Math.sin(a)}
-                x2={x + 20 * Math.cos(a)}
-                y2={y + 20 * Math.sin(a)}
-                stroke="#c8952a"
-                strokeWidth="1"
-                opacity="0.6"
-              />
-            );
-          })}
-          <circle cx={x} cy={y} r="10" fill="#2a1a08" />
-          <line x1={x} y1={y - 5} x2={x} y2={y - 14} stroke="url(#wd-brass)" strokeWidth="2" strokeLinecap="round" />
-          <rect x={x - 16} y={y + 28} width="32" height="10" rx="3" fill="rgba(212,168,67,0.15)" stroke="rgba(212,168,67,0.3)" strokeWidth="0.8" />
-          <text x={x} y={y + 36} fill="#c8952a" fontSize="6" fontFamily="serif" textAnchor="middle" letterSpacing="0.5">{lbl}</text>
-        </g>
-      ))}
-
-      <rect x="446" y="400" width="74" height="52" rx="5" fill="rgba(0,0,0,0.3)" stroke="url(#wd-brass)" strokeWidth="1" />
-      <text x="483" y="414" fill="#c8952a" fontSize="7" fontFamily="serif" textAnchor="middle">RPM</text>
-      {[["33 1/3", 448, 430], ["45", 478, 430], ["78", 448, 450], ["16", 478, 450]].map(([lbl, x, y]) => (
-        <g key={lbl}>
-          <circle cx={x + 8} cy={y} r="7" fill="#1a0e04" stroke="url(#wd-brass)" strokeWidth="0.8" />
-          <text x={x + 8} y={y + 3} fill="#c8952a" fontSize="6" fontFamily="serif" textAnchor="middle">{lbl}</text>
-        </g>
-      ))}
-
-      <circle cx={cx} cy={cy} r={vr + 16} fill="none" stroke="#2a1505" strokeWidth="10" />
-      <circle cx={cx} cy={cy} r={vr + 10} fill="none" stroke="url(#wd-brass)" strokeWidth="1.5" opacity="0.5" />
-      <circle cx={cx} cy={cy} r={vr + 20} fill="none" stroke="rgba(0,0,0,0.4)" strokeWidth="4" />
-
-      <circle cx="471" cy="119" r="22" fill="#1a0e04" stroke="url(#wd-brass)" strokeWidth="2.5" />
-      <circle cx="471" cy="119" r="14" fill="url(#wd-brass)" />
-      <circle cx="471" cy="119" r="7" fill="#2a1a08" />
-      <circle cx="469" cy="117" r="2" fill="rgba(255,255,255,0.4)" />
-
-      <line x1="493" y1="105" x2="510" y2="92" stroke="url(#wd-brass)" strokeWidth="1.5" />
-      <circle cx="512" cy="91" r="4" fill="url(#wd-brass)" stroke="#7a5018" strokeWidth="0.8" />
-
-      {(() => {
-        const nx = 471 - armLen;
-        return (
-          <g transform={`rotate(${armAngle} 471 119)`}>
-            <rect x={nx} y="115" width={armLen} height="8" rx="4" fill="url(#wd-arm)" />
-            <rect x={nx + 2} y="115.5" width={armLen - 4} height="3" rx="1.5" fill="rgba(255,255,255,0.3)" />
-            <rect x={nx - 14} y="110" width="22" height="18" rx="3" fill="#c8952a" stroke="#7a5018" strokeWidth="0.8" />
-            <rect x={nx - 12} y="121" width="16" height="8" rx="2" fill="#1a0e04" />
-            <line x1={nx - 5} y1="129" x2={nx - 5} y2="119" stroke="#c8952a" strokeWidth="1.5" />
-            <circle cx={nx - 5} cy="119" r="2" fill="#e0b84a" />
-            <ellipse cx="491" cy="119" rx="12" ry="8" fill="url(#wd-brass)" stroke="#7a5018" strokeWidth="0.8" />
-            <ellipse cx="491" cy="119" rx="6" ry="4" fill="#2a1a08" />
-          </g>
-        );
-      })()}
-
-      {[[28, 28], [532, 28], [28, 532], [532, 532]].map(([x, y], i) => (
-        <g key={i}>
-          <path
-            d={`M${x - 10},${y} A10,10 0 0,1 ${x},${y - 10} L${x + 10},${y - 10} L${x + 10},${y + 10} L${x - 10},${y + 10} Z`}
-            fill="url(#wd-brass)"
-            opacity="0.7"
-          />
-          <circle cx={x} cy={y} r="4" fill="#2a1a08" stroke="url(#wd-brass)" strokeWidth="0.8" />
-        </g>
-      ))}
-
-      <circle cx={cx} cy={cy} r="5.5" fill="url(#wd-brass)" stroke="#7a5018" strokeWidth="1" />
-      <circle cx={cx} cy={cy} r="2.5" fill="#1a0e04" />
-    </svg>
-  );
-}
-// MINIMAL
-function MinimalDeck({ armAngle, armLen, vinylRadius }) {
-  const vr = vinylRadius + 8;
-  const cx = 280;
-  const cy = 280;
-  const hole = `M${cx},${cy - vr} A${vr},${vr} 0 1,0 ${cx + 0.001},${cy - vr} Z`;
-  const board = `M20,20 L540,20 L540,540 L20,540 Z`;
-
-  return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", left: 0, top: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
-      <defs>
-        <linearGradient id="mn-base" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.08)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0.03)" />
-        </linearGradient>
-        <linearGradient id="mn-arm" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.7)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0.3)" />
-        </linearGradient>
-        <filter id="mn-glow">
-          <feGaussianBlur stdDeviation="4" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
-        <filter id="mn-shadow">
-          <feDropShadow dx="0" dy="20" stdDeviation="30" floodOpacity="0.3" />
-        </filter>
-      </defs>
-
-      <path d={`${board} ${hole}`} fill="url(#mn-base)" fillRule="evenodd" filter="url(#mn-shadow)" />
-      <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-
-      {[
-        [20, 20, 1, 0, 0, 1],
-        [540, 20, -1, 0, 0, 1],
-        [20, 540, 1, 0, 0, -1],
-        [540, 540, -1, 0, 0, -1],
-      ].map(([x, y, dx1, dy1, dx2, dy2], i) => (
-        <g key={i}>
-          <line x1={x} y1={y} x2={x + dx1 * 24} y2={y} stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
-          <line x1={x} y1={y} x2={x} y2={y + dy2 * 24} stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
-        </g>
-      ))}
-
-      <circle cx={cx} cy={cy} r={vr + 16} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-      <circle cx={cx} cy={cy} r={vr + 4} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-
-      <circle cx="480" cy="480" r="3" fill="rgba(255,255,255,0.5)" />
-      <circle cx="492" cy="480" r="3" fill="rgba(255,255,255,0.2)" />
-      <circle cx="504" cy="480" r="3" fill="rgba(255,255,255,0.2)" />
-      <text x="492" y="496" fill="rgba(255,255,255,0.25)" fontSize="7" fontFamily="monospace" textAnchor="middle" letterSpacing="2">RPM</text>
-
-      <circle cx="471" cy="119" r="16" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" />
-      <circle cx="471" cy="119" r="3" fill="rgba(255,255,255,0.6)" />
-
-      {(() => {
-        const nx = 471 - armLen;
-        return (
-          <g transform={`rotate(${armAngle} 471 119)`}>
-            <line x1={nx} y1="119" x2={471} y2="119" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
-            <rect x={nx - 8} y="114" width="12" height="10" rx="1" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" />
-            <circle cx={nx - 2} cy="124" r="1.5" fill="rgba(255,255,255,0.8)" filter="url(#mn-glow)" />
-            <ellipse cx="491" cy="119" rx="10" ry="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" />
-          </g>
-        );
-      })()}
-
-      <line x1="524" y1="100" x2="524" y2="440" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-      <line x1="524" y1="120" x2="524" y2="400" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-      <circle cx="524" cy="280" r="5" fill="rgba(255,255,255,0.4)" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
-      <text x="524" y="416" fill="rgba(255,255,255,0.2)" fontSize="6" fontFamily="monospace" textAnchor="middle" letterSpacing="1">VOL</text>
-
-      <circle cx={cx} cy={cy} r="3" fill="rgba(255,255,255,0.6)" filter="url(#mn-glow)" />
-      <circle cx={cx} cy={cy} r="1" fill="rgba(255,255,255,0.9)" />
-    </svg>
+    <g transform={`rotate(${armAngle} ${pivotX} ${pivotY})`}>
+      <rect x={nx} y={pivotY - 4.5} width={armLen} height="9" rx="4.5" fill={`url(#${id}-arm)`} />
+      <rect x={nx + 3} y={pivotY - 4} width={armLen - 6} height="3" rx="1.5" fill="rgba(255,255,255,0.42)" />
+      <rect x={nx - 15} y={pivotY - 10} width="26" height="20" rx="4" fill="#c8c8c8" stroke="#777" strokeWidth="0.8" />
+      <rect x={nx - 12} y={pivotY + 1} width="18" height="10" rx="2.5" fill="#2b2b2b" stroke="#555" strokeWidth="0.5" />
+      <line x1={nx - 4} y1={pivotY + 11} x2={nx - 4} y2={pivotY + 3} stroke={accent} strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx={nx - 4} cy={pivotY + 3} r="2" fill={accent} />
+      <ellipse cx={pivotX + 18} cy={pivotY} rx="13" ry="9" fill="#9e9e9e" stroke="#777" strokeWidth="0.8" />
+      <ellipse cx={pivotX + 18} cy={pivotY} rx="6" ry="4" fill="rgba(0,0,0,0.35)" />
+    </g>
   );
 }
 
 // CLASSIC
 function ClassicDeck({ armAngle, armLen, vinylRadius }) {
-  const vr = vinylRadius + 8;
+  const id = "classic";
   const cx = 280;
   const cy = 280;
-  const hole = `M${cx},${cy - vr} A${vr},${vr} 0 1,0 ${cx + 0.001},${cy - vr} Z`;
+  const vr = vinylRadius + 8;
   const board = `M48,20 Q20,20 20,48 L20,512 Q20,540 48,540 L512,540 Q540,540 540,512 L540,48 Q540,20 512,20 Z`;
+  const hole = holePath(cx, cy, vr);
 
   return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", left: 0, top: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
-      <defs>
-        <linearGradient id="cl-base" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#f0eeeb" />
-          <stop offset="50%" stopColor="#dddad5" />
-          <stop offset="100%" stopColor="#ccc8c0" />
-        </linearGradient>
-        <linearGradient id="cl-arm" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#e8e8e8" />
-          <stop offset="50%" stopColor="#a8a8a8" />
-          <stop offset="100%" stopColor="#686868" />
-        </linearGradient>
-        <filter id="cl-shadow">
-          <feDropShadow dx="2" dy="4" stdDeviation="8" floodOpacity="0.2" />
-        </filter>
-      </defs>
+    <svg viewBox="0 0 560 560" className="deckSvg">
+      <DeckDefs id={id} base="#e7e4dd" accent="#ffffff" />
 
-      <path d={`${board} ${hole}`} fill="url(#cl-base)" fillRule="evenodd" filter="url(#cl-shadow)" />
-      <rect x="20" y="20" width="520" height="520" rx="28" fill="none" stroke="#b0aea8" strokeWidth="1.5" />
-      <circle cx={cx} cy={cy} r={vr + 10} fill="none" stroke="#b0aea8" strokeWidth="3" opacity="0.5" />
-      <circle cx={cx} cy={cy} r={vr + 12} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
-      <rect x="42" y="42" width="476" height="476" rx="20" fill="none" stroke="#a0a0a0" strokeWidth="1" opacity="0.4" />
+      <path d={`${board} ${hole}`} fill={`url(#${id}-glass)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+      <path d={`${board} ${hole}`} fill={`url(#${id}-shine)`} fillRule="evenodd" />
+
+      <rect x="20" y="20" width="520" height="520" rx="28" fill="none" stroke="rgba(255,255,255,0.48)" strokeWidth="1.4" />
+      <rect x="42" y="42" width="476" height="476" rx="20" fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="1" />
+
+      <circle cx={cx} cy={cy} r={vr + 13} fill="none" stroke="rgba(255,255,255,0.44)" strokeWidth="2" />
+      <circle cx={cx} cy={cy} r={vr + 7} fill="none" stroke="rgba(0,0,0,0.18)" strokeWidth="5" />
 
       {[[52, 52], [508, 52], [52, 508], [508, 508]].map(([x, y], i) => (
         <g key={i}>
-          <circle cx={x} cy={y} r="7" fill="#c8c5be" opacity="0.8" />
-          <line x1={x - 4} y1={y} x2={x + 4} y2={y} stroke="#a0a0a0" strokeWidth="1.2" />
-          <line x1={x} y1={y - 4} x2={x} y2={y + 4} stroke="#a0a0a0" strokeWidth="1.2" />
+          <circle cx={x} cy={y} r="7" fill="rgba(255,255,255,0.5)" stroke="rgba(0,0,0,0.18)" />
+          <line x1={x - 4} y1={y} x2={x + 4} y2={y} stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
         </g>
       ))}
 
-      <circle cx="471" cy="119" r="19" fill="#dddad5" stroke="#b0aea8" strokeWidth="1.5" />
-      <circle cx="471" cy="119" r="8" fill="url(#cl-arm)" />
-      <circle cx="68" cy="492" r="5" fill="#c8c5be" opacity="0.7" />
-      <circle cx="84" cy="492" r="5" fill="#c8c5be" opacity="0.4" />
-      <rect x="460" y="490" width="52" height="14" rx="5" fill="#a0a0a0" opacity="0.5" />
+      <rect x="444" y="454" width="70" height="42" rx="14" fill="rgba(255,255,255,0.28)" stroke="rgba(255,255,255,0.42)" />
+      <circle cx="466" cy="476" r="8" fill="rgba(255,255,255,0.65)" />
+      <circle cx="492" cy="476" r="8" fill="rgba(0,0,0,0.18)" />
 
-      {(() => {
-        const nx = 471 - armLen;
-        return (
-          <g transform={`rotate(${armAngle} 471 119)`}>
-            <rect x={nx} y="116" width={armLen} height="6" rx="3" fill="url(#cl-arm)" />
-            <rect x={nx} y="116" width={armLen} height="2.5" rx="1" fill="rgba(255,255,255,0.5)" />
-            <rect x={nx - 12} y="111" width="20" height="16" rx="3" fill="#b0b0b0" stroke="#888" strokeWidth="0.8" />
-            <rect x={nx - 9} y="120" width="14" height="8" rx="2" fill="#333" />
-            <line x1={nx} y1="128" x2={nx} y2="119" stroke="#222" strokeWidth="1.8" />
-            <circle cx={nx} cy="119" r="2.5" fill="#111" />
-            <ellipse cx="491" cy="119" rx="12" ry="8" fill="#888" stroke="#aaa" strokeWidth="0.8" />
-          </g>
-        );
-      })()}
+      <circle cx="471" cy="119" r="22" fill="rgba(255,255,255,0.35)" stroke="rgba(0,0,0,0.16)" filter={`url(#${id}-soft)`} />
+      <circle cx="471" cy="119" r="11" fill={`url(#${id}-knob)`} />
+      <Tonearm id={id} armAngle={armAngle} armLen={armLen} accent="#111" />
 
-      <circle cx={cx} cy={cy} r="5" fill="#c8c5be" stroke="#b0aea8" strokeWidth="1" />
-      <circle cx={cx} cy={cy} r="2" fill="#e0e0e0" />
+      <circle cx={cx} cy={cy} r="5.5" fill="#d7d4ce" stroke="#9d9a93" />
     </svg>
   );
 }
 
-// REALISTIC 1 & 2
-function RealisticDeck({ variant, color, armAngle, armLen, vinylRadius }) {
-  const styleVariant = normalizeDeckStyle(variant);
-  const c = color || "#1a1a1a";
-  const mid = lighten(c, 18);
-  const dark2 = darken(c, 10);
-  const hi = lighten(c, 60);
-  const rx = styleVariant === "realistic1" ? 6 : 28;
+// MINIMAL
+function MinimalDeck({ armAngle, armLen, vinylRadius }) {
+  const id = "minimal";
+  const cx = 280;
+  const cy = 280;
   const vr = vinylRadius + 8;
-  const cx = 255;
-  const cy = 295;
-  const hole = `M${cx},${cy - vr} A${vr},${vr} 0 1,0 ${cx + 0.001},${cy - vr} Z`;
-  const board =
-    rx === 6
-      ? `M26,20 Q20,20 20,26 L20,534 Q20,540 26,540 L534,540 Q540,540 540,534 L540,26 Q540,20 534,20 Z`
-      : `M48,20 Q20,20 20,48 L20,512 Q20,540 48,540 L512,540 Q540,540 540,512 L540,48 Q540,20 512,20 Z`;
+  const board = `M20,20 L540,20 L540,540 L20,540 Z`;
+  const hole = holePath(cx, cy, vr);
 
   return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", left: 0, top: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
+    <svg viewBox="0 0 560 560" className="deckSvg">
+      <DeckDefs id={id} base="#f7f7f7" accent="#ffffff" />
+
+      <path d={`${board} ${hole}`} fill="rgba(255,255,255,0.08)" fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+      <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.22)" />
+
+      <circle cx={cx} cy={cy} r={vr + 16} fill="none" stroke="rgba(255,255,255,0.14)" />
+      <circle cx={cx} cy={cy} r={vr + 4} fill="none" stroke="rgba(255,255,255,0.22)" />
+
+      <circle cx="471" cy="119" r="17" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.24)" />
+      <circle cx="471" cy="119" r="4" fill="rgba(255,255,255,0.72)" />
+
+      <g transform={`rotate(${armAngle} 471 119)`}>
+        <line x1={471 - armLen} y1="119" x2="471" y2="119" stroke="rgba(255,255,255,0.58)" strokeWidth="1.8" />
+        <rect x={471 - armLen - 9} y="113" width="14" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.45)" />
+        <circle cx={471 - armLen - 2} cy="125" r="2" fill="rgba(255,255,255,0.8)" />
+      </g>
+
+      <circle cx={cx} cy={cy} r="3" fill="rgba(255,255,255,0.7)" />
+    </svg>
+  );
+}
+
+// DARK - controls moved to a dedicated right strip, away from platter
+function DarkDeck({ armAngle, armLen, vinylRadius }) {
+  const id = "dark";
+  const cx = 240;
+  const cy = 290;
+  const vr = vinylRadius + 8;
+  const board = `M20,20 L540,20 L540,540 L20,540 Z`;
+  const hole = holePath(cx, cy, vr);
+
+  return (
+    <svg viewBox="0 0 560 560" className="deckSvg">
+      <DeckDefs id={id} base="#151515" accent="#ff3030" />
+
+      <path d={`${board} ${hole}`} fill={`url(#${id}-glass)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+      <path d={`${board} ${hole}`} fill="rgba(255,255,255,0.035)" fillRule="evenodd" />
+
+      <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="3" />
+      <rect x="20" y="20" width="520" height="6" fill="#ff3030" opacity="0.75" />
+      <rect x="20" y="534" width="520" height="6" fill="#ff3030" opacity="0.55" />
+
+      <rect x="440" y="34" width="82" height="492" rx="10" fill="rgba(0,0,0,0.44)" stroke="rgba(255,255,255,0.1)" />
+
+      <text x="481" y="58" fill="#ff4c4c" fontSize="9" fontFamily="monospace" textAnchor="middle">POWER</text>
+      <rect x="455" y="70" width="52" height="18" rx="9" fill="rgba(255,255,255,0.1)" />
+      <circle cx="492" cy="79" r="7" fill="#ff3030" filter={`url(#${id}-glow)`} />
+
+      {[[481, 130, "GAIN"], [481, 200, "PITCH"], [481, 270, "EQ"]].map(([x, y, lbl]) => (
+        <g key={lbl}>
+          <circle cx={x} cy={y} r="20" fill={`url(#${id}-knob)`} stroke="rgba(255,255,255,0.16)" />
+          <line x1={x} y1={y - 8} x2={x} y2={y - 16} stroke="#ff3030" strokeWidth="3" strokeLinecap="round" />
+          <text x={x} y={y + 33} fill="rgba(255,255,255,0.38)" fontSize="7" fontFamily="monospace" textAnchor="middle">{lbl}</text>
+        </g>
+      ))}
+
+      <rect x="458" y="330" width="46" height="108" rx="14" fill="rgba(255,255,255,0.08)" />
+      <rect x="452" y="374" width="58" height="22" rx="11" fill="rgba(255,255,255,0.42)" />
+
+      <circle cx={cx} cy={cy} r={vr + 13} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
+      <circle cx={cx} cy={cy} r={vr + 7} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="7" />
+
+      <circle cx="452" cy="114" r="22" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.18)" />
+      <circle cx="452" cy="114" r="11" fill={`url(#${id}-knob)`} />
+      <Tonearm id={id} pivotX={452} pivotY={114} armAngle={armAngle} armLen={armLen} accent="#111" />
+
+      <circle cx={cx} cy={cy} r="5.5" fill="#333" stroke="#777" />
+    </svg>
+  );
+}
+// CHROME - asymmetric, but controls stay outside platter zone
+function ChromeDeck({ armAngle, armLen, vinylRadius }) {
+  const id = "chrome";
+  const cx = 240;
+  const cy = 290;
+  const vr = vinylRadius + 8;
+  const board = `M58,20 L500,20 L540,60 L540,430 L500,540 L20,540 L20,60 Z`;
+  const hole = holePath(cx, cy, vr);
+
+  return (
+    <svg viewBox="0 0 560 560" className="deckSvg">
+      <DeckDefs id={id} base="#bcc8ce" accent="#00d4ff" />
+
+      <path d={`${board} ${hole}`} fill={`url(#${id}-glass)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+      <path d={`${board} ${hole}`} fill={`url(#${id}-shine)`} fillRule="evenodd" />
+
+      <polygon points="20,60 80,20 148,20 20,148" fill="#00d4ff" opacity="0.5" />
+      <polygon points="500,540 540,540 540,480" fill="#00d4ff" opacity="0.35" />
+
+      {Array.from({ length: 18 }).map((_, i) => (
+        <circle key={i} cx={82 + i * 22} cy="34" r="3" fill="#00d4ff" opacity={0.35 + (i % 4) * 0.14} filter={`url(#${id}-glow)`} />
+      ))}
+
+      <rect x="440" y="72" width="88" height="394" rx="14" fill="rgba(255,255,255,0.22)" stroke="rgba(0,212,255,0.38)" />
+      <rect x="454" y="90" width="60" height="52" rx="8" fill="rgba(0,0,0,0.72)" />
+      <text x="484" y="106" fill="#00d4ff" fontSize="7" fontFamily="monospace" textAnchor="middle">OUTPUT</text>
+
+      {Array.from({ length: 8 }).map((_, i) => (
+        <rect
+          key={i}
+          x={458 + i * 6}
+          y={122 - i}
+          width="4"
+          height={16 + i}
+          rx="2"
+          fill={i < 5 ? "#00d4ff" : i < 7 ? "#8dff6a" : "#ff4d4d"}
+        />
+      ))}
+
+      {[[484, 206, "TRIM"], [484, 270, "GAIN"], [484, 334, "EQ"]].map(([x, y, lbl]) => (
+        <g key={lbl}>
+          <circle cx={x} cy={y} r="18" fill={`url(#${id}-knob)`} stroke="rgba(0,212,255,0.45)" />
+          <line x1={x} y1={y - 7} x2={x} y2={y - 14} stroke="#00d4ff" strokeWidth="2.5" strokeLinecap="round" />
+          <text x={x} y={y + 31} fill="rgba(0,0,0,0.48)" fontSize="7" fontFamily="monospace" textAnchor="middle">{lbl}</text>
+        </g>
+      ))}
+
+      <rect x="458" y="388" width="52" height="52" rx="14" fill="rgba(0,0,0,0.22)" stroke="rgba(255,255,255,0.24)" />
+      <circle cx="484" cy="414" r="14" fill="rgba(0,212,255,0.72)" filter={`url(#${id}-glow)`} />
+
+      <circle cx={cx} cy={cy} r={vr + 15} fill="none" stroke="rgba(0,212,255,0.22)" strokeWidth="7" />
+      <circle cx={cx} cy={cy} r={vr + 6} fill="none" stroke="rgba(0,0,0,0.32)" strokeWidth="4" />
+
+      <circle cx="452" cy="114" r="23" fill="rgba(255,255,255,0.32)" stroke="rgba(0,212,255,0.35)" />
+      <circle cx="452" cy="114" r="11" fill={`url(#${id}-knob)`} />
+      <Tonearm id={id} pivotX={452} pivotY={114} armAngle={armAngle} armLen={armLen} accent="#00d4ff" />
+
+      <circle cx={cx} cy={cy} r="5.5" fill="#dfe8ec" stroke="#7e8b92" />
+    </svg>
+  );
+}
+
+// WOOD - controls isolated on right, platter has breathing room
+function WoodDeck({ armAngle, armLen, vinylRadius }) {
+  const id = "wood";
+  const cx = 240;
+  const cy = 290;
+  const vr = vinylRadius + 8;
+  const board = `M32,20 Q20,20 20,32 L20,528 Q20,540 32,540 L528,540 Q540,540 540,528 L540,32 Q540,20 528,20 Z`;
+  const hole = holePath(cx, cy, vr);
+
+  return (
+    <svg viewBox="0 0 560 560" className="deckSvg">
       <defs>
-        <filter id="rs">
-          <feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.5" />
+        <filter id="wood-shadow">
+          <feDropShadow dx="0" dy="14" stdDeviation="18" floodOpacity="0.32" />
         </filter>
-        <filter id="rs-soft">
-          <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.3" />
+        <filter id="wood-soft">
+          <feDropShadow dx="0" dy="3" stdDeviation="5" floodOpacity="0.25" />
         </filter>
-        <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor={mid} />
-          <stop offset="45%" stopColor={c} />
+        <linearGradient id="wood-wood" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#98633b" />
+          <stop offset="16%" stopColor="#6f3e1f" />
+          <stop offset="32%" stopColor="#a36c42" />
+          <stop offset="52%" stopColor="#5e3218" />
+          <stop offset="74%" stopColor="#8b5732" />
+          <stop offset="100%" stopColor="#663919" />
+        </linearGradient>
+        <linearGradient id="wood-brass" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#f1c95d" />
+          <stop offset="42%" stopColor="#c99427" />
+          <stop offset="100%" stopColor="#8a6419" />
+        </linearGradient>
+        <linearGradient id="wood-arm" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f1c95d" />
+          <stop offset="52%" stopColor="#c99427" />
+          <stop offset="100%" stopColor="#8a6419" />
+        </linearGradient>
+        <radialGradient id="wood-knob" cx="36%" cy="30%" r="68%">
+          <stop offset="0%" stopColor="#ffe399" />
+          <stop offset="55%" stopColor="#c99427" />
+          <stop offset="100%" stopColor="#6b4c12" />
+        </radialGradient>
+      </defs>
+
+      <path d={`${board} ${hole}`} fill="url(#wood-wood)" fillRule="evenodd" filter="url(#wood-shadow)" />
+      <path d={`${board} ${hole}`} fill="rgba(255,255,255,0.09)" fillRule="evenodd" />
+      {Array.from({ length: 34 }).map((_, i) => (
+        <line key={i} x1="20" y1={36 + i * 15} x2="540" y2={32 + i * 15} stroke="rgba(0,0,0,0.08)" />
+      ))}
+
+      <rect x="28" y="28" width="504" height="504" rx="12" fill="none" stroke="url(#wood-brass)" strokeWidth="3" />
+      <rect x="436" y="42" width="90" height="472" rx="14" fill="rgba(0,0,0,0.25)" stroke="url(#wood-brass)" strokeWidth="1.5" />
+
+      <rect x="448" y="58" width="66" height="22" rx="8" fill="url(#wood-brass)" opacity="0.88" />
+      <text x="481" y="73" fill="#4a3000" fontSize="7" fontFamily="serif" textAnchor="middle">HI-FI</text>
+
+      {[[481, 118, "VOL"], [481, 194, "BASS"], [481, 270, "TREB"], [481, 346, "BAL"]].map(([x, y, lbl]) => (
+        <g key={lbl}>
+          <circle cx={x} cy={y} r="22" fill="url(#wood-knob)" stroke="rgba(0,0,0,0.35)" />
+          <line x1={x} y1={y - 8} x2={x} y2={y - 15} stroke="#4a2e08" strokeWidth="2.5" strokeLinecap="round" />
+          <text x={x} y={y + 33} fill="#f0ca65" fontSize="7" fontFamily="monospace" textAnchor="middle">{lbl}</text>
+        </g>
+      ))}
+
+      <rect x="452" y="408" width="58" height="56" rx="10" fill="rgba(0,0,0,0.26)" stroke="url(#wood-brass)" />
+      <text x="481" y="426" fill="#f0ca65" fontSize="7" fontFamily="monospace" textAnchor="middle">RPM</text>
+      <circle cx="468" cy="444" r="8" fill="#1a0e04" stroke="url(#wood-brass)" />
+      <circle cx="494" cy="444" r="8" fill="#1a0e04" stroke="url(#wood-brass)" />
+
+      <circle cx={cx} cy={cy} r={vr + 17} fill="none" stroke="rgba(0,0,0,0.32)" strokeWidth="8" />
+      <circle cx={cx} cy={cy} r={vr + 8} fill="none" stroke="url(#wood-brass)" strokeWidth="2" />
+
+      <circle cx="452" cy="114" r="23" fill="#2b1808" stroke="url(#wood-brass)" strokeWidth="2" />
+      <circle cx="452" cy="114" r="12" fill="url(#wood-knob)" />
+
+      {(() => {
+        const nx = 452 - armLen;
+        return (
+          <g transform={`rotate(${armAngle} 452 114)`}>
+            <rect x={nx} y="110" width={armLen} height="8" rx="4" fill="url(#wood-arm)" />
+            <rect x={nx + 2} y="110.5" width={armLen - 4} height="3" rx="1.5" fill="rgba(255,255,255,0.3)" />
+            <rect x={nx - 14} y="105" width="22" height="18" rx="3" fill="#c8952a" stroke="#7a5018" strokeWidth="0.8" />
+            <rect x={nx - 12} y="116" width="16" height="8" rx="2" fill="#1a0e04" />
+            <line x1={nx - 5} y1="124" x2={nx - 5} y2="114" stroke="#5a360b" strokeWidth="1.5" />
+            <ellipse cx="470" cy="114" rx="12" ry="8" fill="url(#wood-brass)" stroke="#7a5018" />
+          </g>
+        );
+      })()}
+
+      <circle cx={cx} cy={cy} r="5.5" fill="url(#wood-brass)" stroke="#6b4c12" />
+    </svg>
+  );
+}
+
+// REALISTIC1 - square studio deck
+function RealisticDeck({ variant, color, armAngle, armLen, vinylRadius }) {
+  const styleVariant = normalizeDeckStyle(variant);
+  const isR2 = styleVariant === "realistic2";
+  const c = color || "#1a1a1a";
+  const cx = 240;
+  const cy = 290;
+  const vr = vinylRadius + 8;
+  const hole = holePath(cx, cy, vr);
+
+  if (isR2) {
+    return <Realistic2Deck color={color} armAngle={armAngle} armLen={armLen} vinylRadius={vinylRadius} />;
+  }
+
+  const mid = lighten(c, 18);
+  const dark2 = darken(c, 12);
+  const hi = lighten(c, 62);
+  const board = `M24,20 Q20,20 20,24 L20,536 Q20,540 24,540 L536,540 Q540,540 540,536 L540,24 Q540,20 536,20 Z`;
+
+  return (
+    <svg viewBox="0 0 560 560" className="deckSvg">
+      <defs>
+        <filter id="r1-shadow">
+          <feDropShadow dx="0" dy="12" stdDeviation="18" floodOpacity="0.42" />
+        </filter>
+        <filter id="r1-soft">
+          <feDropShadow dx="0" dy="3" stdDeviation="5" floodOpacity="0.28" />
+        </filter>
+        <linearGradient id="r1-base" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={hi} />
+          <stop offset="44%" stopColor={mid} />
           <stop offset="100%" stopColor={dark2} />
         </linearGradient>
-        <linearGradient id="ps" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={hi} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={hi} stopOpacity="0" />
+        <linearGradient id="r1-shine" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fff" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#fff" stopOpacity="0" />
         </linearGradient>
-        <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="r1-arm" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#e8e8e8" />
           <stop offset="50%" stopColor="#a8a8a8" />
           <stop offset="100%" stopColor="#686868" />
         </linearGradient>
-        <linearGradient id="cw" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#c0c0c0" />
-          <stop offset="50%" stopColor="#888" />
-          <stop offset="100%" stopColor="#c0c0c0" />
-        </linearGradient>
-        <radialGradient id="knob" cx="38%" cy="35%" r="65%">
+        <radialGradient id="r1-knob" cx="38%" cy="35%" r="65%">
           <stop offset="0%" stopColor="#888" />
           <stop offset="100%" stopColor="#333" />
         </radialGradient>
-        <linearGradient id="panelg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={mid} />
-          <stop offset="100%" stopColor={darken(c, 15)} />
-        </linearGradient>
       </defs>
 
-      <path d={`${board} ${hole}`} fill="url(#pg)" fillRule="evenodd" filter="url(#rs)" />
-      <rect x="20" y="20" width="520" height="200" rx={rx} fill="url(#ps)" />
-      <rect x="21" y="21" width="518" height="518" rx={rx} fill="none" stroke={hi} strokeWidth="0.8" opacity="0.18" />
+      <path d={`${board} ${hole}`} fill="url(#r1-base)" fillRule="evenodd" filter="url(#r1-shadow)" />
+      <path d={`${board} ${hole}`} fill="url(#r1-shine)" fillRule="evenodd" />
+      <rect x="21" y="21" width="518" height="518" rx="6" fill="none" stroke={hi} strokeWidth="0.8" opacity="0.2" />
 
-      <circle cx={cx} cy={cy} r={vr + 6} fill="none" stroke={darken(c, 22)} strokeWidth="5" opacity="0.8" />
-      <circle cx={cx} cy={cy} r={vr + 9} fill="none" stroke={hi} strokeWidth="1" opacity="0.25" />
-      <circle cx={cx} cy={cy} r={vr + 3} fill="none" stroke={darken(c, 30)} strokeWidth="2" opacity="0.5" />
+      <circle cx={cx} cy={cy} r={vr + 8} fill="none" stroke={darken(c, 22)} strokeWidth="6" opacity="0.8" />
+      <circle cx={cx} cy={cy} r={vr + 13} fill="none" stroke={hi} strokeWidth="1" opacity="0.3" />
 
-      {[[62, 28], [108, 28], [430, 28], [476, 28]].map(([x, y], i) => (
-        <g key={i}>
-          <rect x={x} y={y} width="30" height="15" rx="4" fill={mid} stroke={lighten(c, 28)} strokeWidth="1" filter="url(#rs-soft)" />
-          <rect x={x + 9} y={y + 4} width="4" height="7" rx="1" fill={dark2} />
-          <rect x={x + 16} y={y + 4} width="4" height="7" rx="1" fill={dark2} />
-        </g>
-      ))}
+      <rect x="430" y="142" width="96" height="312" rx="10" fill="rgba(0,0,0,0.24)" stroke="rgba(255,255,255,0.18)" />
+      <rect x="442" y="162" width="18" height="46" rx="6" fill={darken(c, 8)} stroke="#555" />
+      <rect x="445" y="180" width="12" height="11" rx="3" fill="#aaa" />
 
-      <rect x="432" y="148" width="90" height="298" rx="9" fill="url(#panelg)" stroke={darken(c, 18)} strokeWidth="1.2" />
-      <line x1="432" y1="270" x2="522" y2="270" stroke={darken(c, 20)} strokeWidth="0.8" opacity="0.6" />
+      <circle cx="498" cy="204" r="12" fill="url(#r1-knob)" stroke="#666" />
+      <line x1="498" y1="194" x2="498" y2="200" stroke="#ccc" strokeWidth="1.5" strokeLinecap="round" />
 
-      {[["45", 300], ["33", 336]].map(([lbl, y]) => (
+      <rect x="460" y="226" width="8" height="60" rx="4" fill={darken(c, 22)} stroke="#444" />
+      <rect x="455" y="244" width="18" height="13" rx="4" fill="#c8c8c8" filter="url(#r1-soft)" />
+
+      {[["45", 306], ["33", 342]].map(([lbl, y]) => (
         <g key={lbl}>
           <line x1="440" y1={y} x2="478" y2={y} stroke="#777" strokeWidth="0.8" />
           <text x="482" y={y + 4} fill="#999" fontSize="9.5" fontFamily="monospace">{lbl}</text>
         </g>
       ))}
 
-      <rect x="460" y="222" width="7" height="58" rx="3.5" fill={darken(c, 22)} stroke="#444" strokeWidth="0.8" />
-      <rect x="455" y="238" width="17" height="12" rx="4" fill="#c8c8c8" filter="url(#rs-soft)" />
-      <circle cx="500" cy="204" r="11" fill="url(#knob)" stroke="#666" strokeWidth="1" />
-      <line x1="500" y1="194" x2="500" y2="200" stroke="#ccc" strokeWidth="1.5" strokeLinecap="round" />
+      <rect x="442" y="366" width="70" height="22" rx="8" fill={darken(c, 4)} stroke="#555" />
+      <text x="477" y="381" fill="#aaa" fontSize="8" fontFamily="monospace" textAnchor="middle">START</text>
+      <rect x="442" y="396" width="70" height="22" rx="8" fill={darken(c, 4)} stroke="#555" />
+      <text x="477" y="411" fill="#aaa" fontSize="8" fontFamily="monospace" textAnchor="middle">STOP</text>
 
-      <rect x="438" y="166" width="16" height="42" rx="6" fill={darken(c, 8)} stroke="#555" strokeWidth="1" />
-      <rect x="440" y="180" width="12" height="10" rx="3" fill="#999" />
-
-      <rect x="442" y="356" width="70" height="20" rx="7" fill={darken(c, 4)} stroke="#555" strokeWidth="0.8" />
-      <text x="477" y="370" fill="#aaa" fontSize="8" fontFamily="monospace" textAnchor="middle">START</text>
-      <rect x="442" y="381" width="70" height="20" rx="7" fill={darken(c, 4)} stroke="#555" strokeWidth="0.8" />
-      <text x="477" y="395" fill="#aaa" fontSize="8" fontFamily="monospace" textAnchor="middle">STOP</text>
-
-      <circle cx="471" cy="119" r="24" fill={mid} stroke={lighten(c, 35)} strokeWidth="1.5" filter="url(#rs-soft)" />
-      <circle cx="471" cy="119" r="12" fill="url(#ag)" />
-      <circle cx="471" cy="119" r="5" fill="#e0e0e0" />
-      <circle cx="469" cy="117" r="1.5" fill="#fff" opacity="0.6" />
+      <circle cx="452" cy="114" r="24" fill={mid} stroke={lighten(c, 35)} strokeWidth="1.5" filter="url(#r1-soft)" />
+      <circle cx="452" cy="114" r="12" fill="url(#r1-arm)" />
+      <circle cx="452" cy="114" r="5" fill="#e0e0e0" />
 
       {(() => {
-        const nx = 471 - armLen;
+        const nx = 452 - armLen;
         return (
-          <g transform={`rotate(${armAngle} 471 119)`}>
-            <rect x={nx} y="114.5" width={armLen} height="9" rx="4.5" fill="url(#ag)" />
-            <rect x={nx + 2} y="115" width={armLen - 4} height="3.5" rx="1.5" fill="#e0e0e0" opacity="0.35" />
-            <rect x={nx - 13} y="109" width="24" height="20" rx="3" fill="#b8b8b8" stroke="#888" strokeWidth="0.8" />
-            <rect x={nx - 11} y="110" width="20" height="5" rx="1" fill="#d0d0d0" opacity="0.5" />
-            <rect x={nx - 10} y="120" width="16" height="10" rx="2" fill="#444" stroke="#666" strokeWidth="0.6" />
-            <line x1={nx} y1="130" x2={nx} y2="119" stroke="#222" strokeWidth="2" strokeLinecap="round" />
-            <circle cx={nx} cy="119" r="2.5" fill="#111" />
-            <ellipse cx="491" cy="119" rx="13" ry="9" fill="url(#cw)" stroke="#999" strokeWidth="0.8" />
-            <ellipse cx="491" cy="119" rx="6" ry="4" fill="#666" opacity="0.6" />
+          <g transform={`rotate(${armAngle} 452 114)`}>
+            <rect x={nx} y="109.5" width={armLen} height="9" rx="4.5" fill="url(#r1-arm)" />
+            <rect x={nx + 2} y="110" width={armLen - 4} height="3.5" rx="1.5" fill="#e0e0e0" opacity="0.35" />
+            <rect x={nx - 13} y="104" width="24" height="20" rx="3" fill="#b8b8b8" stroke="#888" />
+            <rect x={nx - 10} y="115" width="16" height="10" rx="2" fill="#444" stroke="#666" />
+            <line x1={nx} y1="125" x2={nx} y2="114" stroke="#222" strokeWidth="2" strokeLinecap="round" />
+            <circle cx={nx} cy="114" r="2.5" fill="#111" />
+            <ellipse cx="470" cy="114" rx="13" ry="9" fill="#aaa" stroke="#888" />
           </g>
         );
       })()}
 
-      <circle cx={cx} cy={cy} r="5" fill={mid} stroke="#bbb" strokeWidth="1" />
-      <circle cx={cx} cy={cy} r="2" fill="#ddd" />
+      <circle cx={cx} cy={cy} r="5" fill={mid} stroke="#bbb" />
     </svg>
   );
 }
 
-// REALISTIC3
-function renderSlider(x, y, label, level) {
-  const trackH = 280;
-  const numLeds = 12;
-  const ledSpacing = trackH / numLeds;
-  const thumbY = y + 16 + trackH * (1 - level) - 10;
-  const activeLeds = Math.round(level * numLeds);
+// REALISTIC2 - rounded hi-fi deck, visibly different from realistic1
+function Realistic2Deck({ color, armAngle, armLen, vinylRadius }) {
+  const c = color || "#252a31";
+  const cx = 240;
+  const cy = 290;
+  const vr = vinylRadius + 8;
+  const hole = holePath(cx, cy, vr);
+  const board = `M58,18 Q20,18 20,58 L20,502 Q20,542 58,542 L502,542 Q542,542 542,502 L542,58 Q542,18 502,18 Z`;
 
   return (
-    <g key={label}>
-      <rect x={x} y={y} width="52" height={trackH + 40} rx="5" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
-      <text x={x + 4} y={y + 12} fill="#777" fontSize="7" fontFamily="monospace" letterSpacing="0.5">{label}</text>
+    <svg viewBox="0 0 560 560" className="deckSvg">
+      <defs>
+        <filter id="r2-shadow">
+          <feDropShadow dx="0" dy="16" stdDeviation="20" floodOpacity="0.38" />
+        </filter>
+        <filter id="r2-soft">
+          <feDropShadow dx="0" dy="3" stdDeviation="5" floodOpacity="0.25" />
+        </filter>
+        <linearGradient id="r2-base" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={lighten(c, 76)} stopOpacity="0.9" />
+          <stop offset="46%" stopColor={lighten(c, 20)} stopOpacity="0.78" />
+          <stop offset="100%" stopColor={darken(c, 18)} stopOpacity="0.95" />
+        </linearGradient>
+        <linearGradient id="r2-arm" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f3f3f3" />
+          <stop offset="48%" stopColor="#b4b4b4" />
+          <stop offset="100%" stopColor="#666" />
+        </linearGradient>
+        <radialGradient id="r2-knob" cx="35%" cy="30%" r="65%">
+          <stop offset="0%" stopColor="#fff" />
+          <stop offset="52%" stopColor="#b7b7b7" />
+          <stop offset="100%" stopColor="#555" />
+        </radialGradient>
+      </defs>
 
-      {Array.from({ length: numLeds }).map((_, i) => {
-        const ly = y + 16 + i * ledSpacing;
-        const isActive = numLeds - 1 - i < activeLeds;
-        const ledColor = i < 2 ? "#ffcc00" : i < 5 ? "#88dd00" : "#22cc44";
+      <path d={`${board} ${hole}`} fill="url(#r2-base)" fillRule="evenodd" filter="url(#r2-shadow)" />
+      <path d={`${board} ${hole}`} fill="rgba(255,255,255,0.16)" fillRule="evenodd" />
+      <rect x="30" y="30" width="500" height="500" rx="34" fill="none" stroke="rgba(255,255,255,0.36)" />
+
+      <circle cx={cx} cy={cy} r={vr + 20} fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="10" />
+      <circle cx={cx} cy={cy} r={vr + 9} fill="none" stroke="rgba(0,0,0,0.25)" strokeWidth="5" />
+
+      <rect x="430" y="118" width="96" height="344" rx="28" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.28)" />
+      <rect x="446" y="136" width="64" height="30" rx="15" fill="rgba(0,0,0,0.22)" />
+      <circle cx="462" cy="151" r="8" fill="#7cffb2" />
+      <circle cx="494" cy="151" r="8" fill="rgba(255,255,255,0.22)" />
+
+      <circle cx="478" cy="214" r="24" fill="url(#r2-knob)" stroke="rgba(0,0,0,0.2)" />
+      <circle cx="478" cy="286" r="24" fill="url(#r2-knob)" stroke="rgba(0,0,0,0.2)" />
+      <line x1="478" y1="200" x2="478" y2="190" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+      <line x1="478" y1="272" x2="478" y2="262" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+
+      <rect x="456" y="338" width="44" height="82" rx="22" fill="rgba(0,0,0,0.24)" />
+      <rect x="450" y="370" width="56" height="22" rx="11" fill="rgba(255,255,255,0.72)" />
+
+      <circle cx="452" cy="114" r="25" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.32)" filter="url(#r2-soft)" />
+      <circle cx="452" cy="114" r="12" fill="url(#r2-knob)" />
+
+      {(() => {
+        const nx = 452 - armLen;
         return (
-          <g key={i}>
-            <rect x={x + 36} y={ly} width="10" height={ledSpacing - 2} rx="1" fill={isActive ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.7)"} />
-            <circle cx={x + 41} cy={ly + ledSpacing / 2 - 1} r="3" fill={isActive ? ledColor : "#1a1a1a"} opacity={isActive ? 0.92 : 1} />
-            {isActive && <circle cx={x + 41} cy={ly + ledSpacing / 2 - 1} r="5" fill={ledColor} opacity="0.2" />}
+          <g transform={`rotate(${armAngle} 452 114)`}>
+            <rect x={nx} y="109.5" width={armLen} height="9" rx="4.5" fill="url(#r2-arm)" />
+            <rect x={nx + 2} y="110" width={armLen - 4} height="3.5" rx="1.5" fill="#fff" opacity="0.35" />
+            <path d={`M${nx - 18},104 L${nx + 9},108 L${nx + 5},125 L${nx - 18},122 Z`} fill="#cfcfcf" stroke="#888" />
+            <rect x={nx - 12} y="116" width="16" height="10" rx="2" fill="#303030" />
+            <line x1={nx - 4} y1="126" x2={nx - 4} y2="116" stroke="#222" strokeWidth="2" strokeLinecap="round" />
+            <ellipse cx="470" cy="114" rx="14" ry="9" fill="#a0a0a0" stroke="#777" />
           </g>
         );
-      })}
+      })()}
 
-      <rect x={x + 10} y={y + 16} width="8" height={trackH} rx="4" fill="#0e0e0e" stroke="#333" strokeWidth="0.8" />
-      <line x1={x + 14} y1={y + 16} x2={x + 14} y2={y + 16 + trackH} stroke="#333" strokeWidth="0.5" />
-      {Array.from({ length: 11 }).map((_, i) => (
-        <line key={i} x1={x + 8} y1={y + 16 + i * (trackH / 10)} x2={x + 18} y2={y + 16 + i * (trackH / 10)} stroke="#444" strokeWidth="0.6" />
-      ))}
-
-      <rect x={x + 6} y={thumbY} width="16" height="20" rx="3" fill="url(#r3-knob)" stroke="#666" strokeWidth="0.8" />
-      {[-3, -1, 1, 3].map((dy) => (
-        <line key={dy} x1={x + 8} y1={thumbY + 10 + dy} x2={x + 20} y2={thumbY + 10 + dy} stroke="rgba(0,0,0,0.3)" strokeWidth="0.7" />
-      ))}
-      <rect x={x + 7} y={thumbY + 1} width="14" height="5" rx="1" fill="rgba(255,255,255,0.5)" />
-    </g>
+      <circle cx={cx} cy={cy} r="5.5" fill="#d6d6d6" stroke="#888" />
+    </svg>
   );
 }
 
+// REALISTIC3 - fixed: the chassis also has the vinyl hole cut out
 function Realistic3Deck({ armAngle, armLen, vinylRadius }) {
   const vr = vinylRadius + 8;
   const cx = 265;
   const cy = 285;
-  const hole = `M${cx},${cy - vr} A${vr},${vr} 0 1,0 ${cx + 0.001},${cy - vr} Z`;
+  const hole = holePath(cx, cy, vr);
   const pivotX = 468;
   const pivotY = 112;
   const nx = pivotX - armLen;
 
   return (
-    <svg viewBox="0 0 760 560" style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
+    <svg viewBox="0 0 760 560" className="deckSvg r3DeckSvg">
       <defs>
         <filter id="r3-shadow">
           <feDropShadow dx="0" dy="6" stdDeviation="12" floodOpacity="0.45" />
@@ -894,7 +707,8 @@ function Realistic3Deck({ armAngle, armLen, vinylRadius }) {
         </linearGradient>
       </defs>
 
-      <rect x="2" y="2" width="756" height="556" rx="8" fill="#1a1612" stroke="#0a0806" strokeWidth="2" />
+      <path d={`M2,2 L758,2 L758,558 L2,558 Z ${hole}`} fill="#1a1612" fillRule="evenodd" stroke="#0a0806" strokeWidth="2" />
+
       <path d={`M8,8 L484,8 L484,552 L8,552 Z ${hole}`} fill="url(#r3-plinth)" fillRule="evenodd" filter="url(#r3-shadow)" />
       <rect x="9" y="9" width="475" height="542" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
 
@@ -910,7 +724,6 @@ function Realistic3Deck({ armAngle, armLen, vinylRadius }) {
       <circle cx={cx} cy={cy} r={vr + 14} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="2" />
       <circle cx={cx} cy={cy} r={vr + 5} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="3" />
       <circle cx={cx} cy={cy} r={vr + 18} fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="4" />
-
       <rect x="502" y="18" width="108" height="72" rx="5" fill="rgba(0,0,0,0.3)" />
       <text x="508" y="32" fill="#888" fontSize="7.5" fontFamily="monospace" letterSpacing="1">POWER</text>
       <rect x="508" y="38" width="40" height="14" rx="4" fill="#1a1a1a" stroke="#444" strokeWidth="0.8" />
@@ -976,7 +789,6 @@ function Realistic3Deck({ armAngle, armLen, vinylRadius }) {
   );
 }
 
-// Deck dispatcher
 function TurntableDeck({ style: s, color, armAngle, armLen, vinylRadius }) {
   const style = normalizeDeckStyle(s);
   if (style === "chrome") return <ChromeDeck armAngle={armAngle} armLen={armLen} vinylRadius={vinylRadius} />;
@@ -988,21 +800,11 @@ function TurntableDeck({ style: s, color, armAngle, armLen, vinylRadius }) {
   return <RealisticDeck variant={style} color={color} armAngle={armAngle} armLen={armLen} vinylRadius={vinylRadius} />;
 }
 
-// Splatter
-function seededRand(seed) {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
-
-function SplatterOverlay({ color, colors, style }) {
+// Splatter uses only the selected splatter color.
+function SplatterOverlay({ color, style }) {
   const cx = 195;
   const cy = 195;
   const rand = seededRand(42);
-  const palette = [color, ...(colors || [])].filter(Boolean);
-  const pick = (i) => palette[i % palette.length] || color;
   const items = [];
 
   if (style === "mist") {
@@ -1015,7 +817,7 @@ function SplatterOverlay({ color, colors, style }) {
           cx={cx + Math.cos(a) * r}
           cy={cy + Math.sin(a) * r}
           r={0.8 + rand() * 4.8}
-          fill={pick(i)}
+          fill={color}
           opacity={0.16 + rand() * 0.48}
         />
       );
@@ -1032,7 +834,7 @@ function SplatterOverlay({ color, colors, style }) {
               C ${cx + Math.cos(a + 0.18) * 118} ${cy + Math.sin(a + 0.18) * 118},
                 ${cx + Math.cos(a - 0.1) * 150} ${cy + Math.sin(a - 0.1) * 150},
                 ${cx + Math.cos(a) * or} ${cy + Math.sin(a) * or}`}
-          stroke={pick(i)}
+          stroke={color}
           strokeWidth={2.5 + rand() * 8}
           strokeLinecap="round"
           fill="none"
@@ -1054,7 +856,7 @@ function SplatterOverlay({ color, colors, style }) {
           rx={2 + rand() * 14}
           ry={1 + rand() * 5}
           transform={`rotate(${(a * 180) / Math.PI} ${x} ${y})`}
-          fill={pick(i)}
+          fill={color}
           opacity={0.35 + rand() * 0.5}
         />
       );
@@ -1067,10 +869,10 @@ function SplatterOverlay({ color, colors, style }) {
       const y = cy + Math.sin(a) * r;
       items.push(
         <g key={i}>
-          <circle cx={x} cy={y} r={3 + rand() * 8} fill={pick(i)} opacity={0.46 + rand() * 0.42} />
+          <circle cx={x} cy={y} r={3 + rand() * 8} fill={color} opacity={0.46 + rand() * 0.42} />
           <path
             d={`M ${x} ${y} C ${x + (rand() - 0.5) * 14} ${y + 18}, ${x + (rand() - 0.5) * 20} ${y + 34}, ${x + (rand() - 0.5) * 9} ${y + 56}`}
-            stroke={pick(i)}
+            stroke={color}
             strokeWidth={1.5 + rand() * 4}
             strokeLinecap="round"
             fill="none"
@@ -1095,7 +897,7 @@ function SplatterOverlay({ color, colors, style }) {
         <path
           key={i}
           d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 16} ${(y1 + y2) / 2 + (rand() - 0.5) * 16} ${x2} ${y2}`}
-          stroke={pick(i)}
+          stroke={color}
           strokeWidth={w}
           strokeLinecap="round"
           fill="none"
@@ -1106,7 +908,7 @@ function SplatterOverlay({ color, colors, style }) {
   }
 
   return (
-    <svg viewBox="0 0 390 390" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: "50%", pointerEvents: "none", overflow: "hidden" }}>
+    <svg viewBox="0 0 390 390" className="splatterSvg">
       <defs>
         <clipPath id="splatterClip">
           <circle cx="195" cy="195" r="195" />
@@ -1140,107 +942,35 @@ function VinylDisc({
 
   return (
     <div
+      className="vinylDisc"
       style={{
-        position: "absolute",
         width: vinylRadius * 2,
         height: vinylRadius * 2,
         left: activeCx - vinylRadius,
         top: activeCy - vinylRadius,
         background: getVinylBackground(vinylColors, vinylGradient),
         opacity: vinylOpacity,
-        borderRadius: "50%",
-        zIndex: 1,
-        overflow: "hidden",
-        boxShadow: "0 30px 58px rgba(0,0,0,.38), inset 0 0 0 1px rgba(255,255,255,.18), inset 0 0 38px rgba(0,0,0,.3)",
-        transformOrigin: "center center",
-        willChange: "transform",
         animation: playing ? "spin 1.55s linear infinite" : "none",
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: "50%",
-          background:
-            "repeating-radial-gradient(circle, rgba(255,255,255,.15) 0px, rgba(255,255,255,.08) 1px, rgba(0,0,0,.18) 2px, transparent 4px), radial-gradient(circle, transparent 55%, rgba(0,0,0,.36) 100%)",
-          mixBlendMode: "overlay",
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: "50%",
-          background:
-            "linear-gradient(120deg, rgba(255,255,255,.35), transparent 25%, transparent 64%, rgba(255,255,255,.12)), radial-gradient(circle at 34% 28%, rgba(255,255,255,.22), transparent 30%)",
-          pointerEvents: "none",
-        }}
-      />
+      <div className="vinylGrooves" />
+      <div className="vinylHighlight" />
 
-      {splatterOn && <SplatterOverlay color={splatterColor} colors={vinylColors} style={splatterStyle} />}
+      {splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
 
       {albumCover ? (
-        <img
-          src={albumCover}
-          alt=""
-          style={{
-            position: "absolute",
-            borderRadius: "50%",
-            objectFit: "cover",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%,-50%)",
-            width: labelSize,
-            height: labelSize,
-            boxShadow: "0 0 0 4px rgba(255,255,255,.16), 0 12px 26px rgba(0,0,0,.28)",
-            zIndex: 5,
-          }}
-        />
+        <img src={albumCover} className="vinylLabel" style={{ width: labelSize, height: labelSize }} alt="" />
       ) : (
-        <div
-          style={{
-            position: "absolute",
-            borderRadius: "50%",
-            background: "rgba(255,255,255,.76)",
-            color: "#101820",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%,-50%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: labelSize,
-            height: labelSize,
-            fontSize: isSingle ? 10 : 14,
-            fontWeight: 850,
-            zIndex: 5,
-          }}
-        >
+        <div className="vinylLabel vinylLabelFallback" style={{ width: labelSize, height: labelSize, fontSize: isSingle ? 10 : 14 }}>
           {isSingle ? '7"' : "AURAE"}
         </div>
       )}
 
-      <div
-        style={{
-          position: "absolute",
-          width: 20,
-          height: 20,
-          borderRadius: "50%",
-          background: "#090909",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%,-50%)",
-          zIndex: 8,
-          boxShadow: "inset 0 2px 5px rgba(255,255,255,.3), 0 0 0 2px rgba(255,255,255,.12)",
-        }}
-      />
+      <div className="vinylCenterHole" />
     </div>
   );
 }
 
-// Modal style helpers
 const OVL = {
   position: "fixed",
   inset: 0,
@@ -1269,6 +999,7 @@ const MOD = (dark) => ({
   gap: 12,
   overflowY: "auto",
 });
+
 // Main App
 export default function App() {
   const remembered = localStorage.getItem("aurae_remember");
@@ -1313,12 +1044,12 @@ export default function App() {
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [sidebarMode, setSidebarMode] = useState("tracks");
 
   const audioRef = useRef(null);
   const current = tracks[index];
   const dark = theme === "dark";
   const text = dark ? "#fff" : "#061018";
-
   useEffect(() => {
     async function loadAll() {
       const names = await loadAllProjectNames();
@@ -1443,7 +1174,6 @@ export default function App() {
 
   async function saveCurrentProject(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
     if (!activeProject) return;
-
     const pd = projectPayload(nextTracks, nextCover, overrides);
     setProjectsMeta((prev) => ({ ...prev, [activeProject]: pd }));
     setTracks(nextTracks);
@@ -1454,7 +1184,6 @@ export default function App() {
   function upd(key, val, setter) {
     setter(val);
     if (!activeProject) return;
-
     const pd = projectPayload(tracks, albumCover, { [key]: val });
     setProjectsMeta((prev) => ({ ...prev, [activeProject]: pd }));
     saveProjectToDB(activeProject, pd);
@@ -1482,6 +1211,7 @@ export default function App() {
     setVinylOpacity(p.vinylOpacity !== undefined ? p.vinylOpacity : 1);
     setDeckStyle(normalizeDeckStyle(p.deckStyle));
     setDeckColor(p.deckColor || "#1a1a1a");
+    setSidebarMode("tracks");
     setIndex(0);
     setPlaying(false);
     setCurrentTime(0);
@@ -1521,13 +1251,11 @@ export default function App() {
 
   async function deleteProject(name) {
     await deleteProjectFromDB(name);
-
     setProjectsMeta((prev) => {
       const c = { ...prev };
       delete c[name];
       return c;
     });
-
     setFolders(folders.map((f) => ({ ...f, projects: f.projects.filter((p) => p !== name) })));
   }
 
@@ -1557,7 +1285,6 @@ export default function App() {
     const fromIndex = n.indexOf(from);
     const toIndex = n.indexOf(to);
     if (fromIndex < 0 || toIndex < 0) return;
-
     const i = n.splice(fromIndex, 1)[0];
     n.splice(toIndex, 0, i);
     setProjectOrder(n);
@@ -1565,7 +1292,6 @@ export default function App() {
 
   function moveToFolder(proj, fid) {
     if (!proj) return;
-
     setFolders(
       folders.map((f) =>
         f.id === fid
@@ -1611,7 +1337,6 @@ export default function App() {
   function addCover(e) {
     const f = e.target.files?.[0];
     if (!f) return;
-
     const r = new FileReader();
     r.onload = () => saveCurrentProject(tracks, r.result);
     r.readAsDataURL(f);
@@ -1621,7 +1346,6 @@ export default function App() {
   function deleteTrack(i) {
     const t = tracks[i];
     if (t?.id) deleteBlob(t.id);
-
     const next = tracks.filter((_, x) => x !== i);
     saveCurrentProject(next);
     setIndex((old) => clamp(old >= next.length ? next.length - 1 : old, 0, Math.max(0, next.length - 1)));
@@ -1631,7 +1355,6 @@ export default function App() {
   function moveTrack(i) {
     const pos = Number(prompt("Move to position:", i + 1));
     if (!pos) return;
-
     const n = [...tracks];
     const it = n.splice(i, 1)[0];
     n.splice(clamp(pos - 1, 0, n.length), 0, it);
@@ -1641,7 +1364,6 @@ export default function App() {
 
   function play(i) {
     if (!tracks[i]) return;
-
     setIndex(i);
     setPlaying(true);
 
@@ -1718,29 +1440,21 @@ export default function App() {
   const totalSongs = Math.max(tracks.length, 1);
   const songProg = duration > 0 ? currentTime / duration : 0;
   const progress = tracks.length === 0 ? -0.15 : (index + songProg) / totalSongs;
-  const isRealistic = ["realistic1", "realistic2", "realistic3"].includes(deckStyleNorm);
   const isSingle = tracks.length <= 3 && tracks.length > 0;
-  const vinylRadius = isSingle ? 110 : 188;
+  const vinylRadius = isSingle ? 108 : 186;
 
-  const armConfig =
-    deckStyleNorm === "realistic3"
-      ? isSingle
-        ? { startAngle: -8.0, endAngle: -22.0, armLen: 200 }
-        : { startAngle: -1.5, endAngle: -19.5, armLen: 200 }
-      : isRealistic
-        ? isSingle
-          ? { startAngle: -11.0, endAngle: -26.5, armLen: 247 }
-          : { startAngle: -3.5, endAngle: -22.8, armLen: 247 }
-        : isSingle
-          ? { startAngle: -17.0, endAngle: -31.5, armLen: 228 }
-          : { startAngle: 4.6, endAngle: -25.1, armLen: 182 };
+  const geometry = {
+    classic: { cx: 280, cy: 280, w: 560, arm: isSingle ? 228 : 182, start: isSingle ? -17 : 4.6, end: isSingle ? -31.5 : -25.1 },
+    minimal: { cx: 280, cy: 280, w: 560, arm: isSingle ? 228 : 182, start: isSingle ? -17 : 4.6, end: isSingle ? -31.5 : -25.1 },
+    dark: { cx: 240, cy: 290, w: 560, arm: isSingle ? 232 : 222, start: isSingle ? -11 : -2, end: isSingle ? -27 : -23 },
+    chrome: { cx: 240, cy: 290, w: 560, arm: isSingle ? 232 : 222, start: isSingle ? -11 : -2, end: isSingle ? -27 : -23 },
+    wood: { cx: 240, cy: 290, w: 560, arm: isSingle ? 232 : 222, start: isSingle ? -11 : -2, end: isSingle ? -27 : -23 },
+    realistic1: { cx: 240, cy: 290, w: 560, arm: isSingle ? 232 : 222, start: isSingle ? -11 : -2, end: isSingle ? -27 : -23 },
+    realistic2: { cx: 240, cy: 290, w: 560, arm: isSingle ? 232 : 222, start: isSingle ? -11 : -2, end: isSingle ? -27 : -23 },
+    realistic3: { cx: 265, cy: 285, w: 760, arm: 200, start: isSingle ? -8 : -1.5, end: isSingle ? -22 : -19.5 },
+  }[deckStyleNorm] || { cx: 280, cy: 280, w: 560, arm: 182, start: 4.6, end: -25.1 };
 
-  const armAngle = armConfig.startAngle + (armConfig.endAngle - armConfig.startAngle) * Math.max(0, progress);
-
-  const activeCx = deckStyleNorm === "realistic3" ? 265 : isRealistic ? 255 : 280;
-  const activeCy = deckStyleNorm === "realistic3" ? 285 : isRealistic ? 295 : 280;
-  const containerW = deckStyleNorm === "realistic3" ? 760 : 560;
-
+  const armAngle = geometry.start + (geometry.end - geometry.start) * Math.max(0, progress);
   const S = useMemo(() => makeStyles(dark, text), [dark, text]);
 
   if (view === "auth") {
@@ -1796,24 +1510,8 @@ export default function App() {
                   <div style={S.cardTitle}>{folder.name}</div>
 
                   <div style={S.cardActions}>
-                    <button
-                      style={S.smallBtn}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRenameModal({ type: "folder", id: folder.id, value: folder.name });
-                      }}
-                    >
-                      rename
-                    </button>
-                    <button
-                      style={S.smallBtn}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteFolder(folder.id);
-                      }}
-                    >
-                      delete
-                    </button>
+                    <button style={S.smallBtn} onClick={(e) => { e.stopPropagation(); setRenameModal({ type: "folder", id: folder.id, value: folder.name }); }}>rename</button>
+                    <button style={S.smallBtn} onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }}>delete</button>
                   </div>
                 </div>
               ))}
@@ -1821,10 +1519,7 @@ export default function App() {
             {vis.map((name) => (
               <div
                 key={name}
-                style={{
-                  ...S.card,
-                  outline: dragOverProject === name ? "2px solid rgba(255,255,255,0.72)" : "none",
-                }}
+                style={{ ...S.card, outline: dragOverProject === name ? "2px solid rgba(255,255,255,0.72)" : "none" }}
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.setData("text/plain", name);
@@ -1844,28 +1539,11 @@ export default function App() {
                 onClick={() => openProject(name)}
               >
                 {projectsMeta[name]?.cover ? <img src={projectsMeta[name].cover} style={S.cover} alt="" /> : <div style={S.blankCover} />}
-
                 <div style={S.cardTitle}>{name}</div>
 
                 <div style={S.cardActions}>
-                  <button
-                    style={S.smallBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setRenameModal({ type: "project", id: name, value: name });
-                    }}
-                  >
-                    rename
-                  </button>
-                  <button
-                    style={S.smallBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteProject(name);
-                    }}
-                  >
-                    delete
-                  </button>
+                  <button style={S.smallBtn} onClick={(e) => { e.stopPropagation(); setRenameModal({ type: "project", id: name, value: name }); }}>rename</button>
+                  <button style={S.smallBtn} onClick={(e) => { e.stopPropagation(); deleteProject(name); }}>delete</button>
                 </div>
               </div>
             ))}
@@ -1914,7 +1592,6 @@ export default function App() {
           <div style={S.overlay} onClick={() => setRenameModal(null)}>
             <div style={S.modal} onClick={(e) => e.stopPropagation()}>
               <div style={S.modalLabel}>{renameModal.type === "project" ? "Projekt" : "Ordner"} umbenennen</div>
-
               <input
                 autoFocus
                 style={S.input}
@@ -1929,7 +1606,6 @@ export default function App() {
                   if (e.key === "Escape") setRenameModal(null);
                 }}
               />
-
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   style={S.btn}
@@ -1949,175 +1625,176 @@ export default function App() {
       </div>
     );
   }
+
   return (
     <div style={S.app}>
       <div style={S.sidebar}>
         <h3 style={S.projectHeading}>{activeProject}</h3>
-        <div style={S.meta}>
-          {tracks.length} Tracks - {totalDur(tracks)}
+        <div style={S.meta}>{tracks.length} Tracks - {totalDur(tracks)}</div>
+
+        <div style={S.modeSwitch}>
+          <button
+            style={{ ...S.modeBtn, background: sidebarMode === "tracks" ? S.activeButtonBg : S.inactiveButtonBg }}
+            onClick={() => setSidebarMode("tracks")}
+          >
+            songs
+          </button>
+          <button
+            style={{ ...S.modeBtn, background: sidebarMode === "design" ? S.activeButtonBg : S.inactiveButtonBg }}
+            onClick={() => setSidebarMode("design")}
+          >
+            design
+          </button>
         </div>
 
-        <label style={S.btn}>
-          add tracks
-          <input hidden multiple type="file" accept=".mp3,.wav,.m4a,.ogg,audio/*" onChange={addTracks} />
-        </label>
+        {sidebarMode === "tracks" ? (
+          <>
+            <label style={S.btn}>
+              add tracks
+              <input hidden multiple type="file" accept=".mp3,.wav,.m4a,.ogg,audio/*" onChange={addTracks} />
+            </label>
 
-        <label style={S.btn}>
-          cover art
-          <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={addCover} />
-        </label>
+            <label style={S.btn}>
+              cover art
+              <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={addCover} />
+            </label>
 
-        <div style={S.section}>
-          <div style={S.sectionTitle}>vinyl colors</div>
-
-          <div style={S.colorGrid}>
-            {vinylColors.map((c, i) => (
-              <label key={i} style={S.colorChip}>
-                <input type="color" value={c} onChange={(e) => updateVinylColor(i, e.target.value)} />
-              </label>
-            ))}
-          </div>
-
-          <div style={S.optionGrid}>
-            {VINYL_GRADIENTS.map((g) => (
-              <button
-                key={g}
-                style={{
-                  ...S.smallBtn,
-                  background: vinylGradient === g ? S.activeButtonBg : S.inactiveButtonBg,
-                }}
-                onClick={() => upd("vinylGradient", g, setVinylGradient)}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-
-          <div style={S.row}>
-            <span style={S.subtle}>opacity</span>
-            <input
-              type="range"
-              min="0.35"
-              max="1"
-              step="0.01"
-              value={vinylOpacity}
-              onChange={(e) => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)}
-              style={S.rangeSmall}
-            />
-          </div>
-        </div>
-
-        <div style={S.section}>
-          <div style={S.sectionTitle}>deck</div>
-
-          <div style={S.row}>
-            <span style={S.subtle}>color</span>
-            <input type="color" value={deckColor} onChange={(e) => upd("deckColor", e.target.value, setDeckColor)} />
-          </div>
-
-          <div style={S.optionGrid}>
-            {DECK_STYLES.map((s) => (
-              <button
-                key={s}
-                style={{
-                  ...S.smallBtn,
-                  background: deckStyleNorm === s ? S.activeButtonBg : S.inactiveButtonBg,
-                }}
-                onClick={() => upd("deckStyle", s, setDeckStyle)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={S.section}>
-          <div style={S.sectionTitle}>splatter</div>
-
-          <div style={S.row}>
-            <input type="color" value={splatterColor} onChange={(e) => upd("splatterColor", e.target.value, setSplatterColor)} />
-
-            <button
-              style={{
-                ...S.smallBtn,
-                background: splatterOn ? S.activeButtonBg : S.inactiveButtonBg,
-              }}
-              onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}
-            >
-              {splatterOn ? "on" : "off"}
-            </button>
-          </div>
-
-          <div style={S.optionGrid}>
-            {SPLATTER_STYLES.map((s) => (
-              <button
-                key={s}
-                style={{
-                  ...S.smallBtn,
-                  background: splatterStyle === s ? S.activeButtonBg : S.inactiveButtonBg,
-                }}
-                onClick={() => upd("splatterStyle", s, setSplatterStyle)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button style={S.btn} onClick={() => setView("home")}>
-          home
-        </button>
-
-        <div style={S.list}>
-          {tracks.map((t, i) => (
-            <div
-              key={t.id || i}
-              style={{
-                ...S.track,
-                outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.72)" : "none",
-                opacity: dragOverTrack === i ? 0.75 : 1,
-              }}
-              draggable
-              onDragStart={(e) => e.dataTransfer.setData("aurae_track", String(i))}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOverTrack(i);
-              }}
-              onDragLeave={() => setDragOverTrack(null)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOverTrack(null);
-
-                const from = Number(e.dataTransfer.getData("aurae_track"));
-                if (!Number.isFinite(from) || from === i) return;
-
-                const n = [...tracks];
-                const it = n.splice(from, 1)[0];
-                n.splice(i, 0, it);
-
-                saveCurrentProject(n);
-                if (index === from) setIndex(i);
-              }}
-              onClick={() => play(i)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setSongMenu({ x: e.clientX, y: e.clientY, i });
-              }}
-            >
-              <span style={S.dragHandle}>::</span>
-              <span style={S.trackName}>{t.name}</span>
-              <span style={S.trackDur}>{fmt(t.duration)}</span>
+            <div style={S.list}>
+              {tracks.map((t, i) => (
+                <div
+                  key={t.id || i}
+                  style={{
+                    ...S.track,
+                    outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.72)" : "none",
+                    opacity: dragOverTrack === i ? 0.75 : 1,
+                    background: i === index ? S.activeButtonBg : S.inactiveButtonBg,
+                  }}
+                  draggable
+                  onDragStart={(e) => e.dataTransfer.setData("aurae_track", String(i))}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverTrack(i);
+                  }}
+                  onDragLeave={() => setDragOverTrack(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverTrack(null);
+                    const from = Number(e.dataTransfer.getData("aurae_track"));
+                    if (!Number.isFinite(from) || from === i) return;
+                    const n = [...tracks];
+                    const it = n.splice(from, 1)[0];
+                    n.splice(i, 0, it);
+                    saveCurrentProject(n);
+                    if (index === from) setIndex(i);
+                  }}
+                  onClick={() => play(i)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setSongMenu({ x: e.clientX, y: e.clientY, i });
+                  }}
+                >
+                  <span style={S.dragHandle}>::</span>
+                  <span style={S.trackName}>{t.name}</span>
+                  <span style={S.trackDur}>{fmt(t.duration)}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>vinyl colors</div>
+              <div style={S.colorGrid}>
+                {vinylColors.map((c, i) => (
+                  <label key={i} style={S.colorChip}>
+                    <input type="color" value={c} onChange={(e) => updateVinylColor(i, e.target.value)} />
+                  </label>
+                ))}
+              </div>
+
+              <div style={S.optionGrid}>
+                {VINYL_GRADIENTS.map((g) => (
+                  <button
+                    key={g}
+                    style={{ ...S.smallBtn, background: vinylGradient === g ? S.activeButtonBg : S.inactiveButtonBg }}
+                    onClick={() => upd("vinylGradient", g, setVinylGradient)}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+
+              <div style={S.row}>
+                <span style={S.subtle}>opacity</span>
+                <input
+                  type="range"
+                  min="0.35"
+                  max="1"
+                  step="0.01"
+                  value={vinylOpacity}
+                  onChange={(e) => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)}
+                  style={S.rangeSmall}
+                />
+              </div>
+            </div>
+
+            <div style={S.section}>
+              <div style={S.sectionTitle}>deck</div>
+              <div style={S.row}>
+                <span style={S.subtle}>color</span>
+                <input type="color" value={deckColor} onChange={(e) => upd("deckColor", e.target.value, setDeckColor)} />
+              </div>
+
+              <div style={S.optionGrid}>
+                {DECK_STYLES.map((s) => (
+                  <button
+                    key={s}
+                    style={{ ...S.smallBtn, background: deckStyleNorm === s ? S.activeButtonBg : S.inactiveButtonBg }}
+                    onClick={() => upd("deckStyle", s, setDeckStyle)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={S.section}>
+              <div style={S.sectionTitle}>splatter</div>
+
+              <div style={S.row}>
+                <input type="color" value={splatterColor} onChange={(e) => upd("splatterColor", e.target.value, setSplatterColor)} />
+                <button
+                  style={{ ...S.smallBtn, background: splatterOn ? S.activeButtonBg : S.inactiveButtonBg }}
+                  onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}
+                >
+                  {splatterOn ? "on" : "off"}
+                </button>
+              </div>
+
+              <div style={S.optionGrid}>
+                {SPLATTER_STYLES.map((s) => (
+                  <button
+                    key={s}
+                    style={{ ...S.smallBtn, background: splatterStyle === s ? S.activeButtonBg : S.inactiveButtonBg }}
+                    onClick={() => upd("splatterStyle", s, setSplatterStyle)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        <button style={S.btn} onClick={() => setView("home")}>home</button>
       </div>
 
       <div style={S.stage}>
-        <div style={{ position: "relative", width: containerW, height: 560 }}>
+        <div style={{ position: "relative", width: geometry.w, height: 560 }}>
           <VinylDisc
             vinylRadius={vinylRadius}
-            activeCx={activeCx}
-            activeCy={activeCy}
+            activeCx={geometry.cx}
+            activeCy={geometry.cy}
             playing={playing}
             vinylColors={vinylColors}
             vinylGradient={vinylGradient}
@@ -2133,39 +1810,25 @@ export default function App() {
             style={deckStyleNorm}
             color={deckColor}
             armAngle={armAngle}
-            armLen={armConfig.armLen}
+            armLen={geometry.arm}
             vinylRadius={vinylRadius}
           />
         </div>
       </div>
 
       <div style={S.player}>
-        <button style={S.playerBtn} onClick={prev}>
-          prev
-        </button>
-        <button style={S.playBtn} onClick={toggle}>
-          {playing ? "pause" : "play"}
-        </button>
-        <button style={S.playerBtn} onClick={nextT}>
-          next
-        </button>
-
+        <button style={S.playerBtn} onClick={prev}>prev</button>
+        <button style={S.playBtn} onClick={toggle}>{playing ? "pause" : "play"}</button>
+        <button style={S.playerBtn} onClick={nextT}>next</button>
         <div style={S.now}>{current?.name || "no track"}</div>
-        <div style={S.time}>
-          {fmt(currentTime)} / {fmt(duration)}
-        </div>
-
+        <div style={S.time}>{fmt(currentTime)} / {fmt(duration)}</div>
         <input type="range" min="0" max={duration || 0} value={currentTime} onChange={seek} style={S.range} />
       </div>
 
       {songMenu && (
         <div style={{ ...S.menu, left: songMenu.x, top: songMenu.y }}>
-          <button style={S.menuBtn} onClick={() => moveTrack(songMenu.i)}>
-            move
-          </button>
-          <button style={S.menuBtn} onClick={() => deleteTrack(songMenu.i)}>
-            delete
-          </button>
+          <button style={S.menuBtn} onClick={() => moveTrack(songMenu.i)}>move</button>
+          <button style={S.menuBtn} onClick={() => deleteTrack(songMenu.i)}>delete</button>
         </div>
       )}
 
@@ -2174,7 +1837,6 @@ export default function App() {
   );
 }
 
-// Styles
 function makeStyles(dark, text) {
   const surface = dark ? "rgba(18,24,32,0.52)" : "rgba(255,255,255,0.52)";
   const surface2 = dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.42)";
@@ -2275,6 +1937,22 @@ function makeStyles(dark, text) {
       fontSize: 11,
       fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
       fontWeight: 700,
+      backdropFilter: "blur(18px)",
+    },
+
+    modeSwitch: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 8,
+    },
+
+    modeBtn: {
+      padding: "10px 12px",
+      borderRadius: 16,
+      border,
+      color: text,
+      cursor: "pointer",
+      fontWeight: 800,
       backdropFilter: "blur(18px)",
     },
 
@@ -2391,14 +2069,14 @@ function makeStyles(dark, text) {
     },
 
     sidebar: {
-      width: 310,
+      width: 340,
       margin: 16,
       padding: 18,
       borderRadius: 28,
       display: "flex",
       flexDirection: "column",
       gap: 12,
-      overflowY: "auto",
+      overflowY: "hidden",
       flexShrink: 0,
       zIndex: 8,
       ...glass,
@@ -2481,7 +2159,8 @@ function makeStyles(dark, text) {
       display: "flex",
       flexDirection: "column",
       gap: 8,
-      minHeight: 80,
+      flex: 1,
+      minHeight: 300,
       paddingBottom: 8,
     },
 
@@ -2490,9 +2169,8 @@ function makeStyles(dark, text) {
       justifyContent: "space-between",
       alignItems: "center",
       gap: 8,
-      padding: 10,
+      padding: "13px 11px",
       borderRadius: 16,
-      background: dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.42)",
       border: dark ? "1px solid rgba(255,255,255,.07)" : "1px solid rgba(255,255,255,.5)",
       cursor: "pointer",
     },
@@ -2530,7 +2208,7 @@ function makeStyles(dark, text) {
 
     player: {
       position: "fixed",
-      left: 342,
+      left: 372,
       right: 16,
       bottom: 16,
       minHeight: 78,
@@ -2644,6 +2322,99 @@ if (!document.getElementById(_auraeStyleId)) {
     input[type="color"]::-webkit-color-swatch {
       border: 0;
       border-radius: 10px;
+    }
+
+    .deckSvg {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+      overflow: visible;
+    }
+
+    .vinylDisc {
+      position: absolute;
+      border-radius: 50%;
+      z-index: 1;
+      overflow: hidden;
+      box-shadow:
+        0 30px 58px rgba(0,0,0,.38),
+        inset 0 0 0 1px rgba(255,255,255,.18),
+        inset 0 0 38px rgba(0,0,0,.3);
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    .vinylGrooves {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background:
+        repeating-radial-gradient(circle, rgba(255,255,255,.15) 0px, rgba(255,255,255,.08) 1px, rgba(0,0,0,.18) 2px, transparent 4px),
+        radial-gradient(circle, transparent 55%, rgba(0,0,0,.36) 100%);
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+
+    .vinylHighlight {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background:
+        linear-gradient(120deg, rgba(255,255,255,.35), transparent 25%, transparent 64%, rgba(255,255,255,.12)),
+        radial-gradient(circle at 34% 28%, rgba(255,255,255,.22), transparent 30%);
+      pointer-events: none;
+    }
+
+    .splatterSvg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .vinylLabel {
+      position: absolute;
+      border-radius: 50%;
+      object-fit: cover;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      box-shadow:
+        0 0 0 4px rgba(255,255,255,.16),
+        0 12px 26px rgba(0,0,0,.28);
+      z-index: 5;
+    }
+
+    .vinylLabelFallback {
+      background: rgba(255,255,255,.76);
+      color: #101820;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 850;
+      letter-spacing: 0;
+    }
+
+    .vinylCenterHole {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #090909;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      z-index: 8;
+      box-shadow:
+        inset 0 2px 5px rgba(255,255,255,.3),
+        0 0 0 2px rgba(255,255,255,.12);
     }
 
     @media (max-width: 980px) {
