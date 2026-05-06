@@ -153,7 +153,6 @@ const VINYL_GRADIENTS = [
 const SPLATTER_STYLES = [
   { id: "burst", label: "burst" },
   { id: "mist", label: "mist" },
-  { id: "comet", label: "comet" },
   { id: "ring", label: "ring" },
   { id: "drip", label: "drip" }
 ];
@@ -255,6 +254,7 @@ function boardPath(style) {
 
   return "M48 20 Q20 20 20 48 L20 512 Q20 540 48 540 L512 540 Q540 540 540 512 L540 48 Q540 20 512 20 Z";
 }
+
 function DeckDefs({ id, style, color }) {
   const s = normalizeDeckStyle(style);
   const base = deckBaseColor(s, color);
@@ -718,6 +718,7 @@ function StandardDeck({ style, color, armAngle, armLen, vinylRadius, textColor }
     </svg>
   );
 }
+
 function renderSlider(id, x, y, label, level, textColor) {
   const trackH = 270;
   const ledCount = 12;
@@ -994,7 +995,7 @@ function SplatterOverlay({ color, style }) {
   const rand = seededRand(42);
   const paths = [];
   const dots = [];
-  const selected = style || "burst";
+  const selected = style === "comet" ? "burst" : style || "burst";
 
   if (selected === "mist") {
     for (let i = 0; i < 130; i++) {
@@ -1008,28 +1009,6 @@ function SplatterOverlay({ color, style }) {
           r={0.7 + rand() * 3.5}
           fill={color}
           opacity={0.12 + rand() * 0.42}
-        />
-      );
-    }
-  } else if (selected === "comet") {
-    for (let i = 0; i < 36; i++) {
-      const a = -0.5 + rand() * 1.1;
-      const inner = 52 + rand() * 42;
-      const outer = 130 + rand() * 66;
-      const x1 = cx + Math.cos(a) * inner;
-      const y1 = cy + Math.sin(a) * inner;
-      const x2 = cx + Math.cos(a + 0.22 + rand() * 0.16) * outer;
-      const y2 = cy + Math.sin(a + 0.22 + rand() * 0.16) * outer;
-
-      paths.push(
-        <path
-          key={`c-${i}`}
-          d={`M ${x1} ${y1} Q ${cx + rand() * 95} ${cy - 70 + rand() * 140} ${x2} ${y2}`}
-          stroke={color}
-          strokeWidth={2 + rand() * 9}
-          strokeLinecap="round"
-          fill="none"
-          opacity={0.34 + rand() * 0.46}
         />
       );
     }
@@ -1182,7 +1161,8 @@ function VinylDisc({
   splatterStyle,
   albumCover,
   isSingle,
-  playing
+  playing,
+  textColor
 }) {
   const labelSize = Math.round(radius * (isSingle ? 0.68 : 0.75));
 
@@ -1254,7 +1234,7 @@ function VinylDisc({
             transform: "translate(-50%, -50%)",
             background:
               "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
-            color: "#ffffff",
+            color: textColor,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1284,6 +1264,7 @@ function VinylDisc({
     </div>
   );
 }
+
 const OVL = {
   position: "fixed",
   inset: 0,
@@ -1366,6 +1347,7 @@ export default function App() {
           meta[name] = {
             ...data,
             deckStyle: normalizeDeckStyle(data.deckStyle || "classic"),
+            splatterStyle: data.splatterStyle === "comet" ? "burst" : data.splatterStyle || "burst",
             tracks: (data.tracks || []).map(({ url, ...rest }) => rest)
           };
         }
@@ -1377,7 +1359,8 @@ export default function App() {
           if (!meta[name]) {
             meta[name] = {
               ...p,
-              deckStyle: normalizeDeckStyle(p.deckStyle || "classic")
+              deckStyle: normalizeDeckStyle(p.deckStyle || "classic"),
+              splatterStyle: p.splatterStyle === "comet" ? "burst" : p.splatterStyle || "burst"
             };
             await saveProjectToDB(name, meta[name]);
           }
@@ -1498,6 +1481,7 @@ export default function App() {
   function projectPayload(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
     const nextColors = overrides.vinylColors || vinylColors;
     const nextVinylColor = overrides.vinylColor || nextColors[0] || vinylColor;
+    const nextSplatterStyle = overrides.splatterStyle === "comet" ? "burst" : overrides.splatterStyle ?? splatterStyle;
 
     return {
       tracks: nextTracks.map(({ url, ...meta }) => meta),
@@ -1508,7 +1492,7 @@ export default function App() {
       vinylOpacity: overrides.vinylOpacity ?? vinylOpacity,
       splatterColor: overrides.splatterColor ?? splatterColor,
       splatterOn: overrides.splatterOn ?? splatterOn,
-      splatterStyle: overrides.splatterStyle ?? splatterStyle,
+      splatterStyle: nextSplatterStyle === "comet" ? "burst" : nextSplatterStyle,
       deckStyle: normalizeDeckStyle(overrides.deckStyle ?? deckStyle),
       deckColor: overrides.deckColor ?? deckColor
     };
@@ -1563,7 +1547,7 @@ export default function App() {
     setVinylOpacity(p.vinylOpacity !== undefined ? p.vinylOpacity : 1);
     setSplatterColor(p.splatterColor || "#3a7bd5");
     setSplatterOn(Boolean(p.splatterOn));
-    setSplatterStyle(p.splatterStyle || "burst");
+    setSplatterStyle(p.splatterStyle === "comet" ? "burst" : p.splatterStyle || "burst");
     setDeckStyle(style);
     setDeckColor(p.deckColor || "#1a1a1a");
     setIndex(0);
@@ -2137,31 +2121,6 @@ export default function App() {
         ) : (
           <div style={S.designPanel}>
             <div style={S.section}>
-              <div style={S.sectionTitle}>Deck</div>
-              <input
-                type="color"
-                value={deckColor}
-                onChange={e => upd("deckColor", e.target.value, setDeckColor)}
-                style={S.colorInput}
-                title="deck color"
-              />
-              <div style={S.optionGrid}>
-                {DECK_STYLES.map(style => (
-                  <button
-                    key={style}
-                    style={{
-                      ...S.smallBtn,
-                      ...(normalizeDeckStyle(deckStyle) === style ? S.optionActive : {})
-                    }}
-                    onClick={() => upd("deckStyle", style, setDeckStyle)}
-                  >
-                    {style}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={S.section}>
               <div style={S.sectionTitle}>Vinyl colors</div>
               <div style={S.colorGrid}>
                 {[0, 1, 2, 3].map(slot => (
@@ -2263,6 +2222,7 @@ export default function App() {
               albumCover={albumCover}
               isSingle={isSingle}
               playing={playing}
+              textColor={text}
             />
           </div>
 
@@ -2858,4 +2818,5 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
+
 
