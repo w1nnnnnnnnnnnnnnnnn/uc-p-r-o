@@ -3,13 +3,11 @@ import React, { useEffect, useRef, useState } from "react";
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open("aurae_audio", 2);
-
     req.onupgradeneeded = e => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains("blobs")) db.createObjectStore("blobs");
       if (!db.objectStoreNames.contains("projects")) db.createObjectStore("projects");
     };
-
     req.onsuccess = e => res(e.target.result);
     req.onerror = () => rej(req.error);
   });
@@ -17,7 +15,6 @@ function openDB() {
 
 async function idb(store, mode, fn) {
   const db = await openDB();
-
   return new Promise((res, rej) => {
     const tx = db.transaction(store, mode);
     fn(tx.objectStore(store), res, rej, tx);
@@ -71,24 +68,29 @@ const loadAllProjectNames = () =>
     req.onerror = () => res([]);
   });
 
-function clamp(value, min = 0, max = 255) {
-  return Math.max(min, Math.min(max, value));
+function safeJSON(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch {
+    return fallback;
+  }
+}
+
+function clamp(v, min = 0, max = 255) {
+  return Math.max(min, Math.min(max, v));
 }
 
 function normalizeHex(hex) {
   const clean = String(hex || "#000000").trim();
-
   if (/^#[0-9a-f]{3}$/i.test(clean)) {
     return `#${clean[1]}${clean[1]}${clean[2]}${clean[2]}${clean[3]}${clean[3]}`;
   }
-
   if (/^#[0-9a-f]{6}$/i.test(clean)) return clean;
   return "#000000";
 }
 
 function hexToRgb(hex) {
   const safe = normalizeHex(hex);
-
   return {
     r: parseInt(safe.slice(1, 3), 16),
     g: parseInt(safe.slice(3, 5), 16),
@@ -117,14 +119,6 @@ function seededRand(seed) {
     s = (s * 16807) % 2147483647;
     return (s - 1) / 2147483646;
   };
-}
-
-function safeJSON(key, fallback) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
-  } catch {
-    return fallback;
-  }
 }
 
 const DEFAULT_VINYL_COLORS = ["#111111", "#3a7bd5", "#9d4edd", "#ff7a59"];
@@ -157,74 +151,26 @@ const SPLATTER_STYLES = [
 
 function normalizeDeckStyle(style) {
   if (style === "realistic") return "realistic1";
-  if (style === "realistic2") return "realistic2";
-  if (style === "realistic3") return "realistic3";
   if (DECK_STYLES.includes(style)) return style;
   return "classic";
 }
 
-function holePath(cx, cy, r) {
-  return `M ${cx} ${cy - r} A ${r} ${r} 0 1 0 ${cx + 0.001} ${cy - r} Z`;
-}
-
-function deckGeometry(style, isSingle) {
+function deckGeometry(style) {
   const s = normalizeDeckStyle(style);
 
   if (s === "realistic3") {
-    return {
-      width: 760,
-      height: 560,
-      cx: 265,
-      cy: 285,
-      pivotX: 468,
-      pivotY: 112
-    };
+    return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 468, pivotY: 112 };
   }
 
   if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) {
-    return {
-      width: 560,
-      height: 560,
-      cx: 240,
-      cy: 290,
-      pivotX: 448,
-      pivotY: 118
-    };
+    return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 448, pivotY: 118 };
   }
 
-  return {
-    width: 560,
-    height: 560,
-    cx: 280,
-    cy: 280,
-    pivotX: 508,
-    pivotY: 132
-  };
+  return { width: 560, height: 560, cx: 280, cy: 280, pivotX: 508, pivotY: 132 };
 }
 
-function groovePoint(geometry, radius, progress) {
-  const p = Math.max(0, Math.min(1, progress || 0));
-  const outerR = radius * 0.92;
-  const innerR = radius * 0.43;
-  const r = outerR + (innerR - outerR) * p;
-  const angle = (-6 - 15 * p) * (Math.PI / 180);
-
-  return {
-    x: geometry.cx + Math.cos(angle) * r,
-    y: geometry.cy + Math.sin(angle) * r
-  };
-}
-
-function deckBaseColor(style, color) {
-  const s = normalizeDeckStyle(style);
-  if (s === "classic") return "#e5e1d8";
-  if (s === "dark") return "#151515";
-  if (s === "chrome") return "#b8bec4";
-  if (s === "wood") return "#8b5a32";
-  if (s === "minimal") return "#ffffff";
-  if (s === "realistic1") return color || "#25272b";
-  if (s === "realistic2") return color || "#d8d2c7";
-  return color || "#1a1a1a";
+function holePath(cx, cy, r) {
+  return `M ${cx} ${cy - r} A ${r} ${r} 0 1 0 ${cx + 0.001} ${cy - r} Z`;
 }
 
 function boardPath(style) {
@@ -240,506 +186,60 @@ function boardPath(style) {
   return "M48 20 Q20 20 20 48 L20 512 Q20 540 48 540 L512 540 Q540 540 540 512 L540 48 Q540 20 512 20 Z";
 }
 
-function DeckDefs({ id, style, color }) {
+function deckBase(style, color) {
   const s = normalizeDeckStyle(style);
-  const base = deckBaseColor(s, color);
-  const hi = lighten(base, 48);
-  const mid = lighten(base, 16);
-  const low = darken(base, 38);
-
-  return (
-    <defs>
-      <linearGradient id={`${id}-base`} x1="0" y1="0" x2="1" y2="1">
-        {s === "chrome" ? (
-          <>
-            <stop offset="0%" stopColor="#f1f4f6" />
-            <stop offset="26%" stopColor="#a9b0b6" />
-            <stop offset="52%" stopColor="#dce1e5" />
-            <stop offset="100%" stopColor="#7f858b" />
-          </>
-        ) : s === "wood" ? (
-          <>
-            <stop offset="0%" stopColor="#a87543" />
-            <stop offset="24%" stopColor="#6f421e" />
-            <stop offset="48%" stopColor="#9b6537" />
-            <stop offset="72%" stopColor="#70421f" />
-            <stop offset="100%" stopColor="#b47b47" />
-          </>
-        ) : s === "minimal" ? (
-          <>
-            <stop offset="0%" stopColor="rgba(255,255,255,0.12)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0.025)" />
-          </>
-        ) : (
-          <>
-            <stop offset="0%" stopColor={hi} />
-            <stop offset="48%" stopColor={base} />
-            <stop offset="100%" stopColor={low} />
-          </>
-        )}
-      </linearGradient>
-
-      <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#f5f5f5" />
-        <stop offset="42%" stopColor="#b9b9b9" />
-        <stop offset="100%" stopColor="#6d6d6d" />
-      </linearGradient>
-
-      <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#e9c96a" />
-        <stop offset="44%" stopColor="#b88b2b" />
-        <stop offset="100%" stopColor="#f4d984" />
-      </linearGradient>
-
-      <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
-        <stop offset="0%" stopColor="#f0f0f0" />
-        <stop offset="54%" stopColor="#888" />
-        <stop offset="100%" stopColor="#333" />
-      </radialGradient>
-
-      <filter id={`${id}-shadow`}>
-        <feDropShadow dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" />
-      </filter>
-
-      <filter id={`${id}-soft`}>
-        <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
-      </filter>
-
-      <pattern id={`${id}-woodgrain`} x="0" y="0" width="560" height="12" patternUnits="userSpaceOnUse">
-        <line x1="0" y1="2" x2="560" y2="2" stroke="rgba(0,0,0,0.09)" strokeWidth="1" />
-        <line x1="0" y1="8" x2="560" y2="8" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-      </pattern>
-
-      <pattern id={`${id}-brushed`} x="0" y="0" width="8" height="560" patternUnits="userSpaceOnUse">
-        <line x1="1" y1="0" x2="7" y2="560" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
-        <line x1="5" y1="0" x2="1" y2="560" stroke="rgba(0,0,0,0.045)" strokeWidth="0.7" />
-      </pattern>
-    </defs>
-  );
+  if (s === "classic") return "#e5e1d8";
+  if (s === "dark") return "#151515";
+  if (s === "chrome") return "#b8bec4";
+  if (s === "wood") return "#8b5a32";
+  if (s === "minimal") return "#ffffff";
+  if (s === "realistic1") return color || "#25272b";
+  if (s === "realistic2") return color || "#d8d2c7";
+  return color || "#1a1a1a";
 }
 
-function Tonearm({ id, geometry, stylus, textColor }) {
-  const angle = Math.atan2(stylus.y - geometry.pivotY, stylus.x - geometry.pivotX) * (180 / Math.PI);
+function groovePoint(g, radius, progress) {
+  const p = Math.max(0, Math.min(1, progress || 0));
+  const r = radius * (0.92 + (0.43 - 0.92) * p);
+  const angle = (-6 - 15 * p) * Math.PI / 180;
 
-  return (
-    <g>
-      <circle
-        cx={geometry.pivotX}
-        cy={geometry.pivotY}
-        r="24"
-        fill={`url(#${id}-knob)`}
-        stroke="rgba(0,0,0,0.34)"
-        strokeWidth="1.4"
-        filter={`url(#${id}-soft)`}
-      />
-      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="10" fill="rgba(0,0,0,0.36)" />
-      <circle cx={geometry.pivotX - 3} cy={geometry.pivotY - 3} r="2.2" fill="rgba(255,255,255,0.75)" />
-
-      <line
-        x1={geometry.pivotX}
-        y1={geometry.pivotY}
-        x2={stylus.x}
-        y2={stylus.y}
-        stroke={`url(#${id}-arm)`}
-        strokeWidth="8"
-        strokeLinecap="round"
-      />
-      <line
-        x1={geometry.pivotX - 4}
-        y1={geometry.pivotY - 3}
-        x2={stylus.x - 4}
-        y2={stylus.y - 3}
-        stroke="rgba(255,255,255,0.42)"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
-
-      <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
-        <rect
-          x="-7"
-          y="-10"
-          width="28"
-          height="20"
-          rx="3"
-          fill="#b9b9b9"
-          stroke="rgba(0,0,0,0.35)"
-          strokeWidth="0.9"
-          filter={`url(#${id}-soft)`}
-        />
-        <rect x="-2" y="2" width="16" height="10" rx="2" fill="#2b2b2b" />
-        <line x1="2" y1="12" x2="2" y2="20" stroke="#111" strokeWidth="1.8" strokeLinecap="round" />
-      </g>
-
-      <circle cx={stylus.x} cy={stylus.y} r="2.3" fill="#111" />
-      <ellipse
-        cx={geometry.pivotX + 20}
-        cy={geometry.pivotY}
-        rx="14"
-        ry="9"
-        fill="#8a8a8a"
-        stroke="rgba(0,0,0,0.3)"
-        strokeWidth="0.8"
-      />
-
-      <text
-        x={geometry.pivotX}
-        y={geometry.pivotY + 43}
-        fill={textColor}
-        opacity="0.82"
-        fontSize="8"
-        fontFamily="monospace"
-        textAnchor="middle"
-      >
-        TONE
-      </text>
-    </g>
-  );
+  return {
+    x: g.cx + Math.cos(angle) * r,
+    y: g.cy + Math.sin(angle) * r
+  };
 }
 
-function StandardControls({ id, style, textColor }) {
-  const s = normalizeDeckStyle(style);
-  const compact = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s);
+function vinylBackground(colors, gradient) {
+  const clean = (colors || []).filter(Boolean);
+  const c1 = clean[0] || "#111111";
+  const c2 = clean[1] || c1;
+  const c3 = clean[2] || c2;
+  const c4 = clean[3] || c3;
 
-  if (s === "minimal") {
-    return (
-      <g>
-        <line x1="520" y1="308" x2="520" y2="458" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-        <circle cx="520" cy="378" r="5" fill={textColor} opacity="0.75" />
-        <text x="520" y="482" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">
-          VOL
-        </text>
-      </g>
-    );
+  if (gradient === "solid") {
+    return `radial-gradient(circle at 42% 36%, ${lighten(c1, 28)} 0%, ${c1} 44%, ${darken(c1, 38)} 100%)`;
   }
 
-  if (!compact) {
-    return (
-      <g>
-        <rect x="48" y="474" width="210" height="42" rx="10" fill="rgba(0,0,0,0.16)" stroke="rgba(255,255,255,0.15)" />
-        {["33", "45", "78"].map((label, i) => (
-          <g key={label}>
-            <rect
-              x={62 + i * 58}
-              y="486"
-              width="42"
-              height="18"
-              rx="5"
-              fill="rgba(255,255,255,0.12)"
-              stroke="rgba(0,0,0,0.22)"
-              strokeWidth="0.8"
-            />
-            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
-              {label}
-            </text>
-          </g>
-        ))}
-        <rect x="206" y="486" width="36" height="18" rx="5" fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" />
-        <text x="224" y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
-          REC
-        </text>
-      </g>
-    );
+  if (gradient === "split") {
+    return `conic-gradient(from 210deg, ${c1} 0deg, ${c1} 95deg, ${c2} 100deg, ${c3} 190deg, ${c4} 260deg, ${c1} 360deg)`;
   }
 
-  return (
-    <g>
-      <rect
-        x="430"
-        y="330"
-        width="96"
-        height="150"
-        rx={s === "dark" ? 3 : 9}
-        fill={s === "wood" ? "rgba(0,0,0,0.24)" : "rgba(0,0,0,0.25)"}
-        stroke="rgba(255,255,255,0.14)"
-        strokeWidth="1"
-        filter={`url(#${id}-soft)`}
-      />
-
-      {s === "realistic1" && (
-        <>
-          <rect x="442" y="346" width="72" height="26" rx="5" fill="rgba(0,0,0,0.35)" />
-          <text x="478" y="363" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">START</text>
-          <rect x="442" y="382" width="72" height="26" rx="5" fill="rgba(0,0,0,0.23)" />
-          <text x="478" y="399" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">STOP</text>
-          <rect x="466" y="424" width="20" height="36" rx="8" fill="rgba(0,0,0,0.38)" />
-          <rect x="458" y="438" width="36" height="13" rx="4" fill="rgba(255,255,255,0.62)" />
-        </>
-      )}
-
-      {s === "realistic2" && (
-        <>
-          <rect x="444" y="346" width="32" height="32" rx="16" fill="rgba(0,0,0,0.18)" />
-          <text x="460" y="366" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">33</text>
-          <rect x="488" y="346" width="32" height="32" rx="16" fill="rgba(0,0,0,0.11)" />
-          <text x="504" y="366" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">45</text>
-          <rect x="444" y="392" width="70" height="30" rx="14" fill="rgba(0,0,0,0.16)" />
-          <text x="479" y="411" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">LIFT</text>
-          <rect x="448" y="436" width="64" height="26" rx="7" fill="rgba(0,0,0,0.15)" />
-          <text x="480" y="453" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">PLAY</text>
-        </>
-      )}
-
-      {s === "dark" && (
-        <>
-          <rect x="444" y="346" width="68" height="28" rx="3" fill="rgba(0,0,0,0.44)" stroke="rgba(255,255,255,0.12)" />
-          <text x="478" y="364" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">POWER</text>
-          <circle cx="478" cy="412" r="20" fill="#111" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
-          <line x1="478" y1="397" x2="478" y2="405" stroke={textColor} strokeWidth="2" />
-          <text x="478" y="448" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">RPM</text>
-        </>
-      )}
-
-      {s === "chrome" && (
-        <>
-          <rect x="444" y="346" width="68" height="34" rx="5" fill="rgba(0,20,28,0.62)" />
-          <text x="478" y="360" fill={textColor} fontSize="7" fontFamily="monospace" textAnchor="middle">OUTPUT</text>
-          {[0, 1, 2, 3, 4].map(i => (
-            <rect key={i} x={454 + i * 10} y={370 - i * 2} width="6" height={8 + i * 2} rx="2" fill={textColor} opacity="0.7" />
-          ))}
-          <circle cx="478" cy="424" r="20" fill={`url(#${id}-knob)`} />
-          <line x1="478" y1="409" x2="478" y2="416" stroke={textColor} strokeWidth="2" />
-          <text x="478" y="459" fill={textColor} fontSize="7" fontFamily="monospace" textAnchor="middle">GAIN</text>
-        </>
-      )}
-
-      {s === "wood" && (
-        <>
-          <rect x="444" y="346" width="68" height="22" rx="4" fill={`url(#${id}-brass)`} opacity="0.7" />
-          <text x="478" y="361" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">CONTROL</text>
-          <circle cx="478" cy="414" r="22" fill="#241406" stroke={`url(#${id}-brass)`} strokeWidth="2" />
-          <circle cx="478" cy="414" r="13" fill={`url(#${id}-brass)`} opacity="0.88" />
-          <line x1="478" y1="404" x2="478" y2="396" stroke={textColor} strokeWidth="2" />
-          <text x="478" y="454" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">VOL</text>
-        </>
-      )}
-    </g>
-  );
-}
-
-function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
-  const s = normalizeDeckStyle(style);
-  const id = `deck-${s}`;
-  const geometry = deckGeometry(s, vinylRadius <= 120);
-  const stylus = groovePoint(geometry, vinylRadius, progress);
-  const holeR = vinylRadius + 8;
-  const hole = holePath(geometry.cx, geometry.cy, holeR);
-  const board = boardPath(s);
-
-  return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
-      <DeckDefs id={id} style={s} color={color} />
-
-      <path d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
-
-      {s === "wood" && <path d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
-      {s === "chrome" && <path d={`${board} ${hole}`} fill={`url(#${id}-brushed)`} fillRule="evenodd" opacity="0.7" />}
-
-      {s === "chrome" && (
-        <>
-          <path d="M20 70 L70 20 L132 20 L20 132 Z" fill="rgba(80,180,220,0.42)" />
-          <path d="M500 540 L540 500 L540 540 Z" fill="rgba(80,180,220,0.35)" />
-          {[0, 1, 2, 3, 4, 5, 6].map(i => (
-            <circle key={i} cx={88 + i * 26} cy="36" r="3" fill={textColor} opacity="0.55" />
-          ))}
-        </>
-      )}
-
-      {s === "dark" && (
-        <>
-          <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="3" />
-          <rect x="20" y="20" width="520" height="6" fill="rgba(255,255,255,0.18)" />
-          <rect x="20" y="534" width="520" height="6" fill="rgba(255,255,255,0.18)" />
-        </>
-      )}
-
-      {s === "wood" && (
-        <>
-          <rect x="30" y="30" width="500" height="500" rx="15" fill="none" stroke={`url(#${id}-brass)`} strokeWidth="3" />
-          <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
-        </>
-      )}
-
-      {s === "realistic1" && (
-        <>
-          <rect x="50" y="34" width="230" height="14" rx="4" fill="rgba(255,255,255,0.12)" />
-          <rect x="52" y="512" width="160" height="10" rx="5" fill="rgba(0,0,0,0.28)" />
-          <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>
-        </>
-      )}
-
-      {s === "realistic2" && (
-        <>
-          <ellipse cx="180" cy="96" rx="140" ry="44" fill="rgba(255,255,255,0.16)" transform="rotate(-10 180 96)" />
-          <rect x="42" y="42" width="358" height="28" rx="14" fill="rgba(255,255,255,0.2)" />
-          <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">BELT DRIVE</text>
-          <rect x="54" y="500" width="250" height="16" rx="8" fill="rgba(0,0,0,0.12)" />
-        </>
-      )}
-
-      {s === "minimal" && (
-        <>
-          <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="1" />
-          {[20, 540].map(x =>
-            [20, 540].map(y => (
-              <g key={`${x}-${y}`}>
-                <line x1={x} y1={y} x2={x + (x === 20 ? 28 : -28)} y2={y} stroke={textColor} opacity="0.5" />
-                <line x1={x} y1={y} x2={x} y2={y + (y === 20 ? 28 : -28)} stroke={textColor} opacity="0.5" />
-              </g>
-            ))
-          )}
-        </>
-      )}
-
-      <circle cx={geometry.cx} cy={geometry.cy} r={holeR + 13} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="7" />
-      <circle cx={geometry.cx} cy={geometry.cy} r={holeR + 8} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
-      <circle cx={geometry.cx} cy={geometry.cy} r={holeR + 2} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="2" />
-
-      <StandardControls id={id} style={s} textColor={textColor} />
-      <Tonearm id={id} geometry={geometry} stylus={stylus} textColor={textColor} />
-
-      {[[38, 38], [522, 38], [38, 522], [522, 522]].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="5" fill="rgba(0,0,0,0.25)" stroke="rgba(255,255,255,0.2)" />
-      ))}
-
-      <circle cx={geometry.cx} cy={geometry.cy} r="5.5" fill="rgba(255,255,255,0.72)" stroke="rgba(0,0,0,0.4)" />
-      <circle cx={geometry.cx} cy={geometry.cy} r="2.2" fill="rgba(0,0,0,0.55)" />
-    </svg>
-  );
-}
-
-function renderSlider(id, x, y, label, level, textColor) {
-  const trackH = 270;
-  const ledCount = 12;
-  const ledSpacing = trackH / ledCount;
-  const thumbY = y + 18 + trackH * (1 - level) - 10;
-  const activeLeds = Math.round(level * ledCount);
-
-  return (
-    <g key={label}>
-      <rect x={x} y={y} width="52" height={trackH + 42} rx="5" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)" />
-      <text x={x + 5} y={y + 13} fill={textColor} fontSize="7" fontFamily="monospace" opacity="0.9">{label}</text>
-
-      {Array.from({ length: ledCount }).map((_, i) => {
-        const ly = y + 18 + i * ledSpacing;
-        const active = ledCount - 1 - i < activeLeds;
-
-        return (
-          <g key={i}>
-            <rect x={x + 36} y={ly} width="10" height={ledSpacing - 3} rx="1.5" fill="rgba(0,0,0,0.52)" />
-            <circle cx={x + 41} cy={ly + ledSpacing / 2 - 1.5} r="3" fill={active ? textColor : "rgba(255,255,255,0.12)"} opacity={active ? 0.88 : 0.5} />
-          </g>
-        );
-      })}
-
-      <rect x={x + 10} y={y + 18} width="8" height={trackH} rx="4" fill="#101010" stroke="rgba(255,255,255,0.12)" />
-      <rect x={x + 6} y={thumbY} width="16" height="21" rx="3" fill={`url(#${id}-r3-knob)`} stroke="rgba(0,0,0,0.35)" />
-      <rect x={x + 8} y={thumbY + 3} width="12" height="4" rx="1" fill="rgba(255,255,255,0.55)" />
-    </g>
-  );
-}
-
-function Realistic3Deck({ vinylRadius, textColor, progress }) {
-  const id = "deck-realistic3";
-  const geometry = deckGeometry("realistic3", vinylRadius <= 120);
-  const stylus = groovePoint(geometry, vinylRadius, progress);
-  const holeR = vinylRadius + 7;
-  const hole = holePath(geometry.cx, geometry.cy, holeR);
-
-  return (
-    <svg viewBox="0 0 760 560" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
-      <defs>
-        <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" /></filter>
-        <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
-        <linearGradient id={`${id}-plinth`} x1="0" y1="0" x2="0.4" y2="1">
-          <stop offset="0%" stopColor="#ebe4d8" />
-          <stop offset="44%" stopColor="#d2c7b6" />
-          <stop offset="100%" stopColor="#b7ac9c" />
-        </linearGradient>
-        <linearGradient id={`${id}-panel`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2d2924" />
-          <stop offset="50%" stopColor="#1f1b18" />
-          <stop offset="100%" stopColor="#12100e" />
-        </linearGradient>
-        <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f2f2f2" />
-          <stop offset="34%" stopColor="#c5c5c5" />
-          <stop offset="100%" stopColor="#777" />
-        </linearGradient>
-        <linearGradient id={`${id}-r3-knob`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#c8c8c8" />
-          <stop offset="50%" stopColor="#f4f4f4" />
-          <stop offset="100%" stopColor="#9e9e9e" />
-        </linearGradient>
-        <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
-          <stop offset="0%" stopColor="#e8e8e8" />
-          <stop offset="55%" stopColor="#a8a8a8" />
-          <stop offset="100%" stopColor="#565656" />
-        </radialGradient>
-      </defs>
-
-      <path d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`} fill="#1a1612" fillRule="evenodd" stroke="#090806" strokeWidth="2" />
-      <path d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
-      <path d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`} fill="none" fillRule="evenodd" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
-
-      <rect x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
-      <rect x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
-      <rect x="493" y="9" width="258" height="542" rx="7" fill="none" stroke="rgba(255,255,255,0.08)" />
-
-      <circle cx={geometry.cx} cy={geometry.cy} r={holeR + 17} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="8" />
-      <circle cx={geometry.cx} cy={geometry.cy} r={holeR + 10} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
-
-      <rect x="502" y="20" width="108" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">POWER</text>
-      <rect x="508" y="42" width="46" height="15" rx="3" fill="rgba(255,255,255,0.10)" />
-      <text x="516" y="53" fill={textColor} fontSize="7" fontFamily="monospace">ON</text>
-      <circle cx="544" cy="49" r="3.5" fill={textColor} opacity="0.8" />
-
-      <rect x="620" y="20" width="120" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">SELECTOR</text>
-      <rect x="626" y="42" width="44" height="15" rx="3" fill="rgba(255,255,255,0.10)" />
-      <text x="638" y="53" fill={textColor} fontSize="7" fontFamily="monospace">PU</text>
-      <rect x="680" y="42" width="44" height="15" rx="3" fill="rgba(255,255,255,0.06)" />
-      <text x="690" y="53" fill={textColor} fontSize="7" fontFamily="monospace">AUX</text>
-
-      {renderSlider(id, 502, 104, "BASS", 0.38, textColor)}
-      {renderSlider(id, 562, 104, "TREBLE", 0.62, textColor)}
-      {renderSlider(id, 622, 104, "VOL L", 0.75, textColor)}
-      {renderSlider(id, 682, 104, "VOL R", 0.72, textColor)}
-
-      <rect x="326" y="462" width="72" height="52" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
-      <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">LIFT</text>
-      <rect x="336" y="482" width="56" height="10" rx="2" fill="rgba(0,0,0,0.62)" />
-      <rect x="352" y="480" width="24" height="24" rx="3" fill={`url(#${id}-r3-knob)`} />
-
-      <rect x="326" y="520" width="72" height="27" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
-      <text x="344" y="534" fill={textColor} fontSize="8" fontFamily="monospace">SPEED</text>
-      <rect x="340" y="536" width="48" height="8" rx="2" fill="rgba(0,0,0,0.62)" />
-      <rect x="350" y="533" width="16" height="13" rx="2" fill={`url(#${id}-r3-knob)`} />
-
-      <Tonearm id={id} geometry={geometry} stylus={stylus} textColor={textColor} />
-
-      <circle cx={geometry.cx} cy={geometry.cy} r="5.5" fill="#d0c9bd" stroke="rgba(0,0,0,0.42)" />
-      <circle cx={geometry.cx} cy={geometry.cy} r="2.5" fill="#f2eee7" />
-    </svg>
-  );
-}
-
-function TurntableDeck({ style, color, vinylRadius, textColor, progress }) {
-  const s = normalizeDeckStyle(style);
-
-  if (s === "realistic3") {
-    return <Realistic3Deck vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
+  if (gradient === "aurora") {
+    return `
+      radial-gradient(circle at 28% 26%, ${rgba(c2, 0.85)} 0 18%, transparent 34%),
+      radial-gradient(circle at 72% 68%, ${rgba(c3, 0.75)} 0 20%, transparent 38%),
+      conic-gradient(from 160deg, ${c1}, ${c2}, ${c3}, ${c4}, ${c1})
+    `;
   }
 
-  return (
-    <StandardDeck
-      style={s}
-      color={color}
-      vinylRadius={vinylRadius}
-      textColor={textColor}
-      progress={progress}
-    />
-  );
+  if (gradient === "rings") {
+    return `
+      repeating-radial-gradient(circle, ${rgba(c2, 0.42)} 0 3px, transparent 4px 11px),
+      radial-gradient(circle at 45% 40%, ${lighten(c1, 30)} 0%, ${c1} 38%, ${darken(c4, 38)} 100%)
+    `;
+  }
+
+  return `radial-gradient(circle at 38% 34%, ${lighten(c1, 42)} 0%, ${c1} 24%, ${c2} 48%, ${darken(c3, 28)} 72%, ${darken(c4, 46)} 100%)`;
 }
 
 function SplatterOverlay({ color, style }) {
@@ -760,7 +260,7 @@ function SplatterOverlay({ color, style }) {
     }
   } else if (selected === "ring") {
     for (let i = 0; i < 70; i++) {
-      const a = (i / 70) * Math.PI * 2 + (rand() - 0.5) * 0.16;
+      const a = i / 70 * Math.PI * 2 + (rand() - 0.5) * 0.16;
       const r = 105 + rand() * 54;
       dots.push(
         <circle key={`r-${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r} r={1.5 + rand() * 6} fill={color} opacity={0.25 + rand() * 0.62} />
@@ -768,7 +268,7 @@ function SplatterOverlay({ color, style }) {
     }
   } else if (selected === "drip") {
     for (let i = 0; i < 46; i++) {
-      const a = (i / 46) * Math.PI * 2 + (rand() - 0.5) * 0.45;
+      const a = i / 46 * Math.PI * 2 + (rand() - 0.5) * 0.45;
       const inner = 65 + rand() * 28;
       const outer = 118 + rand() * 90;
       const x1 = cx + Math.cos(a) * inner;
@@ -782,7 +282,7 @@ function SplatterOverlay({ color, style }) {
     }
   } else {
     for (let i = 0; i < 54; i++) {
-      const a = (i / 54) * Math.PI * 2 + (rand() - 0.5) * 0.42;
+      const a = i / 54 * Math.PI * 2 + (rand() - 0.5) * 0.42;
       const inner = 62 + rand() * 24;
       const outer = 132 + rand() * 58;
       const bend = (rand() - 0.5) * 0.22;
@@ -819,35 +319,20 @@ function SplatterOverlay({ color, style }) {
   );
 }
 
-function vinylBackgroundStyle(colors, gradient) {
-  const clean = (colors || []).filter(Boolean);
-  const c1 = clean[0] || "#111111";
-  const c2 = clean[1] || c1;
-  const c3 = clean[2] || c2;
-  const c4 = clean[3] || c3;
-
-  if (gradient === "solid") return `radial-gradient(circle at 42% 36%, ${lighten(c1, 28)} 0%, ${c1} 44%, ${darken(c1, 38)} 100%)`;
-  if (gradient === "split") return `conic-gradient(from 210deg, ${c1} 0deg, ${c1} 95deg, ${c2} 100deg, ${c3} 190deg, ${c4} 260deg, ${c1} 360deg)`;
-
-  if (gradient === "aurora") {
-    return `
-      radial-gradient(circle at 28% 26%, ${rgba(c2, 0.85)} 0 18%, transparent 34%),
-      radial-gradient(circle at 72% 68%, ${rgba(c3, 0.75)} 0 20%, transparent 38%),
-      conic-gradient(from 160deg, ${c1}, ${c2}, ${c3}, ${c4}, ${c1})
-    `;
-  }
-
-  if (gradient === "rings") {
-    return `
-      repeating-radial-gradient(circle, ${rgba(c2, 0.42)} 0 3px, transparent 4px 11px),
-      radial-gradient(circle at 45% 40%, ${lighten(c1, 30)} 0%, ${c1} 38%, ${darken(c4, 38)} 100%)
-    `;
-  }
-
-  return `radial-gradient(circle at 38% 34%, ${lighten(c1, 42)} 0%, ${c1} 24%, ${c2} 48%, ${darken(c3, 28)} 72%, ${darken(c4, 46)} 100%)`;
-}
-
-function VinylDisc({ radius, colors, gradient, opacity, splatterOn, splatterColor, splatterStyle, albumCover, isSingle, playing, textColor }) {
+function VinylDisc({
+  radius,
+  colors,
+  gradient,
+  opacity,
+  splatterOn,
+  splatterColor,
+  splatterStyle,
+  cover,
+  isSingle,
+  playing,
+  textColor,
+  flipping
+}) {
   const labelSize = Math.round(radius * (isSingle ? 0.68 : 0.75));
 
   return (
@@ -857,11 +342,11 @@ function VinylDisc({ radius, colors, gradient, opacity, splatterOn, splatterColo
         width: radius * 2,
         height: radius * 2,
         borderRadius: "50%",
-        background: vinylBackgroundStyle(colors, gradient),
+        background: vinylBackground(colors, gradient),
         opacity,
         overflow: "hidden",
         boxShadow: "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
-        animation: playing ? "spin 1.55s linear infinite" : "none",
+        animation: flipping ? "vinylFlip 1.15s ease-in-out" : playing ? "spin 1.55s linear infinite" : "none",
         transformOrigin: "50% 50%"
       }}
     >
@@ -870,8 +355,8 @@ function VinylDisc({ radius, colors, gradient, opacity, splatterOn, splatterColo
 
       {splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
 
-      {albumCover ? (
-        <img src={albumCover} alt="" style={{ position: "absolute", width: labelSize, height: labelSize, borderRadius: "50%", objectFit: "cover", top: "50%", left: "50%", transform: "translate(-50%, -50%)", boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)" }} />
+      {cover ? (
+        <img src={cover} alt="" style={{ position: "absolute", width: labelSize, height: labelSize, borderRadius: "50%", objectFit: "cover", top: "50%", left: "50%", transform: "translate(-50%, -50%)", boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)" }} />
       ) : (
         <div style={{ position: "absolute", width: labelSize, height: labelSize, borderRadius: "50%", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))", color: textColor, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Courier New, monospace", fontSize: isSingle ? 10 : 14, letterSpacing: 1, boxShadow: "0 0 0 7px rgba(0,0,0,0.32)" }}>
           {isSingle ? "7 IN" : "AURAE"}
@@ -881,6 +366,241 @@ function VinylDisc({ radius, colors, gradient, opacity, splatterOn, splatterColo
       <div style={{ position: "absolute", width: Math.round(radius * 0.12), height: Math.round(radius * 0.12), borderRadius: "50%", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "rgba(8,8,8,0.78)", boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12)" }} />
     </div>
   );
+}
+
+function DeckDefs({ id, style, color }) {
+  const base = deckBase(style, color);
+
+  return (
+    <defs>
+      <linearGradient id={`${id}-base`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor={lighten(base, 44)} />
+        <stop offset="48%" stopColor={base} />
+        <stop offset="100%" stopColor={darken(base, 36)} />
+      </linearGradient>
+      <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#f5f5f5" />
+        <stop offset="45%" stopColor="#b9b9b9" />
+        <stop offset="100%" stopColor="#6d6d6d" />
+      </linearGradient>
+      <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#e9c96a" />
+        <stop offset="44%" stopColor="#b88b2b" />
+        <stop offset="100%" stopColor="#f4d984" />
+      </linearGradient>
+      <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
+        <stop offset="0%" stopColor="#f0f0f0" />
+        <stop offset="54%" stopColor="#888" />
+        <stop offset="100%" stopColor="#333" />
+      </radialGradient>
+      <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" /></filter>
+      <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
+      <pattern id={`${id}-woodgrain`} x="0" y="0" width="560" height="12" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="2" x2="560" y2="2" stroke="rgba(0,0,0,0.09)" strokeWidth="1" />
+        <line x1="0" y1="8" x2="560" y2="8" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+      </pattern>
+      <pattern id={`${id}-brushed`} x="0" y="0" width="8" height="560" patternUnits="userSpaceOnUse">
+        <line x1="1" y1="0" x2="7" y2="560" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
+      </pattern>
+    </defs>
+  );
+}
+
+function Tonearm({ id, geometry, stylus, textColor }) {
+  const angle = Math.atan2(stylus.y - geometry.pivotY, stylus.x - geometry.pivotX) * 180 / Math.PI;
+
+  return (
+    <g>
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="24" fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.34)" strokeWidth="1.4" filter={`url(#${id}-soft)`} />
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="10" fill="rgba(0,0,0,0.36)" />
+      <circle cx={geometry.pivotX - 3} cy={geometry.pivotY - 3} r="2.2" fill="rgba(255,255,255,0.75)" />
+
+      <line x1={geometry.pivotX} y1={geometry.pivotY} x2={stylus.x} y2={stylus.y} stroke={`url(#${id}-arm)`} strokeWidth="8" strokeLinecap="round" />
+      <line x1={geometry.pivotX - 4} y1={geometry.pivotY - 3} x2={stylus.x - 4} y2={stylus.y - 3} stroke="rgba(255,255,255,0.42)" strokeWidth="2.4" strokeLinecap="round" />
+
+      <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
+        <rect x="-7" y="-10" width="28" height="20" rx="3" fill="#b9b9b9" stroke="rgba(0,0,0,0.35)" strokeWidth="0.9" filter={`url(#${id}-soft)`} />
+        <rect x="-2" y="2" width="16" height="10" rx="2" fill="#2b2b2b" />
+        <line x1="2" y1="12" x2="2" y2="20" stroke="#111" strokeWidth="1.8" strokeLinecap="round" />
+      </g>
+
+      <circle cx={stylus.x} cy={stylus.y} r="2.3" fill="#111" />
+      <ellipse cx={geometry.pivotX + 20} cy={geometry.pivotY} rx="14" ry="9" fill="#8a8a8a" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
+      <text x={geometry.pivotX} y={geometry.pivotY + 43} fill={textColor} opacity="0.82" fontSize="8" fontFamily="monospace" textAnchor="middle">TONE</text>
+    </g>
+  );
+}
+
+function StandardControls({ id, style, textColor }) {
+  const s = normalizeDeckStyle(style);
+  const compact = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s);
+
+  if (!compact && s !== "minimal") {
+    return (
+      <g>
+        <rect x="48" y="474" width="210" height="42" rx="10" fill="rgba(0,0,0,0.16)" stroke="rgba(255,255,255,0.15)" />
+        {["33", "45", "78"].map((label, i) => (
+          <g key={label}>
+            <rect x={62 + i * 58} y="486" width="42" height="18" rx="5" fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" strokeWidth="0.8" />
+            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">{label}</text>
+          </g>
+        ))}
+      </g>
+    );
+  }
+
+  if (s === "minimal") {
+    return (
+      <g>
+        <line x1="520" y1="308" x2="520" y2="458" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+        <circle cx="520" cy="378" r="5" fill={textColor} opacity="0.75" />
+        <text x="520" y="482" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">VOL</text>
+      </g>
+    );
+  }
+
+  return (
+    <g>
+      <rect x="430" y="330" width="96" height="150" rx={s === "dark" ? 3 : 9} fill={s === "wood" ? "rgba(0,0,0,0.24)" : "rgba(0,0,0,0.25)"} stroke="rgba(255,255,255,0.14)" strokeWidth="1" filter={`url(#${id}-soft)`} />
+      <rect x="444" y="346" width="68" height="28" rx="5" fill="rgba(0,0,0,0.35)" />
+      <text x="478" y="364" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">{s === "wood" ? "CONTROL" : "START"}</text>
+      <circle cx="478" cy="414" r="22" fill={s === "wood" ? "#241406" : `url(#${id}-knob)`} stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+      <line x1="478" y1="398" x2="478" y2="407" stroke={textColor} strokeWidth="2" />
+      <text x="478" y="454" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">{s === "dark" ? "RPM" : "LEVEL"}</text>
+    </g>
+  );
+}
+
+function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
+  const s = normalizeDeckStyle(style);
+  const id = `deck-${s}`;
+  const g = deckGeometry(s);
+  const stylus = groovePoint(g, vinylRadius, progress);
+  const holeR = vinylRadius + 8;
+  const hole = holePath(g.cx, g.cy, holeR);
+  const board = boardPath(s);
+
+  return (
+    <svg viewBox="0 0 560 560" style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
+      <DeckDefs id={id} style={s} color={color} />
+      <path d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+
+      {s === "wood" && <path d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
+      {s === "chrome" && <path d={`${board} ${hole}`} fill={`url(#${id}-brushed)`} fillRule="evenodd" opacity="0.7" />}
+
+      {s === "chrome" && (
+        <>
+          <path d="M20 70 L70 20 L132 20 L20 132 Z" fill="rgba(80,180,220,0.42)" />
+          <path d="M500 540 L540 500 L540 540 Z" fill="rgba(80,180,220,0.35)" />
+        </>
+      )}
+
+      {s === "dark" && (
+        <>
+          <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="3" />
+          <rect x="20" y="20" width="520" height="6" fill="rgba(255,255,255,0.18)" />
+          <rect x="20" y="534" width="520" height="6" fill="rgba(255,255,255,0.18)" />
+        </>
+      )}
+
+      {s === "wood" && (
+        <>
+          <rect x="30" y="30" width="500" height="500" rx="15" fill="none" stroke={`url(#${id}-brass)`} strokeWidth="3" />
+          <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
+        </>
+      )}
+
+      {s === "realistic1" && <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>}
+      {s === "realistic2" && <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">BELT DRIVE</text>}
+
+      <circle cx={g.cx} cy={g.cy} r={holeR + 13} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="7" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="2" />
+
+      <StandardControls id={id} style={s} textColor={textColor} />
+      <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
+
+      <circle cx={g.cx} cy={g.cy} r="5.5" fill="rgba(255,255,255,0.72)" stroke="rgba(0,0,0,0.4)" />
+      <circle cx={g.cx} cy={g.cy} r="2.2" fill="rgba(0,0,0,0.55)" />
+    </svg>
+  );
+}
+
+function Realistic3Deck({ vinylRadius, textColor, progress }) {
+  const id = "deck-realistic3";
+  const g = deckGeometry("realistic3");
+  const stylus = groovePoint(g, vinylRadius, progress);
+  const holeR = vinylRadius + 7;
+  const hole = holePath(g.cx, g.cy, holeR);
+
+  return (
+    <svg viewBox="0 0 760 560" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
+      <defs>
+        <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" /></filter>
+        <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
+        <linearGradient id={`${id}-plinth`} x1="0" y1="0" x2="0.4" y2="1">
+          <stop offset="0%" stopColor="#ebe4d8" />
+          <stop offset="44%" stopColor="#d2c7b6" />
+          <stop offset="100%" stopColor="#b7ac9c" />
+        </linearGradient>
+        <linearGradient id={`${id}-panel`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2d2924" />
+          <stop offset="50%" stopColor="#1f1b18" />
+          <stop offset="100%" stopColor="#12100e" />
+        </linearGradient>
+        <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f2f2f2" />
+          <stop offset="34%" stopColor="#c5c5c5" />
+          <stop offset="100%" stopColor="#777" />
+        </linearGradient>
+        <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#e8e8e8" />
+          <stop offset="55%" stopColor="#a8a8a8" />
+          <stop offset="100%" stopColor="#565656" />
+        </radialGradient>
+      </defs>
+
+      <path d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`} fill="#1a1612" fillRule="evenodd" stroke="#090806" strokeWidth="2" />
+      <path d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+      <rect x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
+      <rect x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
+
+      <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="8" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 10} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
+
+      <rect x="502" y="20" width="108" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
+      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">POWER</text>
+      <rect x="620" y="20" width="120" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
+      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">SELECTOR</text>
+
+      {["BASS", "TREBLE", "VOL L", "VOL R"].map((label, i) => (
+        <g key={label}>
+          <rect x={502 + i * 60} y="104" width="52" height="312" rx="5" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)" />
+          <text x={507 + i * 60} y="117" fill={textColor} fontSize="7" fontFamily="monospace">{label}</text>
+          <rect x={512 + i * 60} y="140" width="8" height="230" rx="4" fill="#101010" />
+          <rect x={508 + i * 60} y={230 + i * 8} width="16" height="21" rx="3" fill="#d0d0d0" />
+        </g>
+      ))}
+
+      <rect x="326" y="462" width="72" height="52" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
+      <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">LIFT</text>
+
+      <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
+
+      <circle cx={g.cx} cy={g.cy} r="5.5" fill="#d0c9bd" stroke="rgba(0,0,0,0.42)" />
+      <circle cx={g.cx} cy={g.cy} r="2.5" fill="#f2eee7" />
+    </svg>
+  );
+}
+
+function TurntableDeck({ style, color, vinylRadius, textColor, progress }) {
+  const s = normalizeDeckStyle(style);
+
+  if (s === "realistic3") {
+    return <Realistic3Deck vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
+  }
+
+  return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
 }
 
 const OVL = {
@@ -938,6 +658,10 @@ export default function App() {
 
   const [sidebarMode, setSidebarMode] = useState("songs");
   const [albumCover, setAlbumCover] = useState(null);
+  const [side1Cover, setSide1Cover] = useState(null);
+  const [side2Cover, setSide2Cover] = useState(null);
+  const [homeCover, setHomeCover] = useState(null);
+
   const [vinylColor, setVinylColor] = useState("#111111");
   const [vinylColors, setVinylColors] = useState(DEFAULT_VINYL_COLORS);
   const [vinylGradient, setVinylGradient] = useState("radial");
@@ -947,12 +671,18 @@ export default function App() {
   const [splatterStyle, setSplatterStyle] = useState("burst");
   const [deckStyle, setDeckStyle] = useState("classic");
   const [deckColor, setDeckColor] = useState("#1a1a1a");
+  const [vinylSide, setVinylSide] = useState(1);
+  const [flipping, setFlipping] = useState(false);
 
   const audioRef = useRef(null);
   const dark = theme === "dark";
   const text = dark ? "#ffffff" : "#000000";
   const current = tracks[index];
   const S = makeStyles(dark, text);
+
+  const sideBreak = Math.ceil(tracks.length / 2);
+  const needsTurn = tracks.length > 1 && index >= sideBreak && vinylSide === 1 && !flipping;
+  const currentVinylCover = vinylSide === 1 ? side1Cover || albumCover : side2Cover || albumCover;
 
   useEffect(() => {
     async function loadAll() {
@@ -1031,7 +761,11 @@ export default function App() {
       audio.removeEventListener("loadedmetadata", update);
       audio.removeEventListener("ended", end);
     };
-  }, [index, tracks]);
+  }, [index, tracks, vinylSide, flipping]);
+
+  useEffect(() => {
+    if (!flipping && index < sideBreak && vinylSide !== 1) setVinylSide(1);
+  }, [index, sideBreak, flipping, vinylSide]);
 
   const fmt = (seconds = 0) => {
     const safe = Number.isFinite(seconds) ? seconds : 0;
@@ -1048,7 +782,6 @@ export default function App() {
 
   function signup() {
     if (!email.trim() || !password.trim()) return;
-
     const next = { ...users, [email]: { password } };
     setUsers(next);
     localStorage.setItem("aurae_users", JSON.stringify(next));
@@ -1063,6 +796,9 @@ export default function App() {
     const p = {
       tracks: [],
       cover: null,
+      side1Cover: null,
+      side2Cover: null,
+      homeCover: null,
       vinylColor: "#111111",
       vinylColors: DEFAULT_VINYL_COLORS,
       vinylGradient: "radial",
@@ -1083,7 +819,6 @@ export default function App() {
   function createFolder() {
     const clean = folderName.trim();
     if (!clean) return;
-
     setFolders(prev => [...prev, { id: Date.now(), name: clean, projects: [] }]);
     setFolderName("");
     setShowFolder(false);
@@ -1097,6 +832,9 @@ export default function App() {
     return {
       tracks: nextTracks.map(({ url, ...meta }) => meta),
       cover: nextCover,
+      side1Cover: overrides.side1Cover ?? side1Cover,
+      side2Cover: overrides.side2Cover ?? side2Cover,
+      homeCover: overrides.homeCover ?? homeCover,
       vinylColor: nextVinylColor,
       vinylColors: nextColors,
       vinylGradient: overrides.vinylGradient ?? vinylGradient,
@@ -1111,7 +849,6 @@ export default function App() {
 
   async function saveCurrentProject(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
     if (!activeProject) return;
-
     const payload = projectPayload(nextTracks, nextCover, overrides);
     setProjectsMeta(prev => ({ ...prev, [activeProject]: payload }));
     setTracks(nextTracks);
@@ -1128,7 +865,6 @@ export default function App() {
   function updateVinylColor(slot, value) {
     const next = [...vinylColors];
     next[slot] = value;
-
     setVinylColors(next);
     if (slot === 0) setVinylColor(value);
 
@@ -1152,6 +888,9 @@ export default function App() {
 
     setActiveProject(name);
     setAlbumCover(p.cover || null);
+    setSide1Cover(p.side1Cover || p.cover || null);
+    setSide2Cover(p.side2Cover || null);
+    setHomeCover(p.homeCover || p.cover || p.side1Cover || null);
     setVinylColor(restoredColors[0] || "#111111");
     setVinylColors(restoredColors.slice(0, 4));
     setVinylGradient(p.vinylGradient || "radial");
@@ -1161,6 +900,8 @@ export default function App() {
     setSplatterStyle(p.splatterStyle === "comet" ? "burst" : p.splatterStyle || "burst");
     setDeckStyle(style);
     setDeckColor(p.deckColor || "#1a1a1a");
+    setVinylSide(1);
+    setFlipping(false);
     setIndex(0);
     setPlaying(false);
     setCurrentTime(0);
@@ -1181,7 +922,6 @@ export default function App() {
 
   async function applyRenameProject(oldName, nextName) {
     const clean = nextName.trim();
-
     if (!clean || clean === oldName) {
       setRenameModal(null);
       return;
@@ -1233,7 +973,6 @@ export default function App() {
   function applyRenameFolder(id, nextName) {
     const clean = nextName.trim();
     if (!clean) return;
-
     setFolders(prev => prev.map(folder => (folder.id === id ? { ...folder, name: clean } : folder)));
     setRenameModal(null);
   }
@@ -1258,7 +997,6 @@ export default function App() {
     const fromIndex = next.indexOf(from);
     const toIndex = next.indexOf(to);
     if (fromIndex < 0 || toIndex < 0) return;
-
     const item = next.splice(fromIndex, 1)[0];
     next.splice(toIndex, 0, item);
     setProjectOrder(next);
@@ -1322,14 +1060,40 @@ export default function App() {
     e.target.value = "";
   }
 
-  function addCover(e) {
+  function readImageFile(e, cb) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = () => saveCurrentProject(tracks, reader.result);
+    reader.onload = () => cb(reader.result);
     reader.readAsDataURL(file);
     e.target.value = "";
+  }
+
+  function addSideCover(side, e) {
+    readImageFile(e, result => {
+      if (side === 1) {
+        setSide1Cover(result);
+        saveCurrentProject(tracks, albumCover, { side1Cover: result });
+      } else {
+        setSide2Cover(result);
+        saveCurrentProject(tracks, albumCover, { side2Cover: result });
+      }
+    });
+  }
+
+  function addHomeCover(e, projectNameForCover) {
+    e.stopPropagation();
+
+    readImageFile(e, async result => {
+      const existing = (await loadProjectFromDB(projectNameForCover)) || projectsMeta[projectNameForCover] || {};
+      const next = { ...existing, homeCover: result };
+
+      await saveProjectToDB(projectNameForCover, next);
+      setProjectsMeta(prev => ({ ...prev, [projectNameForCover]: next }));
+
+      if (activeProject === projectNameForCover) setHomeCover(result);
+    });
   }
 
   function deleteTrack(trackIndex) {
@@ -1349,14 +1113,25 @@ export default function App() {
     const next = [...tracks];
     const item = next.splice(trackIndex, 1)[0];
     next.splice(Math.max(0, Math.min(next.length, pos - 1)), 0, item);
-
     saveCurrentProject(next);
     setSongMenu(null);
   }
 
-  function play(trackIndex) {
+  function needsTurnForTrack(trackIndex) {
+    return tracks.length > 1 && trackIndex >= sideBreak && vinylSide === 1 && !flipping;
+  }
+
+  function play(trackIndex, force = false) {
     const track = tracks[trackIndex];
     if (!track?.url) return;
+
+    if (!force && needsTurnForTrack(trackIndex)) {
+      const audio = audioRef.current;
+      if (audio) audio.pause();
+      setIndex(trackIndex);
+      setPlaying(false);
+      return;
+    }
 
     setIndex(trackIndex);
     setPlaying(true);
@@ -1364,15 +1139,38 @@ export default function App() {
     setTimeout(() => {
       const audio = audioRef.current;
       if (!audio) return;
-
       audio.src = track.url;
       audio.play().catch(() => setPlaying(false));
     }, 20);
   }
 
+  function turnVinyl() {
+    if (flipping || tracks.length <= 1) return;
+
+    const targetIndex = Math.max(index, sideBreak);
+    const audio = audioRef.current;
+    if (audio) audio.pause();
+
+    setPlaying(false);
+    setIndex(targetIndex);
+    setFlipping(true);
+
+    setTimeout(() => {
+      setVinylSide(2);
+      setFlipping(false);
+      setTimeout(() => play(targetIndex, true), 80);
+    }, 1150);
+  }
+
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
+
+    if (needsTurnForTrack(index)) {
+      setPlaying(false);
+      audio.pause();
+      return;
+    }
 
     if (!audio.src && tracks[0]) {
       play(0);
@@ -1388,7 +1186,7 @@ export default function App() {
   }
 
   function prevTrack() {
-    if (index > 0) play(index - 1);
+    if (index > 0) play(index - 1, index - 1 < sideBreak);
   }
 
   function nextTrack() {
@@ -1399,14 +1197,13 @@ export default function App() {
     const value = Number(e.target.value);
     const audio = audioRef.current;
     if (!audio) return;
-
     audio.currentTime = value;
     setCurrentTime(value);
   }
 
   const normalizedDeckStyle = normalizeDeckStyle(deckStyle);
   const isSingle = tracks.length > 0 && tracks.length <= 3;
-  const geometry = deckGeometry(normalizedDeckStyle, isSingle);
+  const geometry = deckGeometry(normalizedDeckStyle);
   const compactDecks = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(normalizedDeckStyle);
   const vinylRadius = isSingle ? 106 : normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
   const totalSongs = Math.max(tracks.length, 1);
@@ -1438,9 +1235,7 @@ export default function App() {
           <div style={S.logo}>AURAE OS</div>
 
           <div style={S.topBtns}>
-            <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>
-              {dark ? "Light" : "Dark"}
-            </button>
+            <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? "Light" : "Dark"}</button>
             <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
             <button style={S.btn} onClick={() => setShowFolder(true)}>+ folder</button>
             {folderOpen && <button style={S.btn} onClick={() => setFolderOpen(null)}>back</button>}
@@ -1460,7 +1255,8 @@ export default function App() {
                 >
                   <div style={S.folderGrid}>
                     {folder.projects.slice(0, 4).map((project, i) => {
-                      const cover = projectsMeta[project]?.cover;
+                      const p = projectsMeta[project] || {};
+                      const cover = p.homeCover || p.cover || p.side1Cover;
                       return cover ? <img key={i} src={cover} alt="" style={S.folderImg} /> : <div key={i} style={S.folderBlank} />;
                     })}
                   </div>
@@ -1491,68 +1287,78 @@ export default function App() {
                 </div>
               ))}
 
-            {visibleProjects.map(name => (
-              <div
-                key={name}
-                style={{ ...S.card, outline: dragOverProject === name ? "2px solid rgba(255,255,255,0.5)" : "none" }}
-                draggable
-                onDragStart={e => {
-                  e.dataTransfer.setData("text/plain", name);
-                  e.dataTransfer.setData("aurae_project", name);
-                }}
-                onDragOver={e => {
-                  e.preventDefault();
-                  setDragOverProject(name);
-                }}
-                onDragLeave={() => setDragOverProject(null)}
-                onDrop={e => {
-                  e.preventDefault();
-                  setDragOverProject(null);
-                  const dragged = e.dataTransfer.getData("aurae_project");
-                  if (dragged && dragged !== name) moveOrder(dragged, name);
-                }}
-                onClick={() => openProject(name)}
-              >
-                {projectsMeta[name]?.cover ? <img src={projectsMeta[name].cover} alt="" style={S.cover} /> : <div style={S.blankCover} />}
+            {visibleProjects.map(name => {
+              const p = projectsMeta[name] || {};
+              const cover = p.homeCover || p.cover || p.side1Cover;
 
-                <div style={S.cardName}>{name}</div>
-                <div style={S.cardSub}>{projectsMeta[name]?.tracks?.length || 0} tracks</div>
+              return (
+                <div
+                  key={name}
+                  style={{ ...S.card, outline: dragOverProject === name ? "2px solid rgba(255,255,255,0.5)" : "none" }}
+                  draggable
+                  onDragStart={e => {
+                    e.dataTransfer.setData("text/plain", name);
+                    e.dataTransfer.setData("aurae_project", name);
+                  }}
+                  onDragOver={e => {
+                    e.preventDefault();
+                    setDragOverProject(name);
+                  }}
+                  onDragLeave={() => setDragOverProject(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOverProject(null);
+                    const dragged = e.dataTransfer.getData("aurae_project");
+                    if (dragged && dragged !== name) moveOrder(dragged, name);
+                  }}
+                  onClick={() => openProject(name)}
+                >
+                  {cover ? <img src={cover} alt="" style={S.cover} /> : <div style={S.blankCover} />}
 
-                <div style={S.cardActions}>
-                  {folderOpen && (
+                  <div style={S.cardName}>{name}</div>
+                  <div style={S.cardSub}>{p.tracks?.length || 0} tracks</div>
+
+                  <div style={S.cardActions}>
+                    <label style={S.smallBtn} onClick={e => e.stopPropagation()}>
+                      cover art
+                      <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addHomeCover(e, name)} />
+                    </label>
+
+                    {folderOpen && (
+                      <button
+                        style={S.smallBtn}
+                        onClick={e => {
+                          e.stopPropagation();
+                          removeFromFolder(name, folderOpen);
+                        }}
+                      >
+                        remove
+                      </button>
+                    )}
+
                     <button
                       style={S.smallBtn}
                       onClick={e => {
                         e.stopPropagation();
-                        removeFromFolder(name, folderOpen);
+                        setRenameModal({ type: "project", id: name, value: name });
                       }}
                     >
-                      remove
+                      rename
                     </button>
-                  )}
 
-                  <button
-                    style={S.smallBtn}
-                    onClick={e => {
-                      e.stopPropagation();
-                      setRenameModal({ type: "project", id: name, value: name });
-                    }}
-                  >
-                    rename
-                  </button>
-
-                  <button
-                    style={S.smallBtn}
-                    onClick={e => {
-                      e.stopPropagation();
-                      deleteProject(name);
-                    }}
-                  >
-                    delete
-                  </button>
+                    <button
+                      style={S.smallBtn}
+                      onClick={e => {
+                        e.stopPropagation();
+                        deleteProject(name);
+                      }}
+                    >
+                      delete
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -1638,7 +1444,9 @@ export default function App() {
         <div style={S.sidebarHeader}>
           <div>
             <h3 style={S.projectTitle}>{activeProject}</h3>
-            <div style={S.meta}>{tracks.length} tracks - {totalDur(tracks)}</div>
+            <div style={S.meta}>
+              {tracks.length} tracks - {totalDur(tracks)} - side {vinylSide}
+            </div>
           </div>
           <button style={S.iconBtn} onClick={() => setView("home")}>home</button>
         </div>
@@ -1660,8 +1468,12 @@ export default function App() {
                 <input hidden multiple type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg" onChange={addTracks} />
               </label>
               <label style={S.btn}>
-                cover art
-                <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={addCover} />
+                side 1 cover
+                <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(1, e)} />
+              </label>
+              <label style={S.btn}>
+                side 2 cover
+                <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(2, e)} />
               </label>
             </div>
 
@@ -1684,10 +1496,8 @@ export default function App() {
                   onDrop={e => {
                     e.preventDefault();
                     setDragOverTrack(null);
-
                     const from = Number(e.dataTransfer.getData("aurae_track"));
                     if (!Number.isFinite(from) || from === i) return;
-
                     const next = [...tracks];
                     const item = next.splice(from, 1)[0];
                     next.splice(i, 0, item);
@@ -1701,7 +1511,10 @@ export default function App() {
                   }}
                 >
                   <span style={S.dragGrip}>::</span>
-                  <span style={S.trackName}>{track.name}</span>
+                  <span style={S.trackName}>
+                    {i === sideBreak && tracks.length > 1 ? "SIDE 2 - " : ""}
+                    {track.name}
+                  </span>
                   <span style={S.trackTime}>{fmt(track.duration)}</span>
                 </div>
               ))}
@@ -1757,10 +1570,7 @@ export default function App() {
               <div style={S.sectionTitle}>Splatter</div>
               <div style={S.inlineControls}>
                 <input type="color" value={splatterColor} onChange={e => upd("splatterColor", e.target.value, setSplatterColor)} style={S.colorInput} />
-                <button
-                  style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}) }}
-                  onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}
-                >
+                <button style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}) }} onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}>
                   {splatterOn ? "on" : "off"}
                 </button>
               </div>
@@ -1800,10 +1610,11 @@ export default function App() {
               splatterOn={splatterOn}
               splatterColor={splatterColor}
               splatterStyle={splatterStyle}
-              albumCover={albumCover}
+              cover={currentVinylCover}
               isSingle={isSingle}
               playing={playing}
               textColor={text}
+              flipping={flipping}
             />
           </div>
 
@@ -1814,6 +1625,12 @@ export default function App() {
             textColor={text}
             progress={progress}
           />
+
+          {needsTurn && (
+            <button style={S.turnBtn} onClick={turnVinyl}>
+              turn vinyl.
+            </button>
+          )}
         </div>
       </div>
 
@@ -2116,7 +1933,7 @@ function makeStyles(dark, text) {
     },
     importRow: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      gridTemplateColumns: "1fr",
       gap: 8,
       color: text
     },
@@ -2258,6 +2075,23 @@ function makeStyles(dark, text) {
       overflow: "hidden",
       color: text
     },
+    turnBtn: {
+      position: "absolute",
+      left: "50%",
+      top: "50%",
+      transform: "translate(-50%, -50%)",
+      zIndex: 10,
+      padding: "14px 20px",
+      borderRadius: 999,
+      border,
+      background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)",
+      color: text,
+      fontFamily: baseFont,
+      fontSize: 13,
+      cursor: "pointer",
+      backdropFilter: "blur(24px) saturate(1.25)",
+      boxShadow: shadow
+    },
     player: {
       position: "fixed",
       left: 360,
@@ -2341,6 +2175,25 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       to { transform: rotate(360deg); }
     }
 
+    @keyframes vinylFlip {
+      0% {
+        transform: perspective(900px) rotateY(0deg) scale(1);
+        filter: brightness(1);
+      }
+      42% {
+        transform: perspective(900px) rotateY(92deg) scale(0.92);
+        filter: brightness(0.65);
+      }
+      58% {
+        transform: perspective(900px) rotateY(268deg) scale(0.92);
+        filter: brightness(0.72);
+      }
+      100% {
+        transform: perspective(900px) rotateY(360deg) scale(1);
+        filter: brightness(1);
+      }
+    }
+
     html,
     body,
     #root {
@@ -2397,6 +2250,5 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
-
 
 
