@@ -3,11 +3,13 @@ import React, { useEffect, useRef, useState } from "react";
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open("aurae_audio", 2);
+
     req.onupgradeneeded = e => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains("blobs")) db.createObjectStore("blobs");
       if (!db.objectStoreNames.contains("projects")) db.createObjectStore("projects");
     };
+
     req.onsuccess = e => res(e.target.result);
     req.onerror = () => rej(req.error);
   });
@@ -15,6 +17,7 @@ function openDB() {
 
 async function idb(store, mode, fn) {
   const db = await openDB();
+
   return new Promise((res, rej) => {
     const tx = db.transaction(store, mode);
     fn(tx.objectStore(store), res, rej, tx);
@@ -82,15 +85,18 @@ function clamp(v, min = 0, max = 255) {
 
 function normalizeHex(hex) {
   const clean = String(hex || "#000000").trim();
+
   if (/^#[0-9a-f]{3}$/i.test(clean)) {
     return `#${clean[1]}${clean[1]}${clean[2]}${clean[2]}${clean[3]}${clean[3]}`;
   }
+
   if (/^#[0-9a-f]{6}$/i.test(clean)) return clean;
   return "#000000";
 }
 
 function hexToRgb(hex) {
   const safe = normalizeHex(hex);
+
   return {
     r: parseInt(safe.slice(1, 3), 16),
     g: parseInt(safe.slice(3, 5), 16),
@@ -120,6 +126,8 @@ function seededRand(seed) {
     return (s - 1) / 2147483646;
   };
 }
+
+const SONGS_PER_SIDE = 10;
 
 const DEFAULT_VINYL_COLORS = ["#111111", "#3a7bd5", "#9d4edd", "#ff7a59"];
 
@@ -159,14 +167,35 @@ function deckGeometry(style) {
   const s = normalizeDeckStyle(style);
 
   if (s === "realistic3") {
-    return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 468, pivotY: 112 };
+    return {
+      width: 760,
+      height: 560,
+      cx: 265,
+      cy: 285,
+      pivotX: 472,
+      pivotY: 82
+    };
   }
 
   if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) {
-    return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 448, pivotY: 118 };
+    return {
+      width: 560,
+      height: 560,
+      cx: 240,
+      cy: 290,
+      pivotX: 500,
+      pivotY: 104
+    };
   }
 
-  return { width: 560, height: 560, cx: 280, cy: 280, pivotX: 508, pivotY: 132 };
+  return {
+    width: 560,
+    height: 560,
+    cx: 280,
+    cy: 280,
+    pivotX: 516,
+    pivotY: 96
+  };
 }
 
 function holePath(cx, cy, r) {
@@ -188,6 +217,7 @@ function boardPath(style) {
 
 function deckBase(style, color) {
   const s = normalizeDeckStyle(style);
+
   if (s === "classic") return "#e5e1d8";
   if (s === "dark") return "#151515";
   if (s === "chrome") return "#b8bec4";
@@ -195,13 +225,16 @@ function deckBase(style, color) {
   if (s === "minimal") return "#ffffff";
   if (s === "realistic1") return color || "#25272b";
   if (s === "realistic2") return color || "#d8d2c7";
+
   return color || "#1a1a1a";
 }
 
 function groovePoint(g, radius, progress) {
   const p = Math.max(0, Math.min(1, progress || 0));
-  const r = radius * (0.92 + (0.43 - 0.92) * p);
-  const angle = (-6 - 15 * p) * Math.PI / 180;
+  const outerR = radius * 0.94;
+  const innerR = radius * 0.42;
+  const r = outerR + (innerR - outerR) * p;
+  const angle = (-4 - 17 * p) * Math.PI / 180;
 
   return {
     x: g.cx + Math.cos(angle) * r,
@@ -254,21 +287,37 @@ function SplatterOverlay({ color, style }) {
     for (let i = 0; i < 130; i++) {
       const a = rand() * Math.PI * 2;
       const r = 35 + rand() * 150;
+
       dots.push(
-        <circle key={`m-${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r} r={0.7 + rand() * 3.5} fill={color} opacity={0.12 + rand() * 0.42} />
+        <circle
+          key={`m-${i}`}
+          cx={cx + Math.cos(a) * r}
+          cy={cy + Math.sin(a) * r}
+          r={0.7 + rand() * 3.5}
+          fill={color}
+          opacity={0.12 + rand() * 0.42}
+        />
       );
     }
   } else if (selected === "ring") {
     for (let i = 0; i < 70; i++) {
-      const a = i / 70 * Math.PI * 2 + (rand() - 0.5) * 0.16;
+      const a = (i / 70) * Math.PI * 2 + (rand() - 0.5) * 0.16;
       const r = 105 + rand() * 54;
+
       dots.push(
-        <circle key={`r-${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r} r={1.5 + rand() * 6} fill={color} opacity={0.25 + rand() * 0.62} />
+        <circle
+          key={`r-${i}`}
+          cx={cx + Math.cos(a) * r}
+          cy={cy + Math.sin(a) * r}
+          r={1.5 + rand() * 6}
+          fill={color}
+          opacity={0.25 + rand() * 0.62}
+        />
       );
     }
   } else if (selected === "drip") {
     for (let i = 0; i < 46; i++) {
-      const a = i / 46 * Math.PI * 2 + (rand() - 0.5) * 0.45;
+      const a = (i / 46) * Math.PI * 2 + (rand() - 0.5) * 0.45;
       const inner = 65 + rand() * 28;
       const outer = 118 + rand() * 90;
       const x1 = cx + Math.cos(a) * inner;
@@ -277,12 +326,20 @@ function SplatterOverlay({ color, style }) {
       const y2 = cy + Math.sin(a) * outer;
 
       paths.push(
-        <path key={`d-${i}`} d={`M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 + rand() * 28} ${x2} ${y2}`} stroke={color} strokeWidth={3 + rand() * 7} strokeLinecap="round" fill="none" opacity={0.32 + rand() * 0.48} />
+        <path
+          key={`d-${i}`}
+          d={`M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 + rand() * 28} ${x2} ${y2}`}
+          stroke={color}
+          strokeWidth={3 + rand() * 7}
+          strokeLinecap="round"
+          fill="none"
+          opacity={0.32 + rand() * 0.48}
+        />
       );
     }
   } else {
     for (let i = 0; i < 54; i++) {
-      const a = i / 54 * Math.PI * 2 + (rand() - 0.5) * 0.42;
+      const a = (i / 54) * Math.PI * 2 + (rand() - 0.5) * 0.42;
       const inner = 62 + rand() * 24;
       const outer = 132 + rand() * 58;
       const bend = (rand() - 0.5) * 0.22;
@@ -292,24 +349,55 @@ function SplatterOverlay({ color, style }) {
       const y2 = cy + Math.sin(a + bend) * outer;
 
       paths.push(
-        <path key={`b-${i}`} d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 20} ${(y1 + y2) / 2 + (rand() - 0.5) * 20} ${x2} ${y2}`} stroke={color} strokeWidth={2.5 + rand() * 9} strokeLinecap="round" fill="none" opacity={0.34 + rand() * 0.56} />
+        <path
+          key={`b-${i}`}
+          d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 20} ${(y1 + y2) / 2 + (rand() - 0.5) * 20} ${x2} ${y2}`}
+          stroke={color}
+          strokeWidth={2.5 + rand() * 9}
+          strokeLinecap="round"
+          fill="none"
+          opacity={0.34 + rand() * 0.56}
+        />
       );
     }
 
     for (let i = 0; i < 45; i++) {
       const a = rand() * Math.PI * 2;
       const r = 68 + rand() * 120;
+
       dots.push(
-        <circle key={`bd-${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r} r={1.2 + rand() * 5.4} fill={color} opacity={0.34 + rand() * 0.56} />
+        <circle
+          key={`bd-${i}`}
+          cx={cx + Math.cos(a) * r}
+          cy={cy + Math.sin(a) * r}
+          r={1.2 + rand() * 5.4}
+          fill={color}
+          opacity={0.34 + rand() * 0.56}
+        />
       );
     }
   }
 
   return (
-    <svg viewBox="0 0 390 390" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", pointerEvents: "none" }}>
+    <svg
+      viewBox="0 0 390 390"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        borderRadius: "50%",
+        overflow: "hidden",
+        pointerEvents: "none"
+      }}
+    >
       <defs>
-        <clipPath id="aurae-splatter-clip"><circle cx="195" cy="195" r="195" /></clipPath>
-        <filter id="aurae-splatter-soft"><feGaussianBlur stdDeviation="0.65" /></filter>
+        <clipPath id="aurae-splatter-clip">
+          <circle cx="195" cy="195" r="195" />
+        </clipPath>
+        <filter id="aurae-splatter-soft">
+          <feGaussianBlur stdDeviation="0.65" />
+        </filter>
       </defs>
       <g clipPath="url(#aurae-splatter-clip)" filter="url(#aurae-splatter-soft)">
         {paths}
@@ -345,60 +433,155 @@ function VinylDisc({
         background: vinylBackground(colors, gradient),
         opacity,
         overflow: "hidden",
-        boxShadow: "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
+        boxShadow:
+          "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
         animation: flipping ? "vinylFlip 1.15s ease-in-out" : playing ? "spin 1.55s linear infinite" : "none",
         transformOrigin: "50% 50%"
       }}
     >
-      <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "repeating-radial-gradient(circle, rgba(255,255,255,0.13) 0 1px, rgba(0,0,0,0.17) 2px, transparent 4px, transparent 8px)", mixBlendMode: "screen", opacity: 0.34 }} />
-      <div style={{ position: "absolute", inset: Math.round(radius * 0.08), borderRadius: "50%", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)" }} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "50%",
+          background:
+            "repeating-radial-gradient(circle, rgba(255,255,255,0.13) 0 1px, rgba(0,0,0,0.17) 2px, transparent 4px, transparent 8px)",
+          mixBlendMode: "screen",
+          opacity: 0.34
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          inset: Math.round(radius * 0.08),
+          borderRadius: "50%",
+          border: "1px solid rgba(255,255,255,0.12)",
+          boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)"
+        }}
+      />
 
       {splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
 
       {cover ? (
-        <img src={cover} alt="" style={{ position: "absolute", width: labelSize, height: labelSize, borderRadius: "50%", objectFit: "cover", top: "50%", left: "50%", transform: "translate(-50%, -50%)", boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)" }} />
+        <img
+          src={cover}
+          alt=""
+          style={{
+            position: "absolute",
+            width: labelSize,
+            height: labelSize,
+            borderRadius: "50%",
+            objectFit: "cover",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)"
+          }}
+        />
       ) : (
-        <div style={{ position: "absolute", width: labelSize, height: labelSize, borderRadius: "50%", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))", color: textColor, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Courier New, monospace", fontSize: isSingle ? 10 : 14, letterSpacing: 1, boxShadow: "0 0 0 7px rgba(0,0,0,0.32)" }}>
+        <div
+          style={{
+            position: "absolute",
+            width: labelSize,
+            height: labelSize,
+            borderRadius: "50%",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background:
+              "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
+            color: textColor,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "Courier New, monospace",
+            fontSize: isSingle ? 10 : 14,
+            letterSpacing: 1,
+            boxShadow: "0 0 0 7px rgba(0,0,0,0.32)"
+          }}
+        >
           {isSingle ? "7 IN" : "AURAE"}
         </div>
       )}
 
-      <div style={{ position: "absolute", width: Math.round(radius * 0.12), height: Math.round(radius * 0.12), borderRadius: "50%", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "rgba(8,8,8,0.78)", boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12)" }} />
+      <div
+        style={{
+          position: "absolute",
+          width: Math.round(radius * 0.12),
+          height: Math.round(radius * 0.12),
+          borderRadius: "50%",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: "rgba(8,8,8,0.78)",
+          boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12)"
+        }}
+      />
     </div>
   );
 }
 
 function DeckDefs({ id, style, color }) {
-  const base = deckBase(style, color);
+  const s = normalizeDeckStyle(style);
+  const base = deckBase(s, color);
 
   return (
     <defs>
       <linearGradient id={`${id}-base`} x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor={lighten(base, 44)} />
-        <stop offset="48%" stopColor={base} />
-        <stop offset="100%" stopColor={darken(base, 36)} />
+        {s === "chrome" ? (
+          <>
+            <stop offset="0%" stopColor="#f1f4f6" />
+            <stop offset="28%" stopColor="#9fa8b0" />
+            <stop offset="56%" stopColor="#dce1e5" />
+            <stop offset="100%" stopColor="#737b82" />
+          </>
+        ) : s === "wood" ? (
+          <>
+            <stop offset="0%" stopColor="#a87543" />
+            <stop offset="28%" stopColor="#6f421e" />
+            <stop offset="56%" stopColor="#9b6537" />
+            <stop offset="100%" stopColor="#b47b47" />
+          </>
+        ) : (
+          <>
+            <stop offset="0%" stopColor={lighten(base, 44)} />
+            <stop offset="48%" stopColor={base} />
+            <stop offset="100%" stopColor={darken(base, 36)} />
+          </>
+        )}
       </linearGradient>
+
       <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor="#f5f5f5" />
         <stop offset="45%" stopColor="#b9b9b9" />
         <stop offset="100%" stopColor="#6d6d6d" />
       </linearGradient>
+
       <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stopColor="#e9c96a" />
         <stop offset="44%" stopColor="#b88b2b" />
         <stop offset="100%" stopColor="#f4d984" />
       </linearGradient>
+
       <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
         <stop offset="0%" stopColor="#f0f0f0" />
         <stop offset="54%" stopColor="#888" />
         <stop offset="100%" stopColor="#333" />
       </radialGradient>
-      <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" /></filter>
-      <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
+
+      <filter id={`${id}-shadow`}>
+        <feDropShadow dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" />
+      </filter>
+
+      <filter id={`${id}-soft`}>
+        <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
+      </filter>
+
       <pattern id={`${id}-woodgrain`} x="0" y="0" width="560" height="12" patternUnits="userSpaceOnUse">
         <line x1="0" y1="2" x2="560" y2="2" stroke="rgba(0,0,0,0.09)" strokeWidth="1" />
         <line x1="0" y1="8" x2="560" y2="8" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
       </pattern>
+
       <pattern id={`${id}-brushed`} x="0" y="0" width="8" height="560" patternUnits="userSpaceOnUse">
         <line x1="1" y1="0" x2="7" y2="560" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
       </pattern>
@@ -411,22 +594,75 @@ function Tonearm({ id, geometry, stylus, textColor }) {
 
   return (
     <g>
-      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="24" fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.34)" strokeWidth="1.4" filter={`url(#${id}-soft)`} />
+      <circle
+        cx={geometry.pivotX}
+        cy={geometry.pivotY}
+        r="25"
+        fill={`url(#${id}-knob)`}
+        stroke="rgba(0,0,0,0.34)"
+        strokeWidth="1.4"
+        filter={`url(#${id}-soft)`}
+      />
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="10" fill="rgba(0,0,0,0.36)" />
       <circle cx={geometry.pivotX - 3} cy={geometry.pivotY - 3} r="2.2" fill="rgba(255,255,255,0.75)" />
 
-      <line x1={geometry.pivotX} y1={geometry.pivotY} x2={stylus.x} y2={stylus.y} stroke={`url(#${id}-arm)`} strokeWidth="8" strokeLinecap="round" />
-      <line x1={geometry.pivotX - 4} y1={geometry.pivotY - 3} x2={stylus.x - 4} y2={stylus.y - 3} stroke="rgba(255,255,255,0.42)" strokeWidth="2.4" strokeLinecap="round" />
+      <line
+        x1={geometry.pivotX}
+        y1={geometry.pivotY}
+        x2={stylus.x}
+        y2={stylus.y}
+        stroke={`url(#${id}-arm)`}
+        strokeWidth="8"
+        strokeLinecap="round"
+      />
+      <line
+        x1={geometry.pivotX - 4}
+        y1={geometry.pivotY - 3}
+        x2={stylus.x - 4}
+        y2={stylus.y - 3}
+        stroke="rgba(255,255,255,0.42)"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
 
       <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
-        <rect x="-7" y="-10" width="28" height="20" rx="3" fill="#b9b9b9" stroke="rgba(0,0,0,0.35)" strokeWidth="0.9" filter={`url(#${id}-soft)`} />
+        <rect
+          x="-7"
+          y="-10"
+          width="28"
+          height="20"
+          rx="3"
+          fill="#b9b9b9"
+          stroke="rgba(0,0,0,0.35)"
+          strokeWidth="0.9"
+          filter={`url(#${id}-soft)`}
+        />
         <rect x="-2" y="2" width="16" height="10" rx="2" fill="#2b2b2b" />
         <line x1="2" y1="12" x2="2" y2="20" stroke="#111" strokeWidth="1.8" strokeLinecap="round" />
       </g>
 
       <circle cx={stylus.x} cy={stylus.y} r="2.3" fill="#111" />
-      <ellipse cx={geometry.pivotX + 20} cy={geometry.pivotY} rx="14" ry="9" fill="#8a8a8a" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
-      <text x={geometry.pivotX} y={geometry.pivotY + 43} fill={textColor} opacity="0.82" fontSize="8" fontFamily="monospace" textAnchor="middle">TONE</text>
+      <ellipse
+        cx={geometry.pivotX + 21}
+        cy={geometry.pivotY}
+        rx="14"
+        ry="9"
+        fill="#8a8a8a"
+        stroke="rgba(0,0,0,0.3)"
+        strokeWidth="0.8"
+      />
+
+      <text
+        x={geometry.pivotX}
+        y={geometry.pivotY + 44}
+        fill={textColor}
+        opacity="0.82"
+        fontSize="8"
+        fontFamily="monospace"
+        textAnchor="middle"
+      >
+        TONE
+      </text>
     </g>
   );
 }
@@ -441,8 +677,19 @@ function StandardControls({ id, style, textColor }) {
         <rect x="48" y="474" width="210" height="42" rx="10" fill="rgba(0,0,0,0.16)" stroke="rgba(255,255,255,0.15)" />
         {["33", "45", "78"].map((label, i) => (
           <g key={label}>
-            <rect x={62 + i * 58} y="486" width="42" height="18" rx="5" fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" strokeWidth="0.8" />
-            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">{label}</text>
+            <rect
+              x={62 + i * 58}
+              y="486"
+              width="42"
+              height="18"
+              rx="5"
+              fill="rgba(255,255,255,0.12)"
+              stroke="rgba(0,0,0,0.22)"
+              strokeWidth="0.8"
+            />
+            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
+              {label}
+            </text>
           </g>
         ))}
       </g>
@@ -454,19 +701,42 @@ function StandardControls({ id, style, textColor }) {
       <g>
         <line x1="520" y1="308" x2="520" y2="458" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
         <circle cx="520" cy="378" r="5" fill={textColor} opacity="0.75" />
-        <text x="520" y="482" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">VOL</text>
+        <text x="520" y="482" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">
+          VOL
+        </text>
       </g>
     );
   }
 
   return (
     <g>
-      <rect x="430" y="330" width="96" height="150" rx={s === "dark" ? 3 : 9} fill={s === "wood" ? "rgba(0,0,0,0.24)" : "rgba(0,0,0,0.25)"} stroke="rgba(255,255,255,0.14)" strokeWidth="1" filter={`url(#${id}-soft)`} />
+      <rect
+        x="430"
+        y="330"
+        width="96"
+        height="150"
+        rx={s === "dark" ? 3 : 9}
+        fill={s === "wood" ? "rgba(0,0,0,0.24)" : "rgba(0,0,0,0.25)"}
+        stroke="rgba(255,255,255,0.14)"
+        strokeWidth="1"
+        filter={`url(#${id}-soft)`}
+      />
       <rect x="444" y="346" width="68" height="28" rx="5" fill="rgba(0,0,0,0.35)" />
-      <text x="478" y="364" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">{s === "wood" ? "CONTROL" : "START"}</text>
-      <circle cx="478" cy="414" r="22" fill={s === "wood" ? "#241406" : `url(#${id}-knob)`} stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+      <text x="478" y="364" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
+        {s === "wood" ? "CONTROL" : "START"}
+      </text>
+      <circle
+        cx="478"
+        cy="414"
+        r="22"
+        fill={s === "wood" ? "#241406" : `url(#${id}-knob)`}
+        stroke="rgba(255,255,255,0.18)"
+        strokeWidth="2"
+      />
       <line x1="478" y1="398" x2="478" y2="407" stroke={textColor} strokeWidth="2" />
-      <text x="478" y="454" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">{s === "dark" ? "RPM" : "LEVEL"}</text>
+      <text x="478" y="454" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
+        {s === "dark" ? "RPM" : "LEVEL"}
+      </text>
     </g>
   );
 }
@@ -481,7 +751,17 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
   const board = boardPath(s);
 
   return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
+    <svg
+      viewBox="0 0 560 560"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: 560,
+        height: 560,
+        pointerEvents: "none",
+        zIndex: 2
+      }}
+    >
       <DeckDefs id={id} style={s} color={color} />
       <path d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
 
@@ -510,8 +790,16 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
         </>
       )}
 
-      {s === "realistic1" && <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>}
-      {s === "realistic2" && <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">BELT DRIVE</text>}
+      {s === "realistic1" && (
+        <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">
+          DIRECT DRIVE
+        </text>
+      )}
+      {s === "realistic2" && (
+        <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">
+          BELT DRIVE
+        </text>
+      )}
 
       <circle cx={g.cx} cy={g.cy} r={holeR + 13} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="7" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
@@ -534,10 +822,24 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
   const hole = holePath(g.cx, g.cy, holeR);
 
   return (
-    <svg viewBox="0 0 760 560" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
+    <svg
+      viewBox="0 0 760 560"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        zIndex: 2
+      }}
+    >
       <defs>
-        <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" /></filter>
-        <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
+        <filter id={`${id}-shadow`}>
+          <feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" />
+        </filter>
+        <filter id={`${id}-soft`}>
+          <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
+        </filter>
         <linearGradient id={`${id}-plinth`} x1="0" y1="0" x2="0.4" y2="1">
           <stop offset="0%" stopColor="#ebe4d8" />
           <stop offset="44%" stopColor="#d2c7b6" />
@@ -560,8 +862,20 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
         </radialGradient>
       </defs>
 
-      <path d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`} fill="#1a1612" fillRule="evenodd" stroke="#090806" strokeWidth="2" />
-      <path d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+      <path
+        d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`}
+        fill="#1a1612"
+        fillRule="evenodd"
+        stroke="#090806"
+        strokeWidth="2"
+      />
+      <path
+        d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`}
+        fill={`url(#${id}-plinth)`}
+        fillRule="evenodd"
+        filter={`url(#${id}-shadow)`}
+      />
+
       <rect x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
       <rect x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
 
@@ -569,21 +883,38 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
       <circle cx={g.cx} cy={g.cy} r={holeR + 10} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
 
       <rect x="502" y="20" width="108" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">POWER</text>
+      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">
+        POWER
+      </text>
+
       <rect x="620" y="20" width="120" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">SELECTOR</text>
+      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">
+        SELECTOR
+      </text>
 
       {["BASS", "TREBLE", "VOL L", "VOL R"].map((label, i) => (
         <g key={label}>
-          <rect x={502 + i * 60} y="104" width="52" height="312" rx="5" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)" />
-          <text x={507 + i * 60} y="117" fill={textColor} fontSize="7" fontFamily="monospace">{label}</text>
+          <rect
+            x={502 + i * 60}
+            y="104"
+            width="52"
+            height="312"
+            rx="5"
+            fill="rgba(0,0,0,0.28)"
+            stroke="rgba(255,255,255,0.09)"
+          />
+          <text x={507 + i * 60} y="117" fill={textColor} fontSize="7" fontFamily="monospace">
+            {label}
+          </text>
           <rect x={512 + i * 60} y="140" width="8" height="230" rx="4" fill="#101010" />
           <rect x={508 + i * 60} y={230 + i * 8} width="16" height="21" rx="3" fill="#d0d0d0" />
         </g>
       ))}
 
       <rect x="326" y="462" width="72" height="52" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
-      <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">LIFT</text>
+      <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">
+        LIFT
+      </text>
 
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
 
@@ -600,7 +931,15 @@ function TurntableDeck({ style, color, vinylRadius, textColor, progress }) {
     return <Realistic3Deck vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
   }
 
-  return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
+  return (
+    <StandardDeck
+      style={s}
+      color={color}
+      vinylRadius={vinylRadius}
+      textColor={textColor}
+      progress={progress}
+    />
+  );
 }
 
 const OVL = {
@@ -680,9 +1019,10 @@ export default function App() {
   const current = tracks[index];
   const S = makeStyles(dark, text);
 
-  const sideBreak = Math.ceil(tracks.length / 2);
-  const needsTurn = tracks.length > 1 && index >= sideBreak && vinylSide === 1 && !flipping;
-  const currentVinylCover = vinylSide === 1 ? side1Cover || albumCover : side2Cover || albumCover;
+  const currentTrackSide = Math.floor(index / SONGS_PER_SIDE) + 1;
+  const maxSide = Math.max(1, Math.ceil(tracks.length / SONGS_PER_SIDE));
+  const needsTurn = tracks.length > SONGS_PER_SIDE && currentTrackSide > vinylSide && !flipping;
+  const currentVinylCover = vinylSide % 2 === 1 ? side1Cover || albumCover : side2Cover || albumCover;
 
   useEffect(() => {
     async function loadAll() {
@@ -764,8 +1104,10 @@ export default function App() {
   }, [index, tracks, vinylSide, flipping]);
 
   useEffect(() => {
-    if (!flipping && index < sideBreak && vinylSide !== 1) setVinylSide(1);
-  }, [index, sideBreak, flipping, vinylSide]);
+    if (flipping) return;
+    const trackSide = Math.floor(index / SONGS_PER_SIDE) + 1;
+    if (trackSide < vinylSide) setVinylSide(trackSide);
+  }, [index, flipping, vinylSide]);
 
   const fmt = (seconds = 0) => {
     const safe = Number.isFinite(seconds) ? seconds : 0;
@@ -782,6 +1124,7 @@ export default function App() {
 
   function signup() {
     if (!email.trim() || !password.trim()) return;
+
     const next = { ...users, [email]: { password } };
     setUsers(next);
     localStorage.setItem("aurae_users", JSON.stringify(next));
@@ -819,6 +1162,7 @@ export default function App() {
   function createFolder() {
     const clean = folderName.trim();
     if (!clean) return;
+
     setFolders(prev => [...prev, { id: Date.now(), name: clean, projects: [] }]);
     setFolderName("");
     setShowFolder(false);
@@ -849,6 +1193,7 @@ export default function App() {
 
   async function saveCurrentProject(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
     if (!activeProject) return;
+
     const payload = projectPayload(nextTracks, nextCover, overrides);
     setProjectsMeta(prev => ({ ...prev, [activeProject]: payload }));
     setTracks(nextTracks);
@@ -865,6 +1210,7 @@ export default function App() {
   function updateVinylColor(slot, value) {
     const next = [...vinylColors];
     next[slot] = value;
+
     setVinylColors(next);
     if (slot === 0) setVinylColor(value);
 
@@ -922,6 +1268,7 @@ export default function App() {
 
   async function applyRenameProject(oldName, nextName) {
     const clean = nextName.trim();
+
     if (!clean || clean === oldName) {
       setRenameModal(null);
       return;
@@ -973,6 +1320,7 @@ export default function App() {
   function applyRenameFolder(id, nextName) {
     const clean = nextName.trim();
     if (!clean) return;
+
     setFolders(prev => prev.map(folder => (folder.id === id ? { ...folder, name: clean } : folder)));
     setRenameModal(null);
   }
@@ -996,7 +1344,9 @@ export default function App() {
     const next = [...list];
     const fromIndex = next.indexOf(from);
     const toIndex = next.indexOf(to);
+
     if (fromIndex < 0 || toIndex < 0) return;
+
     const item = next.splice(fromIndex, 1)[0];
     next.splice(toIndex, 0, item);
     setProjectOrder(next);
@@ -1118,7 +1468,8 @@ export default function App() {
   }
 
   function needsTurnForTrack(trackIndex) {
-    return tracks.length > 1 && trackIndex >= sideBreak && vinylSide === 1 && !flipping;
+    const targetSide = Math.floor(trackIndex / SONGS_PER_SIDE) + 1;
+    return tracks.length > SONGS_PER_SIDE && targetSide > vinylSide && !flipping;
   }
 
   function play(trackIndex, force = false) {
@@ -1139,16 +1490,19 @@ export default function App() {
     setTimeout(() => {
       const audio = audioRef.current;
       if (!audio) return;
+
       audio.src = track.url;
       audio.play().catch(() => setPlaying(false));
     }, 20);
   }
 
   function turnVinyl() {
-    if (flipping || tracks.length <= 1) return;
+    if (flipping || tracks.length <= SONGS_PER_SIDE) return;
 
-    const targetIndex = Math.max(index, sideBreak);
+    const targetIndex = Math.max(index, vinylSide * SONGS_PER_SIDE);
+    const targetSide = Math.floor(targetIndex / SONGS_PER_SIDE) + 1;
     const audio = audioRef.current;
+
     if (audio) audio.pause();
 
     setPlaying(false);
@@ -1156,7 +1510,7 @@ export default function App() {
     setFlipping(true);
 
     setTimeout(() => {
-      setVinylSide(2);
+      setVinylSide(targetSide);
       setFlipping(false);
       setTimeout(() => play(targetIndex, true), 80);
     }, 1150);
@@ -1186,7 +1540,7 @@ export default function App() {
   }
 
   function prevTrack() {
-    if (index > 0) play(index - 1, index - 1 < sideBreak);
+    if (index > 0) play(index - 1, true);
   }
 
   function nextTrack() {
@@ -1197,6 +1551,7 @@ export default function App() {
     const value = Number(e.target.value);
     const audio = audioRef.current;
     if (!audio) return;
+
     audio.currentTime = value;
     setCurrentTime(value);
   }
@@ -1235,7 +1590,9 @@ export default function App() {
           <div style={S.logo}>AURAE OS</div>
 
           <div style={S.topBtns}>
-            <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? "Light" : "Dark"}</button>
+            <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>
+              {dark ? "Light" : "Dark"}
+            </button>
             <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
             <button style={S.btn} onClick={() => setShowFolder(true)}>+ folder</button>
             {folderOpen && <button style={S.btn} onClick={() => setFolderOpen(null)}>back</button>}
@@ -1445,17 +1802,23 @@ export default function App() {
           <div>
             <h3 style={S.projectTitle}>{activeProject}</h3>
             <div style={S.meta}>
-              {tracks.length} tracks - {totalDur(tracks)} - side {vinylSide}
+              {tracks.length} tracks - {totalDur(tracks)} - side {vinylSide}/{maxSide}
             </div>
           </div>
           <button style={S.iconBtn} onClick={() => setView("home")}>home</button>
         </div>
 
         <div style={S.segment}>
-          <button style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }} onClick={() => setSidebarMode("songs")}>
+          <button
+            style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }}
+            onClick={() => setSidebarMode("songs")}
+          >
             songs
           </button>
-          <button style={{ ...S.segmentBtn, ...(sidebarMode === "design" ? S.segmentActive : {}) }} onClick={() => setSidebarMode("design")}>
+          <button
+            style={{ ...S.segmentBtn, ...(sidebarMode === "design" ? S.segmentActive : {}) }}
+            onClick={() => setSidebarMode("design")}
+          >
             design
           </button>
         </div>
@@ -1496,8 +1859,10 @@ export default function App() {
                   onDrop={e => {
                     e.preventDefault();
                     setDragOverTrack(null);
+
                     const from = Number(e.dataTransfer.getData("aurae_track"));
                     if (!Number.isFinite(from) || from === i) return;
+
                     const next = [...tracks];
                     const item = next.splice(from, 1)[0];
                     next.splice(i, 0, item);
@@ -1512,7 +1877,7 @@ export default function App() {
                 >
                   <span style={S.dragGrip}>::</span>
                   <span style={S.trackName}>
-                    {i === sideBreak && tracks.length > 1 ? "SIDE 2 - " : ""}
+                    {i > 0 && i % SONGS_PER_SIDE === 0 ? `SIDE ${Math.floor(i / SONGS_PER_SIDE) + 1} - ` : ""}
                     {track.name}
                   </span>
                   <span style={S.trackTime}>{fmt(track.duration)}</span>
@@ -1529,6 +1894,32 @@ export default function App() {
         ) : (
           <div style={S.designPanel}>
             <div style={S.section}>
+              <div style={S.sectionTitle}>Deck design</div>
+
+              <input
+                type="color"
+                value={deckColor}
+                onChange={e => upd("deckColor", e.target.value, setDeckColor)}
+                style={S.colorInput}
+              />
+
+              <div style={S.optionGrid}>
+                {DECK_STYLES.map(style => (
+                  <button
+                    key={style}
+                    style={{
+                      ...S.smallBtn,
+                      ...(normalizeDeckStyle(deckStyle) === style ? S.optionActive : {})
+                    }}
+                    onClick={() => upd("deckStyle", style, setDeckStyle)}
+                  >
+                    {style}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={S.section}>
               <div style={S.sectionTitle}>Vinyl colors</div>
               <div style={S.colorGrid}>
                 {[0, 1, 2, 3].map(slot => (
@@ -1541,6 +1932,7 @@ export default function App() {
                   />
                 ))}
               </div>
+
               <div style={S.optionGrid}>
                 {VINYL_GRADIENTS.map(item => (
                   <button
@@ -1552,6 +1944,7 @@ export default function App() {
                   </button>
                 ))}
               </div>
+
               <label style={S.sliderLabel}>
                 opacity
                 <input
@@ -1568,12 +1961,22 @@ export default function App() {
 
             <div style={S.section}>
               <div style={S.sectionTitle}>Splatter</div>
+
               <div style={S.inlineControls}>
-                <input type="color" value={splatterColor} onChange={e => upd("splatterColor", e.target.value, setSplatterColor)} style={S.colorInput} />
-                <button style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}) }} onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}>
+                <input
+                  type="color"
+                  value={splatterColor}
+                  onChange={e => upd("splatterColor", e.target.value, setSplatterColor)}
+                  style={S.colorInput}
+                />
+                <button
+                  style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}) }}
+                  onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}
+                >
                   {splatterOn ? "on" : "off"}
                 </button>
               </div>
+
               <div style={S.optionGrid}>
                 {SPLATTER_STYLES.map(item => (
                   <button
@@ -1628,7 +2031,7 @@ export default function App() {
 
           {needsTurn && (
             <button style={S.turnBtn} onClick={turnVinyl}>
-              turn vinyl.
+              turn vinyl
             </button>
           )}
         </div>
@@ -1817,7 +2220,8 @@ function makeStyles(dark, text) {
       aspectRatio: "1 / 1",
       borderRadius: 14,
       marginBottom: 10,
-      background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))",
+      background:
+        "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))",
       border: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.06)",
       flexShrink: 0
     },
