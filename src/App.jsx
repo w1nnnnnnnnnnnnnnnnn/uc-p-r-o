@@ -127,7 +127,8 @@ function seededRand(seed) {
   };
 }
 
-const SONGS_PER_SIDE = 10;
+// CHANGED: vinyl turn is now time-based (25 minutes = 1500 seconds) instead of song count
+const SIDE_DURATION_SECONDS = 25 * 60; // 25 minutes per side
 
 const DEFAULT_VINYL_COLORS = ["#111111", "#3a7bd5", "#9d4edd", "#ff7a59"];
 
@@ -995,6 +996,9 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // CHANGED: track total elapsed playtime for time-based side flipping
+  const [sideElapsedSeconds, setSideElapsedSeconds] = useState(0);
+
   const [sidebarMode, setSidebarMode] = useState("songs");
   const [albumCover, setAlbumCover] = useState(null);
   const [side1Cover, setSide1Cover] = useState(null);
@@ -1014,15 +1018,24 @@ export default function App() {
   const [flipping, setFlipping] = useState(false);
 
   const audioRef = useRef(null);
+  // CHANGED: ref to track elapsed time on current side
+  const sideElapsedRef = useRef(0);
+  const lastTimeRef = useRef(null);
+
   const dark = theme === "dark";
   const text = dark ? "#ffffff" : "#000000";
   const current = tracks[index];
   const S = makeStyles(dark, text);
 
-  const currentTrackSide = Math.floor(index / SONGS_PER_SIDE) + 1;
-  const maxSide = Math.max(1, Math.ceil(tracks.length / SONGS_PER_SIDE));
-  const needsTurn = tracks.length > SONGS_PER_SIDE && currentTrackSide > vinylSide && !flipping;
+  // CHANGED: needsTurn is now purely time-based (>= 25 minutes elapsed on this side)
+  // and only applies if vinyl has not yet been turned (vinylSide === 1) and there are enough tracks
+  const needsTurn = vinylSide === 1 && !flipping && sideElapsedSeconds >= SIDE_DURATION_SECONDS;
+
+  // CHANGED: current cover depends on vinylSide only
   const currentVinylCover = vinylSide % 2 === 1 ? side1Cover || albumCover : side2Cover || albumCover;
+
+  // CHANGED: progress is time-based within the current 25-minute side
+  const sideProgress = Math.min(sideElapsedSeconds / SIDE_DURATION_SECONDS, 1);
 
   useEffect(() => {
     async function loadAll() {
@@ -1075,6 +1088,31 @@ export default function App() {
     localStorage.setItem("aurae_theme", theme);
   }, [theme]);
 
+  // CHANGED: tick elapsed side time while playing, reset when vinyl is turned
+  useEffect(() => {
+    if (!playing || flipping) {
+      lastTimeRef.current = null;
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      if (lastTimeRef.current !== null) {
+        const delta = (now - lastTimeRef.current) / 1000;
+        sideElapsedRef.current = Math.min(sideElapsedRef.current + delta, SIDE_DURATION_SECONDS);
+        setSideElapsedSeconds(sideElapsedRef.current);
+      }
+      lastTimeRef.current = now;
+    }, 500);
+
+    lastTimeRef.current = Date.now();
+
+    return () => {
+      clearInterval(interval);
+      lastTimeRef.current = null;
+    };
+  }, [playing, flipping]);
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -1101,13 +1139,7 @@ export default function App() {
       audio.removeEventListener("loadedmetadata", update);
       audio.removeEventListener("ended", end);
     };
-  }, [index, tracks, vinylSide, flipping]);
-
-  useEffect(() => {
-    if (flipping) return;
-    const trackSide = Math.floor(index / SONGS_PER_SIDE) + 1;
-    if (trackSide < vinylSide) setVinylSide(trackSide);
-  }, [index, flipping, vinylSide]);
+  }, [index, tracks]);
 
   const fmt = (seconds = 0) => {
     const safe = Number.isFinite(seconds) ? seconds : 0;
@@ -1253,6 +1285,9 @@ export default function App() {
     setCurrentTime(0);
     setDuration(0);
     setSidebarMode("songs");
+    // CHANGED: reset side elapsed time when opening a project
+    sideElapsedRef.current = 0;
+    setSideElapsedSeconds(0);
 
     const restored = await Promise.all(
       (p.tracks || []).map(async track => {
@@ -1456,33 +1491,9 @@ export default function App() {
     setSongMenu(null);
   }
 
-  function moveTrack(trackIndex) {
-    const pos = Number(prompt("Move to position:", trackIndex + 1));
-    if (!pos) return;
-
-    const next = [...tracks];
-    const item = next.splice(trackIndex, 1)[0];
-    next.splice(Math.max(0, Math.min(next.length, pos - 1)), 0, item);
-    saveCurrentProject(next);
-    setSongMenu(null);
-  }
-
-  function needsTurnForTrack(trackIndex) {
-    const targetSide = Math.floor(trackIndex / SONGS_PER_SIDE) + 1;
-    return tracks.length > SONGS_PER_SIDE && targetSide > vinylSide && !flipping;
-  }
-
   function play(trackIndex, force = false) {
     const track = tracks[trackIndex];
     if (!track?.url) return;
-
-    if (!force && needsTurnForTrack(trackIndex)) {
-      const audio = audioRef.current;
-      if (audio) audio.pause();
-      setIndex(trackIndex);
-      setPlaying(false);
-      return;
-    }
 
     setIndex(trackIndex);
     setPlaying(true);
@@ -1496,35 +1507,29 @@ export default function App() {
     }, 20);
   }
 
+  // CHANGED: turnVinyl now resets elapsed time and only flips once (side 1 -> side 2)
   function turnVinyl() {
-    if (flipping || tracks.length <= SONGS_PER_SIDE) return;
+    if (flipping || vinylSide !== 1) return;
 
-    const targetIndex = Math.max(index, vinylSide * SONGS_PER_SIDE);
-    const targetSide = Math.floor(targetIndex / SONGS_PER_SIDE) + 1;
     const audio = audioRef.current;
-
     if (audio) audio.pause();
 
     setPlaying(false);
-    setIndex(targetIndex);
     setFlipping(true);
 
     setTimeout(() => {
-      setVinylSide(targetSide);
+      setVinylSide(2);
+      // CHANGED: reset elapsed time after turning
+      sideElapsedRef.current = 0;
+      setSideElapsedSeconds(0);
+      lastTimeRef.current = null;
       setFlipping(false);
-      setTimeout(() => play(targetIndex, true), 80);
     }, 1150);
   }
 
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
-
-    if (needsTurnForTrack(index)) {
-      setPlaying(false);
-      audio.pause();
-      return;
-    }
 
     if (!audio.src && tracks[0]) {
       play(0);
@@ -1534,6 +1539,7 @@ export default function App() {
     if (playing) {
       audio.pause();
       setPlaying(false);
+      lastTimeRef.current = null;
     } else {
       audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     }
@@ -1561,9 +1567,9 @@ export default function App() {
   const geometry = deckGeometry(normalizedDeckStyle);
   const compactDecks = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(normalizedDeckStyle);
   const vinylRadius = isSingle ? 106 : normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
-  const totalSongs = Math.max(tracks.length, 1);
-  const songProgress = duration > 0 ? currentTime / duration : 0;
-  const progress = tracks.length === 0 ? 0 : (index + songProgress) / totalSongs;
+
+  // CHANGED: progress is purely time-based within the 25-minute side window
+  const progress = sideProgress;
 
   if (view === "auth") {
     return (
@@ -1610,13 +1616,33 @@ export default function App() {
                   onDrop={e => moveToFolder(e.dataTransfer.getData("text/plain"), folder.id)}
                   onClick={() => setFolderOpen(folder.id)}
                 >
-                  <div style={S.folderGrid}>
-                    {folder.projects.slice(0, 4).map((project, i) => {
-                      const p = projectsMeta[project] || {};
-                      const cover = p.homeCover || p.cover || p.side1Cover;
-                      return cover ? <img key={i} src={cover} alt="" style={S.folderImg} /> : <div key={i} style={S.folderBlank} />;
-                    })}
-                  </div>
+                  {/* CHANGED: cleaner folder cover display — single cover image or 2x2 grid */}
+                  {(() => {
+                    const covers = folder.projects
+                      .map(project => {
+                        const p = projectsMeta[project] || {};
+                        return p.homeCover || p.cover || p.side1Cover || null;
+                      })
+                      .filter(Boolean);
+
+                    if (covers.length === 1) {
+                      return (
+                        <img src={covers[0]} alt="" style={S.cover} />
+                      );
+                    }
+
+                    return (
+                      <div style={S.folderGrid}>
+                        {[0, 1, 2, 3].map(i =>
+                          covers[i] ? (
+                            <img key={i} src={covers[i]} alt="" style={S.folderImg} />
+                          ) : (
+                            <div key={i} style={S.folderBlank} />
+                          )
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div style={S.cardName}>{folder.name}</div>
                   <div style={S.cardSub}>{folder.projects.length} projects</div>
@@ -1670,7 +1696,14 @@ export default function App() {
                   }}
                   onClick={() => openProject(name)}
                 >
-                  {cover ? <img src={cover} alt="" style={S.cover} /> : <div style={S.blankCover} />}
+                  {/* CHANGED: cleaner cover display with subtle overlay on hover */}
+                  <div style={S.coverWrap}>
+                    {cover ? (
+                      <img src={cover} alt="" style={S.cover} />
+                    ) : (
+                      <div style={S.blankCover} />
+                    )}
+                  </div>
 
                   <div style={S.cardName}>{name}</div>
                   <div style={S.cardSub}>{p.tracks?.length || 0} tracks</div>
@@ -1795,6 +1828,10 @@ export default function App() {
     );
   }
 
+  // CHANGED: time remaining on this side for sidebar display
+  const sideTimeRemaining = Math.max(0, SIDE_DURATION_SECONDS - sideElapsedSeconds);
+  const maxSide = 2; // always 2 sides
+
   return (
     <div style={S.app}>
       <div style={S.sidebar}>
@@ -1802,7 +1839,12 @@ export default function App() {
           <div>
             <h3 style={S.projectTitle}>{activeProject}</h3>
             <div style={S.meta}>
-              {tracks.length} tracks - {totalDur(tracks)} - side {vinylSide}/{maxSide}
+              {tracks.length} tracks · {totalDur(tracks)} · side {vinylSide}/{maxSide}
+              {vinylSide === 1 && (
+                <span style={{ opacity: 0.65, marginLeft: 6 }}>
+                  ({fmt(sideTimeRemaining)} left)
+                </span>
+              )}
             </div>
           </div>
           <button style={S.iconBtn} onClick={() => setView("home")}>home</button>
@@ -1877,7 +1919,6 @@ export default function App() {
                 >
                   <span style={S.dragGrip}>::</span>
                   <span style={S.trackName}>
-                    {i > 0 && i % SONGS_PER_SIDE === 0 ? `SIDE ${Math.floor(i / SONGS_PER_SIDE) + 1} - ` : ""}
                     {track.name}
                   </span>
                   <span style={S.trackTime}>{fmt(track.duration)}</span>
@@ -2029,9 +2070,10 @@ export default function App() {
             progress={progress}
           />
 
+          {/* CHANGED: turn vinyl button only shows for side 1 after 25 minutes */}
           {needsTurn && (
             <button style={S.turnBtn} onClick={turnVinyl}>
-              turn vinyl
+              flip vinyl ↻
             </button>
           )}
         </div>
@@ -2053,9 +2095,9 @@ export default function App() {
         />
       </div>
 
+      {/* CHANGED: removed "move" from context menu, only delete and close remain */}
       {songMenu && (
         <div style={{ ...S.menu, left: songMenu.x, top: songMenu.y }}>
-          <button style={S.menuBtn} onClick={() => moveTrack(songMenu.i)}>move</button>
           <button style={S.menuBtn} onClick={() => deleteTrack(songMenu.i)}>delete</button>
           <button style={S.menuBtn} onClick={() => setSongMenu(null)}>close</button>
         </div>
@@ -2207,23 +2249,28 @@ function makeStyles(dark, text) {
       display: "flex",
       flexDirection: "column"
     },
-    cover: {
+    // CHANGED: wrapper for cover to allow clean border-radius clipping
+    coverWrap: {
       width: "100%",
       aspectRatio: "1 / 1",
-      objectFit: "cover",
       borderRadius: 14,
+      overflow: "hidden",
       marginBottom: 10,
-      flexShrink: 0
+      flexShrink: 0,
+      background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+    },
+    cover: {
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      display: "block"
     },
     blankCover: {
       width: "100%",
-      aspectRatio: "1 / 1",
-      borderRadius: 14,
-      marginBottom: 10,
+      height: "100%",
       background:
         "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))",
-      border: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.06)",
-      flexShrink: 0
+      display: "block"
     },
     cardName: {
       color: text,
@@ -2251,21 +2298,22 @@ function makeStyles(dark, text) {
     folderGrid: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
-      gap: 5,
+      gap: 4,
       marginBottom: 10,
-      aspectRatio: "1 / 1"
+      aspectRatio: "1 / 1",
+      borderRadius: 14,
+      overflow: "hidden"
     },
     folderImg: {
       width: "100%",
       height: "100%",
       objectFit: "cover",
-      borderRadius: 10
+      display: "block"
     },
     folderBlank: {
       width: "100%",
       height: "100%",
-      borderRadius: 10,
-      background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"
+      background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"
     },
     modalTitle: {
       color: text,
@@ -2654,5 +2702,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
+
 
 
