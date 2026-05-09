@@ -422,8 +422,8 @@ function VinylDisc({
         overflow: "hidden",
         boxShadow: "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
         animation: flipping
-          ? "vinylFlip 1.15s ease-in-out"
-          : playing ? "spin 1.55s linear infinite" : "none",
+          ? "vinylFlip 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards"
+          : playing ? "spin 1.8s linear infinite" : "none",
         transformOrigin: "50% 50%",
       }}
     >
@@ -1341,7 +1341,7 @@ export default function App() {
       setAwaitingFlip(false);
       const firstOfNextSide = sideBoundaries[nextSide - 1] ?? 0;
       setTimeout(() => playTrack(firstOfNextSide), 80);
-    }, 1150);
+    }, 1400);
   }
 
   function toggle() {
@@ -1957,10 +1957,11 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
     }
 
     @keyframes vinylFlip {
-      0%   { transform: perspective(900px) rotateY(0deg)   scale(1);    filter: brightness(1);    }
-      42%  { transform: perspective(900px) rotateY(92deg)  scale(0.92); filter: brightness(0.65); }
-      58%  { transform: perspective(900px) rotateY(268deg) scale(0.92); filter: brightness(0.72); }
-      100% { transform: perspective(900px) rotateY(360deg) scale(1);    filter: brightness(1);    }
+      0%   { transform: perspective(1200px) rotateY(0deg)   scale(1);    filter: brightness(1);    }
+      30%  { transform: perspective(1200px) rotateY(70deg)  scale(0.88); filter: brightness(0.55); }
+      50%  { transform: perspective(1200px) rotateY(90deg)  scale(0.82); filter: brightness(0.3);  }
+      70%  { transform: perspective(1200px) rotateY(110deg) scale(0.88); filter: brightness(0.55); }
+      100% { transform: perspective(1200px) rotateY(180deg) scale(1);    filter: brightness(1);    }
     }
 
     html, body, #root { margin: 0; width: 100%; min-height: 100%; }
