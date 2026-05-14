@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-// ─── IndexedDB helpers ────────────────────────────────────────────────────────
+// IndexedDB helpers
 
 function openDB() {
   return new Promise((res, rej) => {
@@ -70,13 +70,71 @@ const loadAllProjectNames = () =>
     req.onerror = () => res([]);
   });
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
+// Utilities
 
 function safeJSON(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
   } catch {
     return fallback;
+  }
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeUsers(users) {
+  return Object.entries(users || {}).reduce((acc, [email, data]) => {
+    const clean = normalizeEmail(email);
+    if (clean) acc[clean] = data;
+    return acc;
+  }, {});
+}
+
+function isEmailSyntaxValid(value) {
+  const email = normalizeEmail(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
+function getInitialSessionUser() {
+  const users = normalizeUsers(safeJSON("aurae_users", {}));
+  const remembered = normalizeEmail(localStorage.getItem("aurae_remember"));
+  const session = normalizeEmail(sessionStorage.getItem("aurae_session"));
+  const active = remembered || session;
+  if (active && users[active]) return active;
+  localStorage.removeItem("aurae_remember");
+  sessionStorage.removeItem("aurae_session");
+  return "";
+}
+
+async function emailDomainHasMailExchange(email) {
+  const domain = normalizeEmail(email).split("@")[1];
+  if (!domain || domain.includes("..")) return false;
+
+  const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`, {
+    headers: { accept: "application/dns-json" },
+  });
+  if (!res.ok) return false;
+
+  const data = await res.json();
+  return data.Status === 0 && Array.isArray(data.Answer) && data.Answer.some(answer => answer.type === 15);
+}
+
+async function verifyWorkingEmailAddress(email) {
+  const clean = normalizeEmail(email);
+  if (!isEmailSyntaxValid(clean)) {
+    return { ok: false, email: clean, error: "Enter a valid email address." };
+  }
+
+  try {
+    const hasMx = await emailDomainHasMailExchange(clean);
+    if (!hasMx) {
+      return { ok: false, email: clean, error: "This email domain does not accept mail." };
+    }
+    return { ok: true, email: clean, error: "" };
+  } catch {
+    return { ok: false, email: clean, error: "Email could not be verified. Check your connection and try again." };
   }
 }
 
@@ -125,15 +183,11 @@ function seededRand(seed) {
   };
 }
 
-// ─── Side splitting logic ─────────────────────────────────────────────────────
-//
-// Target: ~25 minutes per side. A song is NEVER cut in half.
-// The split point is chosen so each side is as close to 25 min as possible.
-// Works for any total length: 78 min → 3 sides, 50 min → 2 sides, etc.
-// Returns array of start-track indices: e.g. [0, 8, 14] means
-//   side 1 = tracks[0..7], side 2 = tracks[8..13], side 3 = tracks[14..]
+// Side splitting logic
 
-const SIDE_TARGET = 25 * 60; // 25 minutes in seconds
+const SIDE_TARGET = 25 * 60;
+const FLIP_DURATION = 1400;
+const FLIP_COVER_SWAP = 700;
 
 function computeSideBoundaries(tracks) {
   if (!tracks.length) return [0];
@@ -148,17 +202,15 @@ function computeSideBoundaries(tracks) {
     while (i < tracks.length) {
       const dur = tracks[i].duration || 0;
       if (elapsed + dur > SIDE_TARGET && i > pos) {
-        // Would exceed target — check if including this song is closer to target
-        const withSong    = elapsed + dur - SIDE_TARGET;
+        const withSong = elapsed + dur - SIDE_TARGET;
         const withoutSong = SIDE_TARGET - elapsed;
-        if (withSong < withoutSong) i++; // include it, closer to target
+        if (withSong < withoutSong) i++;
         break;
       }
       elapsed += dur;
       i++;
     }
 
-    // Edge case: single song longer than target — include it anyway
     if (i === pos) i = pos + 1;
 
     pos = i;
@@ -168,7 +220,6 @@ function computeSideBoundaries(tracks) {
   return boundaries;
 }
 
-// Returns which side (1-based) a track index belongs to
 function getSideForTrack(boundaries, trackIndex) {
   let side = 1;
   for (let i = 1; i < boundaries.length; i++) {
@@ -178,19 +229,32 @@ function getSideForTrack(boundaries, trackIndex) {
   return side;
 }
 
-// Returns the last track index of a given side (1-based)
 function getLastTrackOfSide(boundaries, side, totalTracks) {
   return (boundaries[side] ?? totalTracks) - 1;
 }
 
-// Returns total duration (seconds) of a given side (1-based)
 function getSideDuration(tracks, boundaries, side) {
   const start = boundaries[side - 1] ?? 0;
-  const end   = boundaries[side]     ?? tracks.length;
+  const end = boundaries[side] ?? tracks.length;
   return tracks.slice(start, end).reduce((s, t) => s + (t.duration || 0), 0);
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+function normalizeSideCovers(project) {
+  if (Array.isArray(project.sideCovers)) return project.sideCovers;
+  return [project.side1Cover || project.cover || null, project.side2Cover || null];
+}
+
+function sideCoverFor(side, covers, repeatFirstPair, fallback) {
+  const direct = covers[side - 1];
+  if (direct) return direct;
+  if (repeatFirstPair && side > 2) {
+    const repeated = covers[(side - 1) % 2];
+    if (repeated) return repeated;
+  }
+  return fallback || null;
+}
+
+// Constants
 
 const DEFAULT_VINYL_COLORS = ["#111111", "#3a7bd5", "#9d4edd", "#ff7a59"];
 
@@ -201,20 +265,20 @@ const DECK_STYLES = [
 
 const VINYL_GRADIENTS = [
   { id: "radial", label: "radial" },
-  { id: "split",  label: "split"  },
+  { id: "split", label: "split" },
   { id: "aurora", label: "aurora" },
-  { id: "rings",  label: "rings"  },
-  { id: "solid",  label: "solid"  },
+  { id: "rings", label: "rings" },
+  { id: "solid", label: "solid" },
 ];
 
 const SPLATTER_STYLES = [
   { id: "burst", label: "burst" },
-  { id: "mist",  label: "mist"  },
-  { id: "ring",  label: "ring"  },
-  { id: "drip",  label: "drip"  },
+  { id: "mist", label: "mist" },
+  { id: "ring", label: "ring" },
+  { id: "drip", label: "drip" },
 ];
 
-// ─── Deck helpers ─────────────────────────────────────────────────────────────
+// Deck helpers
 
 function normalizeDeckStyle(style) {
   if (style === "realistic") return "realistic1";
@@ -239,33 +303,33 @@ function holePath(cx, cy, r) {
 
 function boardPath(style) {
   const s = normalizeDeckStyle(style);
-  if (s === "chrome")     return "M58 20 L502 20 L540 58 L540 500 L502 540 L20 540 L20 58 Z";
-  if (s === "dark")       return "M20 20 L540 20 L540 540 L20 540 Z";
+  if (s === "chrome") return "M58 20 L502 20 L540 58 L540 500 L502 540 L20 540 L20 58 Z";
+  if (s === "dark") return "M20 20 L540 20 L540 540 L20 540 Z";
   if (s === "realistic1") return "M28 20 Q20 20 20 28 L20 532 Q20 540 28 540 L532 540 Q540 540 540 532 L540 28 Q540 20 532 20 Z";
   if (s === "realistic2") return "M52 20 Q20 20 20 52 L20 508 Q20 540 52 540 L508 540 Q540 540 540 508 L540 52 Q540 20 508 20 Z";
-  if (s === "wood")       return "M42 20 Q20 20 20 42 L20 518 Q20 540 42 540 L518 540 Q540 540 540 518 L540 42 Q540 20 518 20 Z";
-  if (s === "minimal")    return "M20 20 L540 20 L540 540 L20 540 Z";
+  if (s === "wood") return "M42 20 Q20 20 20 42 L20 518 Q20 540 42 540 L518 540 Q540 540 540 518 L540 42 Q540 20 518 20 Z";
+  if (s === "minimal") return "M20 20 L540 20 L540 540 L20 540 Z";
   return "M48 20 Q20 20 20 48 L20 512 Q20 540 48 540 L512 540 Q540 540 540 512 L540 48 Q540 20 512 20 Z";
 }
 
 function deckBase(style, color) {
   const s = normalizeDeckStyle(style);
-  if (s === "classic")    return "#e5e1d8";
-  if (s === "dark")       return "#151515";
-  if (s === "chrome")     return "#b8bec4";
-  if (s === "wood")       return "#8b5a32";
-  if (s === "minimal")    return "#ffffff";
+  if (s === "classic") return "#e5e1d8";
+  if (s === "dark") return "#151515";
+  if (s === "chrome") return "#b8bec4";
+  if (s === "wood") return "#8b5a32";
+  if (s === "minimal") return "#ffffff";
   if (s === "realistic1") return color || "#25272b";
   if (s === "realistic2") return color || "#d8d2c7";
   return color || "#1a1a1a";
 }
 
 function groovePoint(g, radius, progress) {
-  const p      = Math.max(0, Math.min(1, progress || 0));
+  const p = Math.max(0, Math.min(1, progress || 0));
   const outerR = radius * 0.94;
   const innerR = radius * 0.42;
-  const r      = outerR + (innerR - outerR) * p;
-  const angle  = (-4 - 17 * p) * Math.PI / 180;
+  const r = outerR + (innerR - outerR) * p;
+  const angle = (-4 - 17 * p) * Math.PI / 180;
   return { x: g.cx + Math.cos(angle) * r, y: g.cy + Math.sin(angle) * r };
 }
 
@@ -298,24 +362,26 @@ function vinylBackground(colors, gradient) {
   return `radial-gradient(circle at 38% 34%, ${lighten(c1, 42)} 0%, ${c1} 24%, ${c2} 48%, ${darken(c3, 28)} 72%, ${darken(c4, 46)} 100%)`;
 }
 
-// ─── SplatterOverlay ──────────────────────────────────────────────────────────
-
 function SplatterOverlay({ color, style }) {
-  const cx   = 195;
-  const cy   = 195;
+  const cx = 195;
+  const cy = 195;
   const rand = seededRand(42);
   const paths = [];
-  const dots  = [];
-  const sel   = style === "comet" ? "burst" : style || "burst";
+  const dots = [];
+  const sel = style === "comet" ? "burst" : style || "burst";
 
   if (sel === "mist") {
     for (let i = 0; i < 130; i++) {
       const a = rand() * Math.PI * 2;
       const r = 35 + rand() * 150;
       dots.push(
-        <circle key={`m${i}`}
-          cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-          r={0.7 + rand() * 3.5} fill={color} opacity={0.12 + rand() * 0.42}
+        <circle
+          key={`m${i}`}
+          cx={cx + Math.cos(a) * r}
+          cy={cy + Math.sin(a) * r}
+          r={0.7 + rand() * 3.5}
+          fill={color}
+          opacity={0.12 + rand() * 0.42}
         />
       );
     }
@@ -324,44 +390,55 @@ function SplatterOverlay({ color, style }) {
       const a = (i / 70) * Math.PI * 2 + (rand() - 0.5) * 0.16;
       const r = 105 + rand() * 54;
       dots.push(
-        <circle key={`r${i}`}
-          cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-          r={1.5 + rand() * 6} fill={color} opacity={0.25 + rand() * 0.62}
+        <circle
+          key={`r${i}`}
+          cx={cx + Math.cos(a) * r}
+          cy={cy + Math.sin(a) * r}
+          r={1.5 + rand() * 6}
+          fill={color}
+          opacity={0.25 + rand() * 0.62}
         />
       );
     }
   } else if (sel === "drip") {
     for (let i = 0; i < 46; i++) {
-      const a   = (i / 46) * Math.PI * 2 + (rand() - 0.5) * 0.45;
+      const a = (i / 46) * Math.PI * 2 + (rand() - 0.5) * 0.45;
       const inn = 65 + rand() * 28;
       const out = 118 + rand() * 90;
-      const x1  = cx + Math.cos(a) * inn;
-      const y1  = cy + Math.sin(a) * inn;
-      const x2  = cx + Math.cos(a) * out;
-      const y2  = cy + Math.sin(a) * out;
+      const x1 = cx + Math.cos(a) * inn;
+      const y1 = cy + Math.sin(a) * inn;
+      const x2 = cx + Math.cos(a) * out;
+      const y2 = cy + Math.sin(a) * out;
       paths.push(
-        <path key={`d${i}`}
+        <path
+          key={`d${i}`}
           d={`M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 + rand() * 28} ${x2} ${y2}`}
-          stroke={color} strokeWidth={3 + rand() * 7} strokeLinecap="round" fill="none"
+          stroke={color}
+          strokeWidth={3 + rand() * 7}
+          strokeLinecap="round"
+          fill="none"
           opacity={0.32 + rand() * 0.48}
         />
       );
     }
   } else {
-    // burst
     for (let i = 0; i < 54; i++) {
-      const a    = (i / 54) * Math.PI * 2 + (rand() - 0.5) * 0.42;
-      const inn  = 62 + rand() * 24;
-      const out  = 132 + rand() * 58;
+      const a = (i / 54) * Math.PI * 2 + (rand() - 0.5) * 0.42;
+      const inn = 62 + rand() * 24;
+      const out = 132 + rand() * 58;
       const bend = (rand() - 0.5) * 0.22;
-      const x1   = cx + Math.cos(a) * inn;
-      const y1   = cy + Math.sin(a) * inn;
-      const x2   = cx + Math.cos(a + bend) * out;
-      const y2   = cy + Math.sin(a + bend) * out;
+      const x1 = cx + Math.cos(a) * inn;
+      const y1 = cy + Math.sin(a) * inn;
+      const x2 = cx + Math.cos(a + bend) * out;
+      const y2 = cy + Math.sin(a + bend) * out;
       paths.push(
-        <path key={`b${i}`}
+        <path
+          key={`b${i}`}
           d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 20} ${(y1 + y2) / 2 + (rand() - 0.5) * 20} ${x2} ${y2}`}
-          stroke={color} strokeWidth={2.5 + rand() * 9} strokeLinecap="round" fill="none"
+          stroke={color}
+          strokeWidth={2.5 + rand() * 9}
+          strokeLinecap="round"
+          fill="none"
           opacity={0.34 + rand() * 0.56}
         />
       );
@@ -370,9 +447,13 @@ function SplatterOverlay({ color, style }) {
       const a = rand() * Math.PI * 2;
       const r = 68 + rand() * 120;
       dots.push(
-        <circle key={`bd${i}`}
-          cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-          r={1.2 + rand() * 5.4} fill={color} opacity={0.34 + rand() * 0.56}
+        <circle
+          key={`bd${i}`}
+          cx={cx + Math.cos(a) * r}
+          cy={cy + Math.sin(a) * r}
+          r={1.2 + rand() * 5.4}
+          fill={color}
+          opacity={0.34 + rand() * 0.56}
         />
       );
     }
@@ -382,8 +463,13 @@ function SplatterOverlay({ color, style }) {
     <svg
       viewBox="0 0 390 390"
       style={{
-        position: "absolute", inset: 0, width: "100%", height: "100%",
-        borderRadius: "50%", overflow: "hidden", pointerEvents: "none",
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        borderRadius: "50%",
+        overflow: "hidden",
+        pointerEvents: "none",
       }}
     >
       <defs>
@@ -402,12 +488,19 @@ function SplatterOverlay({ color, style }) {
   );
 }
 
-// ─── VinylDisc ────────────────────────────────────────────────────────────────
-
 function VinylDisc({
-  radius, colors, gradient, opacity,
-  splatterOn, splatterColor, splatterStyle,
-  cover, isSingle, playing, textColor, flipping,
+  radius,
+  colors,
+  gradient,
+  opacity,
+  splatterOn,
+  splatterColor,
+  splatterStyle,
+  cover,
+  isSingle,
+  playing,
+  textColor,
+  flipping,
 }) {
   const labelSize = Math.round(radius * (isSingle ? 0.68 : 0.75));
 
@@ -415,30 +508,37 @@ function VinylDisc({
     <div
       style={{
         position: "absolute",
-        width: radius * 2, height: radius * 2,
+        width: radius * 2,
+        height: radius * 2,
         borderRadius: "50%",
         background: vinylBackground(colors, gradient),
         opacity,
         overflow: "hidden",
-        boxShadow: "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
+        boxShadow:
+          "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
         animation: flipping
-          ? "vinylFlip 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards"
-          : playing ? "spin 1.8s linear infinite" : "none",
+          ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
+          : playing
+            ? "spin 1.8s linear infinite"
+            : "none",
         transformOrigin: "50% 50%",
       }}
     >
-      {/* Groove texture */}
       <div
         style={{
-          position: "absolute", inset: 0, borderRadius: "50%",
-          background: "repeating-radial-gradient(circle, rgba(255,255,255,0.13) 0 1px, rgba(0,0,0,0.17) 2px, transparent 4px, transparent 8px)",
-          mixBlendMode: "screen", opacity: 0.34,
+          position: "absolute",
+          inset: 0,
+          borderRadius: "50%",
+          background:
+            "repeating-radial-gradient(circle, rgba(255,255,255,0.13) 0 1px, rgba(0,0,0,0.17) 2px, transparent 4px, transparent 8px)",
+          mixBlendMode: "screen",
+          opacity: 0.34,
         }}
       />
-      {/* Inner ring */}
       <div
         style={{
-          position: "absolute", inset: Math.round(radius * 0.08),
+          position: "absolute",
+          inset: Math.round(radius * 0.08),
           borderRadius: "50%",
           border: "1px solid rgba(255,255,255,0.12)",
           boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)",
@@ -447,15 +547,18 @@ function VinylDisc({
 
       {splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
 
-      {/* Label / cover */}
       {cover ? (
         <img
-          src={cover} alt=""
+          src={cover}
+          alt=""
           style={{
             position: "absolute",
-            width: labelSize, height: labelSize,
-            borderRadius: "50%", objectFit: "cover",
-            top: "50%", left: "50%",
+            width: labelSize,
+            height: labelSize,
+            borderRadius: "50%",
+            objectFit: "cover",
+            top: "50%",
+            left: "50%",
             transform: "translate(-50%, -50%)",
             boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)",
           }}
@@ -464,15 +567,21 @@ function VinylDisc({
         <div
           style={{
             position: "absolute",
-            width: labelSize, height: labelSize,
+            width: labelSize,
+            height: labelSize,
             borderRadius: "50%",
-            top: "50%", left: "50%",
+            top: "50%",
+            left: "50%",
             transform: "translate(-50%, -50%)",
-            background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
+            background:
+              "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
             color: textColor,
-            display: "flex", alignItems: "center", justifyContent: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             fontFamily: "Courier New, monospace",
-            fontSize: isSingle ? 10 : 14, letterSpacing: 1,
+            fontSize: isSingle ? 10 : 14,
+            letterSpacing: 1,
             boxShadow: "0 0 0 7px rgba(0,0,0,0.32)",
           }}
         >
@@ -480,13 +589,14 @@ function VinylDisc({
         </div>
       )}
 
-      {/* Spindle hole */}
       <div
         style={{
           position: "absolute",
-          width: Math.round(radius * 0.12), height: Math.round(radius * 0.12),
+          width: Math.round(radius * 0.12),
+          height: Math.round(radius * 0.12),
           borderRadius: "50%",
-          top: "50%", left: "50%",
+          top: "50%",
+          left: "50%",
           transform: "translate(-50%, -50%)",
           background: "rgba(8,8,8,0.78)",
           boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12)",
@@ -496,10 +606,8 @@ function VinylDisc({
   );
 }
 
-// ─── DeckDefs ─────────────────────────────────────────────────────────────────
-
 function DeckDefs({ id, style, color }) {
-  const s    = normalizeDeckStyle(style);
+  const s = normalizeDeckStyle(style);
   const base = deckBase(s, color);
 
   return (
@@ -507,42 +615,42 @@ function DeckDefs({ id, style, color }) {
       <linearGradient id={`${id}-base`} x1="0" y1="0" x2="1" y2="1">
         {s === "chrome" ? (
           <>
-            <stop offset="0%"   stopColor="#f1f4f6" />
-            <stop offset="28%"  stopColor="#9fa8b0" />
-            <stop offset="56%"  stopColor="#dce1e5" />
+            <stop offset="0%" stopColor="#f1f4f6" />
+            <stop offset="28%" stopColor="#9fa8b0" />
+            <stop offset="56%" stopColor="#dce1e5" />
             <stop offset="100%" stopColor="#737b82" />
           </>
         ) : s === "wood" ? (
           <>
-            <stop offset="0%"   stopColor="#a87543" />
-            <stop offset="28%"  stopColor="#6f421e" />
-            <stop offset="56%"  stopColor="#9b6537" />
+            <stop offset="0%" stopColor="#a87543" />
+            <stop offset="28%" stopColor="#6f421e" />
+            <stop offset="56%" stopColor="#9b6537" />
             <stop offset="100%" stopColor="#b47b47" />
           </>
         ) : (
           <>
-            <stop offset="0%"   stopColor={lighten(base, 44)} />
-            <stop offset="48%"  stopColor={base} />
+            <stop offset="0%" stopColor={lighten(base, 44)} />
+            <stop offset="48%" stopColor={base} />
             <stop offset="100%" stopColor={darken(base, 36)} />
           </>
         )}
       </linearGradient>
 
       <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%"   stopColor="#f5f5f5" />
-        <stop offset="45%"  stopColor="#b9b9b9" />
+        <stop offset="0%" stopColor="#f5f5f5" />
+        <stop offset="45%" stopColor="#b9b9b9" />
         <stop offset="100%" stopColor="#6d6d6d" />
       </linearGradient>
 
       <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%"   stopColor="#e9c96a" />
-        <stop offset="44%"  stopColor="#b88b2b" />
+        <stop offset="0%" stopColor="#e9c96a" />
+        <stop offset="44%" stopColor="#b88b2b" />
         <stop offset="100%" stopColor="#f4d984" />
       </linearGradient>
 
       <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
-        <stop offset="0%"   stopColor="#f0f0f0" />
-        <stop offset="54%"  stopColor="#888" />
+        <stop offset="0%" stopColor="#f0f0f0" />
+        <stop offset="54%" stopColor="#888" />
         <stop offset="100%" stopColor="#333" />
       </radialGradient>
 
@@ -564,35 +672,52 @@ function DeckDefs({ id, style, color }) {
   );
 }
 
-// ─── Tonearm ──────────────────────────────────────────────────────────────────
-
 function Tonearm({ id, geometry, stylus, textColor }) {
   const angle = Math.atan2(stylus.y - geometry.pivotY, stylus.x - geometry.pivotX) * 180 / Math.PI;
 
   return (
     <g>
       <circle
-        cx={geometry.pivotX} cy={geometry.pivotY} r="25"
-        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.34)" strokeWidth="1.4"
+        cx={geometry.pivotX}
+        cy={geometry.pivotY}
+        r="25"
+        fill={`url(#${id}-knob)`}
+        stroke="rgba(0,0,0,0.34)"
+        strokeWidth="1.4"
         filter={`url(#${id}-soft)`}
       />
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="10" fill="rgba(0,0,0,0.36)" />
       <circle cx={geometry.pivotX - 3} cy={geometry.pivotY - 3} r="2.2" fill="rgba(255,255,255,0.75)" />
 
       <line
-        x1={geometry.pivotX} y1={geometry.pivotY} x2={stylus.x} y2={stylus.y}
-        stroke={`url(#${id}-arm)`} strokeWidth="8" strokeLinecap="round"
+        x1={geometry.pivotX}
+        y1={geometry.pivotY}
+        x2={stylus.x}
+        y2={stylus.y}
+        stroke={`url(#${id}-arm)`}
+        strokeWidth="8"
+        strokeLinecap="round"
       />
       <line
-        x1={geometry.pivotX - 4} y1={geometry.pivotY - 3}
-        x2={stylus.x - 4}       y2={stylus.y - 3}
-        stroke="rgba(255,255,255,0.42)" strokeWidth="2.4" strokeLinecap="round"
+        x1={geometry.pivotX - 4}
+        y1={geometry.pivotY - 3}
+        x2={stylus.x - 4}
+        y2={stylus.y - 3}
+        stroke="rgba(255,255,255,0.42)"
+        strokeWidth="2.4"
+        strokeLinecap="round"
       />
 
       <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
         <rect
-          x="-7" y="-10" width="28" height="20" rx="3"
-          fill="#b9b9b9" stroke="rgba(0,0,0,0.35)" strokeWidth="0.9"
+          x="-7"
+          y="-10"
+          width="28"
+          height="20"
+          rx="3"
+          fill="#b9b9b9"
+          stroke="rgba(0,0,0,0.35)"
+          strokeWidth="0.9"
           filter={`url(#${id}-soft)`}
         />
         <rect x="-2" y="2" width="16" height="10" rx="2" fill="#2b2b2b" />
@@ -601,12 +726,22 @@ function Tonearm({ id, geometry, stylus, textColor }) {
 
       <circle cx={stylus.x} cy={stylus.y} r="2.3" fill="#111" />
       <ellipse
-        cx={geometry.pivotX + 21} cy={geometry.pivotY} rx="14" ry="9"
-        fill="#8a8a8a" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8"
+        cx={geometry.pivotX + 21}
+        cy={geometry.pivotY}
+        rx="14"
+        ry="9"
+        fill="#8a8a8a"
+        stroke="rgba(0,0,0,0.3)"
+        strokeWidth="0.8"
       />
       <text
-        x={geometry.pivotX} y={geometry.pivotY + 44}
-        fill={textColor} opacity="0.82" fontSize="8" fontFamily="monospace" textAnchor="middle"
+        x={geometry.pivotX}
+        y={geometry.pivotY + 44}
+        fill={textColor}
+        opacity="0.82"
+        fontSize="8"
+        fontFamily="monospace"
+        textAnchor="middle"
       >
         TONE
       </text>
@@ -614,10 +749,8 @@ function Tonearm({ id, geometry, stylus, textColor }) {
   );
 }
 
-// ─── StandardControls ─────────────────────────────────────────────────────────
-
 function StandardControls({ id, style, textColor }) {
-  const s       = normalizeDeckStyle(style);
+  const s = normalizeDeckStyle(style);
   const compact = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s);
 
   if (!compact && s !== "minimal") {
@@ -627,8 +760,14 @@ function StandardControls({ id, style, textColor }) {
         {["33", "45", "78"].map((label, i) => (
           <g key={label}>
             <rect
-              x={62 + i * 58} y="486" width="42" height="18" rx="5"
-              fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" strokeWidth="0.8"
+              x={62 + i * 58}
+              y="486"
+              width="42"
+              height="18"
+              rx="5"
+              fill="rgba(255,255,255,0.12)"
+              stroke="rgba(0,0,0,0.22)"
+              strokeWidth="0.8"
             />
             <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
               {label}
@@ -654,9 +793,14 @@ function StandardControls({ id, style, textColor }) {
   return (
     <g>
       <rect
-        x="430" y="330" width="96" height="150" rx={s === "dark" ? 3 : 9}
+        x="430"
+        y="330"
+        width="96"
+        height="150"
+        rx={s === "dark" ? 3 : 9}
         fill={s === "wood" ? "rgba(0,0,0,0.24)" : "rgba(0,0,0,0.25)"}
-        stroke="rgba(255,255,255,0.14)" strokeWidth="1"
+        stroke="rgba(255,255,255,0.14)"
+        strokeWidth="1"
         filter={`url(#${id}-soft)`}
       />
       <rect x="444" y="346" width="68" height="28" rx="5" fill="rgba(0,0,0,0.35)" />
@@ -664,9 +808,12 @@ function StandardControls({ id, style, textColor }) {
         {s === "wood" ? "CONTROL" : "START"}
       </text>
       <circle
-        cx="478" cy="414" r="22"
+        cx="478"
+        cy="414"
+        r="22"
         fill={s === "wood" ? "#241406" : `url(#${id}-knob)`}
-        stroke="rgba(255,255,255,0.18)" strokeWidth="2"
+        stroke="rgba(255,255,255,0.18)"
+        strokeWidth="2"
       />
       <line x1="478" y1="398" x2="478" y2="407" stroke={textColor} strokeWidth="2" />
       <text x="478" y="454" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
@@ -676,16 +823,14 @@ function StandardControls({ id, style, textColor }) {
   );
 }
 
-// ─── StandardDeck ─────────────────────────────────────────────────────────────
-
 function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
-  const s      = normalizeDeckStyle(style);
-  const id     = `deck-${s}`;
-  const g      = deckGeometry(s);
+  const s = normalizeDeckStyle(style);
+  const id = `deck-${s}`;
+  const g = deckGeometry(s);
   const stylus = groovePoint(g, vinylRadius, progress);
-  const holeR  = vinylRadius + 8;
-  const hole   = holePath(g.cx, g.cy, holeR);
-  const board  = boardPath(s);
+  const holeR = vinylRadius + 8;
+  const hole = holePath(g.cx, g.cy, holeR);
+  const board = boardPath(s);
 
   return (
     <svg
@@ -695,39 +840,43 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
       <DeckDefs id={id} style={s} color={color} />
       <path d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
 
-      {s === "wood"   && <path d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
-      {s === "chrome" && <path d={`${board} ${hole}`} fill={`url(#${id}-brushed)`}   fillRule="evenodd" opacity="0.7"  />}
+      {s === "wood" && <path d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
+      {s === "chrome" && <path d={`${board} ${hole}`} fill={`url(#${id}-brushed)`} fillRule="evenodd" opacity="0.7" />}
 
       {s === "chrome" && (
         <>
           <path d="M20 70 L70 20 L132 20 L20 132 Z" fill="rgba(80,180,220,0.42)" />
-          <path d="M500 540 L540 500 L540 540 Z"     fill="rgba(80,180,220,0.35)" />
+          <path d="M500 540 L540 500 L540 540 Z" fill="rgba(80,180,220,0.35)" />
         </>
       )}
       {s === "dark" && (
         <>
-          <rect x="20" y="20"  width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="3" />
-          <rect x="20" y="20"  width="520" height="6"   fill="rgba(255,255,255,0.18)" />
-          <rect x="20" y="534" width="520" height="6"   fill="rgba(255,255,255,0.18)" />
+          <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="3" />
+          <rect x="20" y="20" width="520" height="6" fill="rgba(255,255,255,0.18)" />
+          <rect x="20" y="534" width="520" height="6" fill="rgba(255,255,255,0.18)" />
         </>
       )}
       {s === "wood" && (
         <>
           <rect x="30" y="30" width="500" height="500" rx="15" fill="none" stroke={`url(#${id}-brass)`} strokeWidth="3" />
-          <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)"     strokeWidth="1" />
+          <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
         </>
       )}
 
       {s === "realistic1" && (
-        <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>
+        <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">
+          DIRECT DRIVE
+        </text>
       )}
       {s === "realistic2" && (
-        <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">BELT DRIVE</text>
+        <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">
+          BELT DRIVE
+        </text>
       )}
 
-      <circle cx={g.cx} cy={g.cy} r={holeR + 13} fill="none" stroke="rgba(0,0,0,0.28)"        strokeWidth="7" />
-      <circle cx={g.cx} cy={g.cy} r={holeR + 8}  fill="none" stroke="rgba(255,255,255,0.18)"  strokeWidth="2" />
-      <circle cx={g.cx} cy={g.cy} r={holeR + 2}  fill="none" stroke="rgba(0,0,0,0.35)"        strokeWidth="2" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 13} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="7" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="2" />
 
       <StandardControls id={id} style={s} textColor={textColor} />
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
@@ -738,14 +887,12 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
   );
 }
 
-// ─── Realistic3Deck ───────────────────────────────────────────────────────────
-
 function Realistic3Deck({ vinylRadius, textColor, progress }) {
-  const id     = "deck-realistic3";
-  const g      = deckGeometry("realistic3");
+  const id = "deck-realistic3";
+  const g = deckGeometry("realistic3");
   const stylus = groovePoint(g, vinylRadius, progress);
-  const holeR  = vinylRadius + 7;
-  const hole   = holePath(g.cx, g.cy, holeR);
+  const holeR = vinylRadius + 7;
+  const hole = holePath(g.cx, g.cy, holeR);
 
   return (
     <svg
@@ -753,67 +900,68 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}
     >
       <defs>
-        <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" /></filter>
-        <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
+        <filter id={`${id}-shadow`}>
+          <feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" />
+        </filter>
+        <filter id={`${id}-soft`}>
+          <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
+        </filter>
         <linearGradient id={`${id}-plinth`} x1="0" y1="0" x2="0.4" y2="1">
-          <stop offset="0%"   stopColor="#ebe4d8" />
-          <stop offset="44%"  stopColor="#d2c7b6" />
+          <stop offset="0%" stopColor="#ebe4d8" />
+          <stop offset="44%" stopColor="#d2c7b6" />
           <stop offset="100%" stopColor="#b7ac9c" />
         </linearGradient>
         <linearGradient id={`${id}-panel`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#2d2924" />
-          <stop offset="50%"  stopColor="#1f1b18" />
+          <stop offset="0%" stopColor="#2d2924" />
+          <stop offset="50%" stopColor="#1f1b18" />
           <stop offset="100%" stopColor="#12100e" />
         </linearGradient>
         <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#f2f2f2" />
-          <stop offset="34%"  stopColor="#c5c5c5" />
+          <stop offset="0%" stopColor="#f2f2f2" />
+          <stop offset="34%" stopColor="#c5c5c5" />
           <stop offset="100%" stopColor="#777" />
         </linearGradient>
         <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
-          <stop offset="0%"   stopColor="#e8e8e8" />
-          <stop offset="55%"  stopColor="#a8a8a8" />
+          <stop offset="0%" stopColor="#e8e8e8" />
+          <stop offset="55%" stopColor="#a8a8a8" />
           <stop offset="100%" stopColor="#565656" />
         </radialGradient>
       </defs>
 
-      <path
-        d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`}
-        fill="#1a1612" fillRule="evenodd" stroke="#090806" strokeWidth="2"
-      />
-      <path
-        d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`}
-        fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`}
-      />
+      <path d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`} fill="#1a1612" fillRule="evenodd" stroke="#090806" strokeWidth="2" />
+      <path d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
 
-      <rect x="486" y="8"   width="4"   height="544" rx="1" fill="#0f0d0b" />
-      <rect x="492" y="8"   width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
+      <rect x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
+      <rect x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
 
-      <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(0,0,0,0.35)"       strokeWidth="8" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="8" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 10} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
 
       <rect x="502" y="20" width="108" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">POWER</text>
+      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">
+        POWER
+      </text>
 
       <rect x="620" y="20" width="120" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">SELECTOR</text>
+      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">
+        SELECTOR
+      </text>
 
       {["BASS", "TREBLE", "VOL L", "VOL R"].map((label, i) => (
         <g key={label}>
-          <rect
-            x={502 + i * 60} y="104" width="52" height="312" rx="5"
-            fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)"
-          />
+          <rect x={502 + i * 60} y="104" width="52" height="312" rx="5" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)" />
           <text x={507 + i * 60} y="117" fill={textColor} fontSize="7" fontFamily="monospace">
             {label}
           </text>
-          <rect x={512 + i * 60} y="140"      width="8"  height="230" rx="4" fill="#101010" />
-          <rect x={508 + i * 60} y={230 + i * 8} width="16" height="21"  rx="3" fill="#d0d0d0" />
+          <rect x={512 + i * 60} y="140" width="8" height="230" rx="4" fill="#101010" />
+          <rect x={508 + i * 60} y={230 + i * 8} width="16" height="21" rx="3" fill="#d0d0d0" />
         </g>
       ))}
 
       <rect x="326" y="462" width="72" height="52" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
-      <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">LIFT</text>
+      <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">
+        LIFT
+      </text>
 
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
 
@@ -823,118 +971,118 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
   );
 }
 
-// ─── TurntableDeck (router) ───────────────────────────────────────────────────
-
 function TurntableDeck({ style, color, vinylRadius, textColor, progress }) {
   const s = normalizeDeckStyle(style);
   if (s === "realistic3") {
     return <Realistic3Deck vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
   }
-  return (
-    <StandardDeck style={s} color={color} vinylRadius={vinylRadius} textColor={textColor} progress={progress} />
-  );
+  return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
 }
 
-// ─── Modal helpers ────────────────────────────────────────────────────────────
+// Modal helpers
 
 const OVL = {
-  position: "fixed", inset: 0,
+  position: "fixed",
+  inset: 0,
   background: "rgba(0,0,0,0.58)",
-  display: "flex", justifyContent: "center", alignItems: "center",
-  zIndex: 1000, backdropFilter: "blur(22px)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  zIndex: 1000,
+  backdropFilter: "blur(22px)",
 };
 
 const MOD = (dark, text) => ({
-  width: 340, padding: 20, borderRadius: 22,
+  width: 340,
+  padding: 20,
+  borderRadius: 22,
   background: dark ? "rgba(18,18,18,0.82)" : "rgba(255,255,255,0.82)",
   color: text,
   border: dark ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(0,0,0,0.08)",
   boxShadow: "0 26px 80px rgba(0,0,0,0.34)",
-  display: "flex", flexDirection: "column", gap: 12,
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
 });
 
-// ─── App ──────────────────────────────────────────────────────────────────────
-
 export default function App() {
-  const [view,            setView]           = useState(() => localStorage.getItem("aurae_remember") ? "home" : "auth");
-  const [theme,           setTheme]          = useState(() => localStorage.getItem("aurae_theme") || "dark");
-  const [users,           setUsers]          = useState(() => safeJSON("aurae_users", {}));
-  const [projectsMeta,    setProjectsMeta]   = useState({});
-  const [projectsLoaded,  setProjectsLoaded] = useState(false);
-  const [folders,         setFolders]        = useState(() => safeJSON("aurae_folders", []));
-  const [projectOrder,    setProjectOrder]   = useState(() => safeJSON("aurae_project_order", []));
-  const [dragOverProject, setDragOverProject]= useState(null);
-  const [dragOverTrack,   setDragOverTrack]  = useState(null);
+  const initialUser = getInitialSessionUser();
+  const [view, setView] = useState(() => initialUser ? "home" : "auth");
+  const [theme, setTheme] = useState(() => localStorage.getItem("aurae_theme") || "dark");
+  const [users, setUsers] = useState(() => normalizeUsers(safeJSON("aurae_users", {})));
+  const [currentUser, setCurrentUser] = useState(initialUser);
+  const [projectsMeta, setProjectsMeta] = useState({});
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [folders, setFolders] = useState(() => safeJSON("aurae_folders", []));
+  const [projectOrder, setProjectOrder] = useState(() => safeJSON("aurae_project_order", []));
+  const [dragOverProject, setDragOverProject] = useState(null);
+  const [dragOverTrack, setDragOverTrack] = useState(null);
 
-  const [email,    setEmail]    = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem("aurae_remember")));
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
 
-  const [showCreate,   setShowCreate]   = useState(false);
-  const [showFolder,   setShowFolder]   = useState(false);
-  const [projectName,  setProjectName]  = useState("");
-  const [folderName,   setFolderName]   = useState("");
-  const [folderOpen,   setFolderOpen]   = useState(null);
-  const [renameModal,  setRenameModal]  = useState(null);
-  const [songMenu,     setSongMenu]     = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showFolder, setShowFolder] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [folderName, setFolderName] = useState("");
+  const [folderOpen, setFolderOpen] = useState(null);
+  const [renameModal, setRenameModal] = useState(null);
+  const [songMenu, setSongMenu] = useState(null);
 
   const [activeProject, setActiveProject] = useState(null);
-  const [tracks,         setTracks]        = useState([]);
-  const [index,          setIndex]         = useState(0);
-  const [playing,        setPlaying]       = useState(false);
-  const [currentTime,    setCurrentTime]   = useState(0);
-  const [duration,       setDuration]      = useState(0);
+  const [tracks, setTracks] = useState([]);
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const [sidebarMode, setSidebarMode] = useState("songs");
-  const [albumCover,  setAlbumCover]  = useState(null);
-  const [side1Cover,  setSide1Cover]  = useState(null);
-  const [side2Cover,  setSide2Cover]  = useState(null);
-  const [homeCover,   setHomeCover]   = useState(null);
+  const [albumCover, setAlbumCover] = useState(null);
+  const [sideCovers, setSideCovers] = useState([]);
+  const [repeatSideCovers, setRepeatSideCovers] = useState(false);
+  const [homeCover, setHomeCover] = useState(null);
 
-  const [vinylColor,    setVinylColor]    = useState("#111111");
-  const [vinylColors,   setVinylColors]   = useState(DEFAULT_VINYL_COLORS);
+  const [vinylColor, setVinylColor] = useState("#111111");
+  const [vinylColors, setVinylColors] = useState(DEFAULT_VINYL_COLORS);
   const [vinylGradient, setVinylGradient] = useState("radial");
-  const [vinylOpacity,  setVinylOpacity]  = useState(1);
+  const [vinylOpacity, setVinylOpacity] = useState(1);
   const [splatterColor, setSplatterColor] = useState("#3a7bd5");
-  const [splatterOn,    setSplatterOn]    = useState(false);
+  const [splatterOn, setSplatterOn] = useState(false);
   const [splatterStyle, setSplatterStyle] = useState("burst");
-  const [deckStyle,     setDeckStyle]     = useState("classic");
-  const [deckColor,     setDeckColor]     = useState("#1a1a1a");
-  const [vinylSide,     setVinylSide]     = useState(1);
-  const [flipping,      setFlipping]      = useState(false);
-  // awaitingFlip: last song of a side just ended, waiting for user to flip
-  const [awaitingFlip,  setAwaitingFlip]  = useState(false);
+  const [deckStyle, setDeckStyle] = useState("classic");
+  const [deckColor, setDeckColor] = useState("#1a1a1a");
+  const [vinylSide, setVinylSide] = useState(1);
+  const [flipping, setFlipping] = useState(false);
+  const [awaitingFlip, setAwaitingFlip] = useState(false);
 
   const audioRef = useRef(null);
 
   const dark = theme === "dark";
   const text = dark ? "#ffffff" : "#000000";
-  const S    = makeStyles(dark, text);
+  const S = makeStyles(dark, text);
 
-  // Recompute side boundaries whenever tracks change
   const sideBoundaries = useMemo(() => computeSideBoundaries(tracks), [tracks]);
-  const totalSides     = sideBoundaries.length;
+  const totalSides = sideBoundaries.length;
+  const sideCoverButtonCount = Math.max(totalSides, 1);
 
-  // Cover image for the currently displayed vinyl side
-  const currentVinylCover = vinylSide % 2 === 1
-    ? side1Cover || albumCover
-    : side2Cover || albumCover;
+  const currentVinylCover = sideCoverFor(vinylSide, sideCovers, repeatSideCovers, albumCover);
 
-  // Tonearm progress within the currently displayed side (0 = start, 1 = end)
   const sideProgress = useMemo(() => {
     if (!tracks.length) return 0;
     const sideStart = sideBoundaries[vinylSide - 1] ?? 0;
-    const sideEnd   = sideBoundaries[vinylSide]     ?? tracks.length;
-    const sideLen   = sideEnd - sideStart;
+    const sideEnd = sideBoundaries[vinylSide] ?? tracks.length;
+    const sideLen = sideEnd - sideStart;
     if (!sideLen) return 0;
     const posInSide = index - sideStart;
-    const songProg  = duration > 0 ? currentTime / duration : 0;
+    const songProg = duration > 0 ? currentTime / duration : 0;
     return Math.min(1, (posInSide + songProg) / sideLen);
   }, [tracks, sideBoundaries, vinylSide, index, currentTime, duration]);
 
-  // Show flip button only after a side ends naturally
   const needsTurn = awaitingFlip && !flipping;
 
-  // ── When user skips to a track on a different side, auto-update vinylSide ──
   useEffect(() => {
     if (!tracks.length) return;
     const trackSide = getSideForTrack(sideBoundaries, index);
@@ -942,32 +1090,41 @@ export default function App() {
       setVinylSide(trackSide);
       setAwaitingFlip(false);
     }
-  }, [index, sideBoundaries, tracks.length]);
+  }, [index, sideBoundaries, tracks.length, vinylSide, flipping]);
 
-  // ── Load all projects on mount ────────────────────────────────────────────
   useEffect(() => {
     async function loadAll() {
       const names = await loadAllProjectNames();
-      const meta  = {};
+      const meta = {};
       for (const name of names) {
         const data = await loadProjectFromDB(name);
         if (data) {
+          const migratedSideCovers = normalizeSideCovers(data);
           meta[name] = {
             ...data,
-            deckStyle:     normalizeDeckStyle(data.deckStyle || "classic"),
+            sideCovers: migratedSideCovers,
+            side1Cover: migratedSideCovers[0] || data.side1Cover || null,
+            side2Cover: migratedSideCovers[1] || data.side2Cover || null,
+            repeatSideCovers: Boolean(data.repeatSideCovers),
+            deckStyle: normalizeDeckStyle(data.deckStyle || "classic"),
             splatterStyle: data.splatterStyle === "comet" ? "burst" : data.splatterStyle || "burst",
-            tracks:        (data.tracks || []).map(({ url, ...rest }) => rest),
+            tracks: (data.tracks || []).map(({ url, ...rest }) => rest),
           };
         }
       }
-      // Migrate legacy localStorage projects
+
       try {
         const legacy = JSON.parse(localStorage.getItem("aurae_projects") || "{}");
         for (const [name, p] of Object.entries(legacy)) {
           if (!meta[name]) {
+            const migratedSideCovers = normalizeSideCovers(p);
             meta[name] = {
               ...p,
-              deckStyle:     normalizeDeckStyle(p.deckStyle || "classic"),
+              sideCovers: migratedSideCovers,
+              side1Cover: migratedSideCovers[0] || p.side1Cover || null,
+              side2Cover: migratedSideCovers[1] || p.side2Cover || null,
+              repeatSideCovers: Boolean(p.repeatSideCovers),
+              deckStyle: normalizeDeckStyle(p.deckStyle || "classic"),
               splatterStyle: p.splatterStyle === "comet" ? "burst" : p.splatterStyle || "burst",
             };
             await saveProjectToDB(name, meta[name]);
@@ -975,17 +1132,17 @@ export default function App() {
         }
         localStorage.removeItem("aurae_projects");
       } catch {}
+
       setProjectsMeta(meta);
       setProjectsLoaded(true);
     }
     loadAll();
   }, []);
 
-  useEffect(() => { localStorage.setItem("aurae_folders",       JSON.stringify(folders));      }, [folders]);
+  useEffect(() => { localStorage.setItem("aurae_folders", JSON.stringify(folders)); }, [folders]);
   useEffect(() => { localStorage.setItem("aurae_project_order", JSON.stringify(projectOrder)); }, [projectOrder]);
-  useEffect(() => { localStorage.setItem("aurae_theme",         theme);                        }, [theme]);
+  useEffect(() => { localStorage.setItem("aurae_theme", theme); }, [theme]);
 
-  // ── Audio event listeners ─────────────────────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -999,7 +1156,6 @@ export default function App() {
       const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
 
       if (index === lastOfSide && vinylSide < totalSides) {
-        // Last song of this side finished — pause and wait for flip
         setPlaying(false);
         setAwaitingFlip(true);
       } else if (index < tracks.length - 1) {
@@ -1009,50 +1165,103 @@ export default function App() {
       }
     };
 
-    audio.addEventListener("timeupdate",    update);
-    audio.addEventListener("loadedmetadata",update);
-    audio.addEventListener("ended",         end);
+    audio.addEventListener("timeupdate", update);
+    audio.addEventListener("loadedmetadata", update);
+    audio.addEventListener("ended", end);
     return () => {
-      audio.removeEventListener("timeupdate",    update);
-      audio.removeEventListener("loadedmetadata",update);
-      audio.removeEventListener("ended",         end);
+      audio.removeEventListener("timeupdate", update);
+      audio.removeEventListener("loadedmetadata", update);
+      audio.removeEventListener("ended", end);
     };
   }, [index, tracks, sideBoundaries, vinylSide, totalSides]);
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
 
   const fmt = (s = 0) => {
     const safe = Number.isFinite(s) ? s : 0;
     return `${Math.floor(safe / 60)}:${Math.floor(safe % 60).toString().padStart(2, "0")}`;
   };
 
-  const totalDur = list =>
-    fmt(list.reduce((sum, t) => sum + (t.duration || 0), 0));
+  const totalDur = list => fmt(list.reduce((sum, t) => sum + (t.duration || 0), 0));
 
-  function login() {
-    if (!email.trim() || !users[email] || users[email].password !== password) return;
-    localStorage.setItem("aurae_remember", email);
+  function finishAuth(cleanEmail) {
+    sessionStorage.setItem("aurae_session", cleanEmail);
+    if (rememberMe) localStorage.setItem("aurae_remember", cleanEmail);
+    else localStorage.removeItem("aurae_remember");
+    setCurrentUser(cleanEmail);
+    setAuthError("");
     setView("home");
   }
 
-  function signup() {
-    if (!email.trim() || !password.trim()) return;
-    const next = { ...users, [email]: { password } };
+  async function login() {
+    if (authLoading) return;
+    setAuthLoading(true);
+    setAuthError("");
+
+    const verified = await verifyWorkingEmailAddress(email);
+    if (!verified.ok) {
+      setAuthError(verified.error);
+      setAuthLoading(false);
+      return;
+    }
+
+    if (!users[verified.email] || users[verified.email].password !== password) {
+      setAuthError("Email or password is wrong.");
+      setAuthLoading(false);
+      return;
+    }
+
+    finishAuth(verified.email);
+    setAuthLoading(false);
+  }
+
+  async function signup() {
+    if (authLoading) return;
+    setAuthLoading(true);
+    setAuthError("");
+
+    const verified = await verifyWorkingEmailAddress(email);
+    if (!verified.ok) {
+      setAuthError(verified.error);
+      setAuthLoading(false);
+      return;
+    }
+    if (!password.trim()) {
+      setAuthError("Enter a password.");
+      setAuthLoading(false);
+      return;
+    }
+    if (users[verified.email]) {
+      setAuthError("This account already exists.");
+      setAuthLoading(false);
+      return;
+    }
+
+    const next = { ...users, [verified.email]: { password } };
     setUsers(next);
     localStorage.setItem("aurae_users", JSON.stringify(next));
-    localStorage.setItem("aurae_remember", email);
-    setView("home");
+    finishAuth(verified.email);
+    setAuthLoading(false);
   }
 
   async function createProject(name = projectName) {
     const clean = name.trim();
     if (!clean || projectsMeta[clean]) return;
     const p = {
-      tracks: [], cover: null, side1Cover: null, side2Cover: null, homeCover: null,
-      vinylColor: "#111111", vinylColors: DEFAULT_VINYL_COLORS,
-      vinylGradient: "radial", vinylOpacity: 1,
-      splatterColor: "#3a7bd5", splatterOn: false, splatterStyle: "burst",
-      deckStyle: "classic", deckColor: "#1a1a1a",
+      tracks: [],
+      cover: null,
+      sideCovers: [],
+      side1Cover: null,
+      side2Cover: null,
+      repeatSideCovers: false,
+      homeCover: null,
+      vinylColor: "#111111",
+      vinylColors: DEFAULT_VINYL_COLORS,
+      vinylGradient: "radial",
+      vinylOpacity: 1,
+      splatterColor: "#3a7bd5",
+      splatterOn: false,
+      splatterStyle: "burst",
+      deckStyle: "classic",
+      deckColor: "#1a1a1a",
     };
     setProjectsMeta(prev => ({ ...prev, [clean]: p }));
     await saveProjectToDB(clean, p);
@@ -1069,24 +1278,27 @@ export default function App() {
   }
 
   function projectPayload(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
-    const nextColors      = overrides.vinylColors || vinylColors;
-    const nextVinylColor  = overrides.vinylColor  || nextColors[0] || vinylColor;
-    const nextSplatStyle  = overrides.splatterStyle === "comet" ? "burst" : overrides.splatterStyle ?? splatterStyle;
+    const nextColors = overrides.vinylColors || vinylColors;
+    const nextSideCovers = overrides.sideCovers ?? sideCovers;
+    const nextVinylColor = overrides.vinylColor || nextColors[0] || vinylColor;
+    const nextSplatStyle = overrides.splatterStyle === "comet" ? "burst" : overrides.splatterStyle ?? splatterStyle;
     return {
-      tracks:       nextTracks.map(({ url, ...m }) => m),
-      cover:        nextCover,
-      side1Cover:   overrides.side1Cover  ?? side1Cover,
-      side2Cover:   overrides.side2Cover  ?? side2Cover,
-      homeCover:    overrides.homeCover   ?? homeCover,
-      vinylColor:   nextVinylColor,
-      vinylColors:  nextColors,
-      vinylGradient:overrides.vinylGradient ?? vinylGradient,
-      vinylOpacity: overrides.vinylOpacity  ?? vinylOpacity,
-      splatterColor:overrides.splatterColor ?? splatterColor,
-      splatterOn:   overrides.splatterOn    ?? splatterOn,
-      splatterStyle:nextSplatStyle === "comet" ? "burst" : nextSplatStyle,
-      deckStyle:    normalizeDeckStyle(overrides.deckStyle ?? deckStyle),
-      deckColor:    overrides.deckColor ?? deckColor,
+      tracks: nextTracks.map(({ url, ...m }) => m),
+      cover: nextCover,
+      sideCovers: nextSideCovers,
+      side1Cover: nextSideCovers[0] || null,
+      side2Cover: nextSideCovers[1] || null,
+      repeatSideCovers: overrides.repeatSideCovers ?? repeatSideCovers,
+      homeCover: overrides.homeCover ?? homeCover,
+      vinylColor: nextVinylColor,
+      vinylColors: nextColors,
+      vinylGradient: overrides.vinylGradient ?? vinylGradient,
+      vinylOpacity: overrides.vinylOpacity ?? vinylOpacity,
+      splatterColor: overrides.splatterColor ?? splatterColor,
+      splatterOn: overrides.splatterOn ?? splatterOn,
+      splatterStyle: nextSplatStyle === "comet" ? "burst" : nextSplatStyle,
+      deckStyle: normalizeDeckStyle(overrides.deckStyle ?? deckStyle),
+      deckColor: overrides.deckColor ?? deckColor,
     };
   }
 
@@ -1115,6 +1327,11 @@ export default function App() {
     }
   }
 
+  function setRepeatCovers(value) {
+    setRepeatSideCovers(value);
+    if (activeProject) saveCurrentProject(tracks, albumCover, { repeatSideCovers: value });
+  }
+
   async function openProject(name) {
     const p = await loadProjectFromDB(name);
     if (!p) return;
@@ -1123,12 +1340,13 @@ export default function App() {
     const restoredColors = Array.isArray(p.vinylColors) && p.vinylColors.length
       ? p.vinylColors
       : [p.vinylColor || "#111111", ...DEFAULT_VINYL_COLORS.slice(1)];
+    const restoredSideCovers = normalizeSideCovers(p);
 
     setActiveProject(name);
     setAlbumCover(p.cover || null);
-    setSide1Cover(p.side1Cover || p.cover || null);
-    setSide2Cover(p.side2Cover || null);
-    setHomeCover(p.homeCover || p.cover || p.side1Cover || null);
+    setSideCovers(restoredSideCovers);
+    setRepeatSideCovers(Boolean(p.repeatSideCovers));
+    setHomeCover(p.homeCover || p.cover || restoredSideCovers[0] || null);
     setVinylColor(restoredColors[0] || "#111111");
     setVinylColors(restoredColors.slice(0, 4));
     setVinylGradient(p.vinylGradient || "radial");
@@ -1160,7 +1378,10 @@ export default function App() {
 
   async function applyRenameProject(oldName, nextName) {
     const clean = nextName.trim();
-    if (!clean || clean === oldName) { setRenameModal(null); return; }
+    if (!clean || clean === oldName) {
+      setRenameModal(null);
+      return;
+    }
     const data = await loadProjectFromDB(oldName);
     await saveProjectToDB(clean, data || {});
     await deleteProjectFromDB(oldName);
@@ -1171,7 +1392,8 @@ export default function App() {
       return c;
     });
     setFolders(prev => prev.map(f => ({
-      ...f, projects: f.projects.map(p => p === oldName ? clean : p),
+      ...f,
+      projects: f.projects.map(p => p === oldName ? clean : p),
     })));
     setProjectOrder(prev => prev.map(p => p === oldName ? clean : p));
     if (activeProject === oldName) setActiveProject(clean);
@@ -1180,7 +1402,11 @@ export default function App() {
 
   async function deleteProject(name) {
     await deleteProjectFromDB(name);
-    setProjectsMeta(prev => { const c = { ...prev }; delete c[name]; return c; });
+    setProjectsMeta(prev => {
+      const c = { ...prev };
+      delete c[name];
+      return c;
+    });
     setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.filter(p => p !== name) })));
     setProjectOrder(prev => prev.filter(p => p !== name));
     if (activeProject === name) setView("home");
@@ -1213,8 +1439,8 @@ export default function App() {
   function moveOrder(from, to) {
     const list = getOrdered(Object.keys(projectsMeta));
     const next = [...list];
-    const fi   = next.indexOf(from);
-    const ti   = next.indexOf(to);
+    const fi = next.indexOf(from);
+    const ti = next.indexOf(to);
     if (fi < 0 || ti < 0) return;
     const item = next.splice(fi, 1)[0];
     next.splice(ti, 0, item);
@@ -1244,20 +1470,20 @@ export default function App() {
     const loaded = await Promise.all(
       files.map(file => new Promise(resolve => {
         const probeUrl = URL.createObjectURL(file);
-        const probe    = new Audio(probeUrl);
-        const finish   = async dur => {
+        const probe = new Audio(probeUrl);
+        const finish = async dur => {
           const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
           await saveBlob(id, file);
           URL.revokeObjectURL(probeUrl);
           resolve({
             id,
-            name:     file.name.replace(/\.[^/.]+$/, ""),
-            url:      URL.createObjectURL(file),
+            name: file.name.replace(/\.[^/.]+$/, ""),
+            url: URL.createObjectURL(file),
             duration: dur || 0,
           });
         };
         probe.onloadedmetadata = () => finish(probe.duration || 0);
-        probe.onerror          = () => finish(0);
+        probe.onerror = () => finish(0);
       }))
     );
 
@@ -1276,21 +1502,25 @@ export default function App() {
 
   function addSideCover(side, e) {
     readImageFile(e, result => {
-      if (side === 1) {
-        setSide1Cover(result);
-        saveCurrentProject(tracks, albumCover, { side1Cover: result });
-      } else {
-        setSide2Cover(result);
-        saveCurrentProject(tracks, albumCover, { side2Cover: result });
-      }
+      const next = [...sideCovers];
+      next[side - 1] = result;
+      setSideCovers(next);
+      saveCurrentProject(tracks, albumCover, { sideCovers: next });
     });
+  }
+
+  function clearSideCover(side) {
+    const next = [...sideCovers];
+    next[side - 1] = null;
+    setSideCovers(next);
+    saveCurrentProject(tracks, albumCover, { sideCovers: next });
   }
 
   function addHomeCover(e, projectNameForCover) {
     e.stopPropagation();
     readImageFile(e, async result => {
       const existing = (await loadProjectFromDB(projectNameForCover)) || projectsMeta[projectNameForCover] || {};
-      const next     = { ...existing, homeCover: result };
+      const next = { ...existing, homeCover: result };
       await saveProjectToDB(projectNameForCover, next);
       setProjectsMeta(prev => ({ ...prev, [projectNameForCover]: next }));
       if (activeProject === projectNameForCover) setHomeCover(result);
@@ -1306,7 +1536,6 @@ export default function App() {
     setSongMenu(null);
   }
 
-  // Core play — always plays, updates vinylSide if track is on a different side
   function playTrack(trackIndex) {
     const track = tracks[trackIndex];
     if (!track?.url) return;
@@ -1326,29 +1555,38 @@ export default function App() {
     }, 20);
   }
 
-  // Flip animation → start first track of next side
   function flipVinyl() {
-    if (flipping || !awaitingFlip) return;
+    if (flipping || !awaitingFlip || vinylSide >= totalSides) return;
     const audio = audioRef.current;
     if (audio) audio.pause();
+
+    const nextSide = vinylSide + 1;
+    const firstOfNextSide = sideBoundaries[nextSide - 1] ?? 0;
+
     setPlaying(false);
+    setAwaitingFlip(false);
     setFlipping(true);
 
+    // Swap the side cover while the record is edge-on, so the image does not pop in after the flip.
+    setTimeout(() => setVinylSide(nextSide), FLIP_COVER_SWAP);
+
     setTimeout(() => {
-      const nextSide = vinylSide + 1;
-      setVinylSide(nextSide);
       setFlipping(false);
-      setAwaitingFlip(false);
-      const firstOfNextSide = sideBoundaries[nextSide - 1] ?? 0;
       setTimeout(() => playTrack(firstOfNextSide), 80);
-    }, 1400);
+    }, FLIP_DURATION);
   }
 
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (awaitingFlip) { flipVinyl(); return; }
-    if (!audio.src && tracks[0]) { playTrack(0); return; }
+    if (awaitingFlip) {
+      flipVinyl();
+      return;
+    }
+    if (!audio.src && tracks[0]) {
+      playTrack(0);
+      return;
+    }
     if (playing) {
       audio.pause();
       setPlaying(false);
@@ -1357,8 +1595,13 @@ export default function App() {
     }
   }
 
-  function prevTrack() { if (index > 0) playTrack(index - 1); }
-  function nextTrack() { if (index < tracks.length - 1) playTrack(index + 1); }
+  function prevTrack() {
+    if (index > 0) playTrack(index - 1);
+  }
+
+  function nextTrack() {
+    if (index < tracks.length - 1) playTrack(index + 1);
+  }
 
   function seek(e) {
     const value = Number(e.target.value);
@@ -1368,36 +1611,57 @@ export default function App() {
     setCurrentTime(value);
   }
 
-  // ── Derived layout values ─────────────────────────────────────────────────
-
   const normalizedDeckStyle = normalizeDeckStyle(deckStyle);
-  const isSingle            = tracks.length > 0 && tracks.length <= 3;
-  const geometry            = deckGeometry(normalizedDeckStyle);
-  const compactDecks        = ["realistic1","realistic2","dark","chrome","wood"].includes(normalizedDeckStyle);
-  const vinylRadius         = isSingle ? 106 : normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
-  const current             = tracks[index];
-
-  // ── AUTH view ─────────────────────────────────────────────────────────────
+  const isSingle = tracks.length > 0 && tracks.length <= 3;
+  const geometry = deckGeometry(normalizedDeckStyle);
+  const compactDecks = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(normalizedDeckStyle);
+  const vinylRadius = isSingle ? 106 : normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
+  const current = tracks[index];
 
   if (view === "auth") {
     return (
       <div style={S.auth}>
         <div style={S.panel}>
           <div style={S.logo}>AURAE</div>
-          <input style={S.input} placeholder="email"    value={email}    onChange={e => setEmail(e.target.value)} />
-          <input style={S.input} placeholder="password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-          <button style={S.btn} onClick={login}>login</button>
-          <button style={S.btn} onClick={signup}>sign up</button>
+          <input
+            style={S.input}
+            placeholder="email"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setAuthError(""); }}
+            onKeyDown={e => { if (e.key === "Enter") login(); }}
+          />
+          <input
+            style={S.input}
+            placeholder="password"
+            type="password"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setAuthError(""); }}
+            onKeyDown={e => { if (e.key === "Enter") login(); }}
+          />
+          <label style={S.rememberRow}>
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={e => setRememberMe(e.target.checked)}
+              style={S.checkbox}
+            />
+            remember me
+          </label>
+          {authError && <div style={S.authError}>{authError}</div>}
+          <button style={{ ...S.btn, opacity: authLoading ? 0.6 : 1 }} onClick={login} disabled={authLoading}>
+            {authLoading ? "checking..." : "login"}
+          </button>
+          <button style={{ ...S.btn, opacity: authLoading ? 0.6 : 1 }} onClick={signup} disabled={authLoading}>
+            {authLoading ? "checking..." : "sign up"}
+          </button>
         </div>
       </div>
     );
   }
 
-  // ── HOME view ─────────────────────────────────────────────────────────────
-
   if (view === "home") {
-    const currentFolder  = folders.find(f => f.id === folderOpen);
-    const rawProjects    = folderOpen ? currentFolder?.projects || [] : rootProjects();
+    const currentFolder = folders.find(f => f.id === folderOpen);
+    const rawProjects = folderOpen ? currentFolder?.projects || [] : rootProjects();
     const visibleProjects = getOrdered(rawProjects);
 
     return (
@@ -1417,7 +1681,6 @@ export default function App() {
           {!projectsLoaded && <div style={S.loading}>Loading...</div>}
 
           <div style={S.grid}>
-            {/* Folders */}
             {!folderOpen && folders.map(folder => (
               <div
                 key={folder.id}
@@ -1430,7 +1693,8 @@ export default function App() {
                   const covers = folder.projects
                     .map(project => {
                       const p = projectsMeta[project] || {};
-                      return p.homeCover || p.cover || p.side1Cover || null;
+                      const coversForProject = normalizeSideCovers(p);
+                      return p.homeCover || p.cover || coversForProject[0] || null;
                     })
                     .filter(Boolean);
 
@@ -1472,17 +1736,17 @@ export default function App() {
               </div>
             ))}
 
-            {/* Projects */}
             {visibleProjects.map(name => {
-              const p     = projectsMeta[name] || {};
-              const cover = p.homeCover || p.cover || p.side1Cover;
+              const p = projectsMeta[name] || {};
+              const covers = normalizeSideCovers(p);
+              const cover = p.homeCover || p.cover || covers[0];
               return (
                 <div
                   key={name}
                   style={{ ...S.card, outline: dragOverProject === name ? "2px solid rgba(255,255,255,0.5)" : "none" }}
                   draggable
                   onDragStart={e => {
-                    e.dataTransfer.setData("text/plain",   name);
+                    e.dataTransfer.setData("text/plain", name);
                     e.dataTransfer.setData("aurae_project", name);
                   }}
                   onDragOver={e => { e.preventDefault(); setDragOverProject(name); }}
@@ -1534,13 +1798,15 @@ export default function App() {
           </div>
         </div>
 
-        {/* Create project modal */}
         {showCreate && (
           <div style={OVL} onClick={() => setShowCreate(false)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
               <input
-                autoFocus style={S.input} placeholder="project name"
-                value={projectName} onChange={e => setProjectName(e.target.value)}
+                autoFocus
+                style={S.input}
+                placeholder="project name"
+                value={projectName}
+                onChange={e => setProjectName(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }}
               />
               <button style={S.btn} onClick={() => createProject()}>create</button>
@@ -1548,13 +1814,15 @@ export default function App() {
           </div>
         )}
 
-        {/* Create folder modal */}
         {showFolder && (
           <div style={OVL} onClick={() => setShowFolder(false)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
               <input
-                autoFocus style={S.input} placeholder="folder name"
-                value={folderName} onChange={e => setFolderName(e.target.value)}
+                autoFocus
+                style={S.input}
+                placeholder="folder name"
+                value={folderName}
+                onChange={e => setFolderName(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") createFolder(); if (e.key === "Escape") setShowFolder(false); }}
               />
               <button style={S.btn} onClick={createFolder}>create</button>
@@ -1562,7 +1830,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Rename modal */}
         {renameModal && (
           <div style={OVL} onClick={() => setRenameModal(null)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
@@ -1570,7 +1837,8 @@ export default function App() {
                 Rename {renameModal.type === "project" ? "project" : "folder"}
               </div>
               <input
-                autoFocus style={S.input}
+                autoFocus
+                style={S.input}
                 value={renameModal.value}
                 onChange={e => setRenameModal({ ...renameModal, value: e.target.value })}
                 onKeyDown={e => {
@@ -1583,11 +1851,16 @@ export default function App() {
                 }}
               />
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={S.btn} onClick={() =>
-                  renameModal.type === "project"
-                    ? applyRenameProject(renameModal.id, renameModal.value)
-                    : applyRenameFolder(renameModal.id, renameModal.value)
-                }>save</button>
+                <button
+                  style={S.btn}
+                  onClick={() =>
+                    renameModal.type === "project"
+                      ? applyRenameProject(renameModal.id, renameModal.value)
+                      : applyRenameFolder(renameModal.id, renameModal.value)
+                  }
+                >
+                  save
+                </button>
                 <button style={S.btn} onClick={() => setRenameModal(null)}>cancel</button>
               </div>
             </div>
@@ -1597,27 +1870,22 @@ export default function App() {
     );
   }
 
-  // ── STUDIO view ───────────────────────────────────────────────────────────
-
   return (
     <div style={S.app}>
-
-      {/* ── Sidebar ── */}
       <div style={S.sidebar}>
         <div style={S.sidebarHeader}>
           <div>
             <h3 style={S.projectTitle}>{activeProject}</h3>
-            <div style={S.meta}>{tracks.length} tracks · {totalDur(tracks)}</div>
+            <div style={S.meta}>{tracks.length} tracks - {totalDur(tracks)}</div>
             {totalSides > 1 && (
               <div style={{ ...S.meta, marginTop: 3, opacity: 0.6 }}>
-                {totalSides} sides · now on side {vinylSide} · {fmt(getSideDuration(tracks, sideBoundaries, vinylSide))}
+                {totalSides} sides - now on side {vinylSide} - {fmt(getSideDuration(tracks, sideBoundaries, vinylSide))}
               </div>
             )}
           </div>
           <button style={S.iconBtn} onClick={() => setView("home")}>home</button>
         </div>
 
-        {/* Segment control */}
         <div style={S.segment}>
           <button
             style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }}
@@ -1633,7 +1901,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* Songs panel */}
         {sidebarMode === "songs" ? (
           <>
             <div style={S.importRow}>
@@ -1641,32 +1908,62 @@ export default function App() {
                 add tracks
                 <input hidden multiple type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg" onChange={addTracks} />
               </label>
-              <label style={S.btn}>
-                side 1 cover
-                <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(1, e)} />
-              </label>
-              <label style={S.btn}>
-                side 2 cover
-                <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(2, e)} />
-              </label>
+            </div>
+
+            <div style={S.coverTools}>
+              <div style={S.coverToolsHeader}>
+                <span>side covers</span>
+                {sideCoverButtonCount > 2 && (
+                  <button
+                    style={{ ...S.smallBtn, ...(repeatSideCovers ? S.optionActive : {}) }}
+                    onClick={() => setRepeatCovers(!repeatSideCovers)}
+                  >
+                    repeat 1/2 {repeatSideCovers ? "on" : "off"}
+                  </button>
+                )}
+              </div>
+
+              <div style={S.sideCoverGrid}>
+                {Array.from({ length: sideCoverButtonCount }).map((_, i) => {
+                  const side = i + 1;
+                  const cover = sideCoverFor(side, sideCovers, repeatSideCovers, null);
+                  const directCover = sideCovers[i];
+                  return (
+                    <div key={side} style={S.sideCoverItem}>
+                      <label style={S.sideCoverButton}>
+                        <span style={S.sideCoverPreview}>
+                          {cover ? <img src={cover} alt="" style={S.sideCoverImg} /> : <span>{side}</span>}
+                        </span>
+                        <span>side {side} cover</span>
+                        <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(side, e)} />
+                      </label>
+                      {directCover && (
+                        <button style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>
+                          clear
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={S.list}>
               {tracks.map((track, i) => {
                 const showSideLabel = sideBoundaries.includes(i) && totalSides > 1;
-                const trackSide    = getSideForTrack(sideBoundaries, i);
+                const trackSide = getSideForTrack(sideBoundaries, i);
                 return (
                   <React.Fragment key={track.id || `${track.name}-${i}`}>
                     {showSideLabel && (
                       <div style={S.sideLabel}>
-                        — SIDE {trackSide} · {fmt(getSideDuration(tracks, sideBoundaries, trackSide))} —
+                        SIDE {trackSide} - {fmt(getSideDuration(tracks, sideBoundaries, trackSide))}
                       </div>
                     )}
                     <div
                       style={{
                         ...S.track,
-                        outline:  dragOverTrack === i ? "2px solid rgba(255,255,255,0.5)" : "none",
-                        opacity:  i === index ? 1 : 0.78,
+                        outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.5)" : "none",
+                        opacity: i === index ? 1 : 0.78,
                       }}
                       draggable
                       onDragStart={e => e.dataTransfer.setData("aurae_track", String(i))}
@@ -1702,12 +1999,12 @@ export default function App() {
             </div>
           </>
         ) : (
-          /* Design panel */
           <div style={S.designPanel}>
             <div style={S.section}>
               <div style={S.sectionTitle}>Deck design</div>
               <input
-                type="color" value={deckColor}
+                type="color"
+                value={deckColor}
                 onChange={e => upd("deckColor", e.target.value, setDeckColor)}
                 style={S.colorInput}
               />
@@ -1729,7 +2026,8 @@ export default function App() {
               <div style={S.colorGrid}>
                 {[0, 1, 2, 3].map(slot => (
                   <input
-                    key={slot} type="color"
+                    key={slot}
+                    type="color"
                     value={vinylColors[slot] || DEFAULT_VINYL_COLORS[slot] || "#111111"}
                     onChange={e => updateVinylColor(slot, e.target.value)}
                     style={S.colorInput}
@@ -1750,7 +2048,10 @@ export default function App() {
               <label style={S.sliderLabel}>
                 opacity
                 <input
-                  type="range" min="0.25" max="1" step="0.01"
+                  type="range"
+                  min="0.25"
+                  max="1"
+                  step="0.01"
                   value={vinylOpacity}
                   onChange={e => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)}
                   style={S.range}
@@ -1762,7 +2063,8 @@ export default function App() {
               <div style={S.sectionTitle}>Splatter</div>
               <div style={S.inlineControls}>
                 <input
-                  type="color" value={splatterColor}
+                  type="color"
+                  value={splatterColor}
                   onChange={e => upd("splatterColor", e.target.value, setSplatterColor)}
                   style={S.colorInput}
                 />
@@ -1789,17 +2091,14 @@ export default function App() {
         )}
       </div>
 
-      {/* ── Stage ── */}
       <div style={S.stage}>
         <div style={{ position: "relative", width: geometry.width, height: 560 }}>
-
-          {/* Vinyl disc */}
           <div
             style={{
               position: "absolute",
               left: geometry.cx - vinylRadius,
-              top:  geometry.cy - vinylRadius,
-              width:  vinylRadius * 2,
+              top: geometry.cy - vinylRadius,
+              width: vinylRadius * 2,
               height: vinylRadius * 2,
               zIndex: 1,
             }}
@@ -1820,7 +2119,6 @@ export default function App() {
             />
           </div>
 
-          {/* Deck overlay */}
           <TurntableDeck
             style={normalizedDeckStyle}
             color={deckColor}
@@ -1829,35 +2127,34 @@ export default function App() {
             progress={sideProgress}
           />
 
-          {/* Flip button — only appears after the last song of a side ends */}
           {needsTurn && (
             <button style={S.turnBtn} onClick={flipVinyl}>
-              flip to side {vinylSide + 1} ↻
+              turn vinyl
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Player bar ── */}
       <div style={S.player}>
         <button style={S.transportBtn} onClick={prevTrack}>prev</button>
         <button style={S.transportBtn} onClick={toggle}>
-          {awaitingFlip ? "flip & play" : playing ? "pause" : "play"}
+          {awaitingFlip ? "turn & play" : playing ? "pause" : "play"}
         </button>
         <button style={S.transportBtn} onClick={nextTrack}>next</button>
         <div style={S.now}>
-          {awaitingFlip ? `— end of side ${vinylSide} —` : current?.name || "no track"}
+          {awaitingFlip ? `end of side ${vinylSide}` : current?.name || "no track"}
         </div>
         <div style={S.time}>{fmt(currentTime)} / {fmt(duration)}</div>
         <input
-          type="range" min="0" max={duration || 0}
+          type="range"
+          min="0"
+          max={duration || 0}
           value={Math.min(currentTime, duration || currentTime || 0)}
           onChange={seek}
           style={S.playerRange}
         />
       </div>
 
-      {/* ── Right-click menu ── */}
       {songMenu && (
         <div style={{ ...S.menu, left: songMenu.x, top: songMenu.y }}>
           <button style={S.menuBtn} onClick={() => deleteTrack(songMenu.i)}>delete</button>
@@ -1870,98 +2167,105 @@ export default function App() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 function makeStyles(dark, text) {
-  const glass       = dark ? "rgba(255,255,255,0.08)"  : "rgba(255,255,255,0.64)";
-  const glassStrong = dark ? "rgba(255,255,255,0.14)"  : "rgba(255,255,255,0.86)";
-  const border      = dark ? "1px solid rgba(255,255,255,0.13)" : "1px solid rgba(0,0,0,0.08)";
-  const shadow      = dark ? "0 24px 70px rgba(0,0,0,0.34)"    : "0 24px 70px rgba(60,70,90,0.16)";
-  const pageBg      = dark
+  const glass = dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.64)";
+  const glassStrong = dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.86)";
+  const border = dark ? "1px solid rgba(255,255,255,0.13)" : "1px solid rgba(0,0,0,0.08)";
+  const shadow = dark ? "0 24px 70px rgba(0,0,0,0.34)" : "0 24px 70px rgba(60,70,90,0.16)";
+  const pageBg = dark
     ? "radial-gradient(circle at 16% 12%, rgba(120,160,255,0.12), transparent 28%), radial-gradient(circle at 78% 20%, rgba(255,120,190,0.10), transparent 28%), #070708"
     : "radial-gradient(circle at 14% 12%, rgba(120,170,255,0.22), transparent 28%), radial-gradient(circle at 82% 16%, rgba(255,160,210,0.18), transparent 32%), #f4f6f8";
-  const baseFont    = "Courier New, monospace";
+  const baseFont = "Courier New, monospace";
 
   return {
-    app:           { display: "flex", height: "100vh", background: pageBg, color: text, fontFamily: baseFont, overflow: "hidden" },
-    auth:          { height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: pageBg, color: text },
-    panel:         { width: 340, padding: 30, borderRadius: 24, background: glass, color: text, border, boxShadow: shadow, display: "flex", flexDirection: "column", gap: 12, backdropFilter: "blur(26px) saturate(1.25)" },
-    logo:          { fontSize: 42, textAlign: "center", color: text, fontFamily: baseFont, letterSpacing: 2, marginBottom: 10 },
-    input:         { width: "100%", padding: "12px 14px", borderRadius: 14, border, outline: "none", background: dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.76)", color: text, fontFamily: baseFont },
-    btn:           { padding: "11px 14px", borderRadius: 14, border, background: glass, color: text, cursor: "pointer", backdropFilter: "blur(20px) saturate(1.3)", boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.08)" : "0 8px 22px rgba(70,80,100,0.08)", fontFamily: baseFont, fontSize: 12 },
-    smallBtn:      { padding: "7px 10px", minHeight: 30, borderRadius: 10, border, background: dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.62)", color: text, cursor: "pointer", fontSize: 11, fontFamily: baseFont },
-    iconBtn:       { padding: "8px 10px", borderRadius: 12, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11 },
-    home:          { minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
-    centerHome:    { width: "min(1180px, calc(100% - 36px))", margin: "0 auto", paddingTop: 68, paddingBottom: 48, color: text },
-    topBtns:       { display: "flex", justifyContent: "center", gap: 10, marginBottom: 24, flexWrap: "wrap", color: text },
-    loading:       { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
-    grid:          { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))", gap: 16, color: text },
-    card:          { minHeight: 244, padding: 12, borderRadius: 18, background: glass, color: text, border, boxShadow: dark ? "0 18px 60px rgba(0,0,0,0.22)" : "0 18px 50px rgba(50,60,80,0.11)", textAlign: "center", cursor: "pointer", backdropFilter: "blur(24px) saturate(1.3)", display: "flex", flexDirection: "column" },
-    coverWrap:     { width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", marginBottom: 10, flexShrink: 0, background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" },
-    cover:         { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-    blankCover:    { width: "100%", height: "100%", background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))", display: "block" },
-    cardName:      { color: text, fontFamily: baseFont, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-    cardSub:       { color: text, fontSize: 10, opacity: 0.76, marginTop: 4 },
-    cardActions:   { marginTop: "auto", paddingTop: 10, display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", color: text },
-    folderGrid:    { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 10, aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden" },
-    folderImg:     { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-    folderBlank:   { width: "100%", height: "100%", background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" },
-    modalTitle:    { color: text, fontSize: 12, opacity: 0.9, fontFamily: baseFont },
-    sidebar:       { width: 360, minWidth: 360, height: "100vh", padding: 18, display: "flex", flexDirection: "column", gap: 12, overflow: "hidden", background: dark ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.34)", color: text, borderRight: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
+    app: { display: "flex", height: "100vh", background: pageBg, color: text, fontFamily: baseFont, overflow: "hidden" },
+    auth: { height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: pageBg, color: text },
+    panel: { width: 340, padding: 30, borderRadius: 24, background: glass, color: text, border, boxShadow: shadow, display: "flex", flexDirection: "column", gap: 12, backdropFilter: "blur(26px) saturate(1.25)" },
+    logo: { fontSize: 42, textAlign: "center", color: text, fontFamily: baseFont, letterSpacing: 2, marginBottom: 10 },
+    input: { width: "100%", padding: "12px 14px", borderRadius: 14, border, outline: "none", background: dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.76)", color: text, fontFamily: baseFont },
+    rememberRow: { display: "flex", alignItems: "center", gap: 9, color: text, fontFamily: baseFont, fontSize: 12, cursor: "pointer", userSelect: "none" },
+    checkbox: { width: 16, height: 16, accentColor: text, cursor: "pointer" },
+    authError: { padding: "10px 12px", borderRadius: 12, background: dark ? "rgba(255,80,80,0.14)" : "rgba(210,40,40,0.10)", border: dark ? "1px solid rgba(255,120,120,0.24)" : "1px solid rgba(180,40,40,0.16)", color: text, fontSize: 11, lineHeight: 1.45 },
+    btn: { padding: "11px 14px", borderRadius: 14, border, background: glass, color: text, cursor: "pointer", backdropFilter: "blur(20px) saturate(1.3)", boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.08)" : "0 8px 22px rgba(70,80,100,0.08)", fontFamily: baseFont, fontSize: 12 },
+    smallBtn: { padding: "7px 10px", minHeight: 30, borderRadius: 10, border, background: dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.62)", color: text, cursor: "pointer", fontSize: 11, fontFamily: baseFont },
+    iconBtn: { padding: "8px 10px", borderRadius: 12, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11 },
+    home: { minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
+    centerHome: { width: "min(1180px, calc(100% - 36px))", margin: "0 auto", paddingTop: 68, paddingBottom: 48, color: text },
+    topBtns: { display: "flex", justifyContent: "center", gap: 10, marginBottom: 24, flexWrap: "wrap", color: text },
+    loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
+    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))", gap: 16, color: text },
+    card: { minHeight: 244, padding: 12, borderRadius: 18, background: glass, color: text, border, boxShadow: dark ? "0 18px 60px rgba(0,0,0,0.22)" : "0 18px 50px rgba(50,60,80,0.11)", textAlign: "center", cursor: "pointer", backdropFilter: "blur(24px) saturate(1.3)", display: "flex", flexDirection: "column" },
+    coverWrap: { width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", marginBottom: 10, flexShrink: 0, background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" },
+    cover: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+    blankCover: { width: "100%", height: "100%", background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))", display: "block" },
+    cardName: { color: text, fontFamily: baseFont, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+    cardSub: { color: text, fontSize: 10, opacity: 0.76, marginTop: 4 },
+    cardActions: { marginTop: "auto", paddingTop: 10, display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", color: text },
+    folderGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 10, aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden" },
+    folderImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+    folderBlank: { width: "100%", height: "100%", background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" },
+    modalTitle: { color: text, fontSize: 12, opacity: 0.9, fontFamily: baseFont },
+    sidebar: { width: 360, minWidth: 360, height: "100vh", padding: 18, display: "flex", flexDirection: "column", gap: 12, overflow: "hidden", background: dark ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.34)", color: text, borderRight: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
     sidebarHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, color: text },
-    projectTitle:  { margin: "0 0 4px", color: text, fontFamily: baseFont, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", maxWidth: 240, whiteSpace: "nowrap" },
-    meta:          { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12 },
-    sideLabel:     { padding: "4px 11px", color: text, opacity: 0.45, fontSize: 10, fontFamily: baseFont, letterSpacing: 1, textAlign: "center" },
-    segment:       { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: 4, borderRadius: 16, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.58)", color: text, border },
-    segmentBtn:    { padding: "10px 12px", borderRadius: 12, border: "none", background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 12 },
+    projectTitle: { margin: "0 0 4px", color: text, fontFamily: baseFont, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", maxWidth: 240, whiteSpace: "nowrap" },
+    meta: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12 },
+    sideLabel: { padding: "4px 11px", color: text, opacity: 0.45, fontSize: 10, fontFamily: baseFont, letterSpacing: 1, textAlign: "center" },
+    segment: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: 4, borderRadius: 16, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.58)", color: text, border },
+    segmentBtn: { padding: "10px 12px", borderRadius: 12, border: "none", background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 12 },
     segmentActive: { background: glassStrong, color: text, boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.12)" : "0 8px 18px rgba(70,80,100,0.10)" },
-    importRow:     { display: "grid", gridTemplateColumns: "1fr", gap: 8, color: text },
-    list:          { flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 3, color: text },
-    track:         { display: "flex", alignItems: "center", gap: 9, minHeight: 48, padding: "10px 11px", borderRadius: 14, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.68)", border: dark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)", color: text, cursor: "pointer" },
-    dragGrip:      { color: text, opacity: 0.7, cursor: "grab", fontSize: 12, flexShrink: 0 },
-    trackName:     { flex: 1, minWidth: 0, color: text, fontFamily: baseFont, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-    trackTime:     { color: text, fontSize: 11, opacity: 0.8, flexShrink: 0 },
-    emptyState:    { padding: 18, borderRadius: 16, background: dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.54)", border, color: text, opacity: 0.86, fontSize: 12, lineHeight: 1.5 },
-    designPanel:   { flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 3, color: text },
-    section:       { padding: 13, borderRadius: 18, background: dark ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.62)", border, color: text, display: "flex", flexDirection: "column", gap: 10 },
-    sectionTitle:  { color: text, fontSize: 12, opacity: 0.9, textTransform: "uppercase", letterSpacing: 1 },
-    optionGrid:    { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, color: text },
-    optionActive:  { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", color: text, borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
-    colorGrid:     { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 },
-    inlineControls:{ display: "flex", gap: 8, alignItems: "center", color: text },
-    colorInput:    { width: "100%", minWidth: 42, height: 38, border: "none", borderRadius: 12, padding: 4, background: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.72)", color: text, cursor: "pointer" },
-    sliderLabel:   { display: "flex", flexDirection: "column", gap: 8, color: text, fontSize: 12, opacity: 0.9 },
-    range:         { width: "100%", accentColor: text },
-    stage:         { flex: 1, minWidth: 0, height: "calc(100vh - 78px)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px 24px 34px", overflow: "hidden", color: text },
-    turnBtn:       { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 10, padding: "14px 20px", borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)", color: text, fontFamily: baseFont, fontSize: 13, cursor: "pointer", backdropFilter: "blur(24px) saturate(1.25)", boxShadow: shadow },
-    player:        { position: "fixed", left: 360, right: 0, bottom: 0, height: 78, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 18px", background: dark ? "rgba(12,12,14,0.82)" : "rgba(255,255,255,0.82)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
-    transportBtn:  { padding: "10px 13px", minWidth: 58, borderRadius: 14, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 12 },
-    now:           { width: 230, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: text, fontFamily: baseFont, fontSize: 12 },
-    time:          { minWidth: 92, color: text, fontFamily: baseFont, fontSize: 12, opacity: 0.86 },
-    playerRange:   { width: 240, accentColor: text },
-    menu:          { position: "fixed", zIndex: 999, background: dark ? "rgba(20,20,22,0.94)" : "rgba(255,255,255,0.94)", color: text, border, borderRadius: 14, padding: 8, display: "flex", flexDirection: "column", gap: 6, boxShadow: shadow, backdropFilter: "blur(20px)" },
-    menuBtn:       { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont },
+    importRow: { display: "grid", gridTemplateColumns: "1fr", gap: 8, color: text },
+    coverTools: { padding: 10, borderRadius: 18, background: dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.60)", border, display: "flex", flexDirection: "column", gap: 10 },
+    coverToolsHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, color: text, fontSize: 12, textTransform: "uppercase", letterSpacing: 1 },
+    sideCoverGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 },
+    sideCoverItem: { display: "flex", flexDirection: "column", gap: 5, minWidth: 0 },
+    sideCoverButton: { minHeight: 62, padding: 8, borderRadius: 13, border, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.66)", color: text, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontSize: 11, overflow: "hidden" },
+    sideCoverPreview: { width: 34, height: 34, borderRadius: "50%", flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.06)", color: text },
+    sideCoverImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+    clearCoverBtn: { padding: "5px 8px", borderRadius: 9, border, background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 10 },
+    list: { flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 3, color: text },
+    track: { display: "flex", alignItems: "center", gap: 9, minHeight: 48, padding: "10px 11px", borderRadius: 14, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.68)", border: dark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)", color: text, cursor: "pointer" },
+    dragGrip: { color: text, opacity: 0.7, cursor: "grab", fontSize: 12, flexShrink: 0 },
+    trackName: { flex: 1, minWidth: 0, color: text, fontFamily: baseFont, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+    trackTime: { color: text, fontSize: 11, opacity: 0.8, flexShrink: 0 },
+    emptyState: { padding: 18, borderRadius: 16, background: dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.54)", border, color: text, opacity: 0.86, fontSize: 12, lineHeight: 1.5 },
+    designPanel: { flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 3, color: text },
+    section: { padding: 13, borderRadius: 18, background: dark ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.62)", border, color: text, display: "flex", flexDirection: "column", gap: 10 },
+    sectionTitle: { color: text, fontSize: 12, opacity: 0.9, textTransform: "uppercase", letterSpacing: 1 },
+    optionGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, color: text },
+    optionActive: { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", color: text, borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
+    colorGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 },
+    inlineControls: { display: "flex", gap: 8, alignItems: "center", color: text },
+    colorInput: { width: "100%", minWidth: 42, height: 38, border: "none", borderRadius: 12, padding: 4, background: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.72)", color: text, cursor: "pointer" },
+    sliderLabel: { display: "flex", flexDirection: "column", gap: 8, color: text, fontSize: 12, opacity: 0.9 },
+    range: { width: "100%", accentColor: text },
+    stage: { flex: 1, minWidth: 0, height: "calc(100vh - 78px)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px 24px 34px", overflow: "hidden", color: text },
+    turnBtn: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 10, padding: "14px 20px", borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)", color: text, fontFamily: baseFont, fontSize: 13, cursor: "pointer", backdropFilter: "blur(24px) saturate(1.25)", boxShadow: shadow },
+    player: { position: "fixed", left: 360, right: 0, bottom: 0, height: 78, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 18px", background: dark ? "rgba(12,12,14,0.82)" : "rgba(255,255,255,0.82)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
+    transportBtn: { padding: "10px 13px", minWidth: 58, borderRadius: 14, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 12 },
+    now: { width: 230, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: text, fontFamily: baseFont, fontSize: 12 },
+    time: { minWidth: 92, color: text, fontFamily: baseFont, fontSize: 12, opacity: 0.86 },
+    playerRange: { width: 240, accentColor: text },
+    menu: { position: "fixed", zIndex: 999, background: dark ? "rgba(20,20,22,0.94)" : "rgba(255,255,255,0.94)", color: text, border, borderRadius: 14, padding: 8, display: "flex", flexDirection: "column", gap: 6, boxShadow: shadow, backdropFilter: "blur(20px)" },
+    menuBtn: { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont },
   };
 }
-
-// ─── Global CSS ───────────────────────────────────────────────────────────────
 
 const _auraeStyleId = "aurae-global-style";
 if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) {
   const style = document.createElement("style");
-  style.id    = _auraeStyleId;
+  style.id = _auraeStyleId;
   style.innerHTML = `
     @keyframes spin {
       from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
+      to { transform: rotate(360deg); }
     }
 
     @keyframes vinylFlip {
-      0%   { transform: perspective(1200px) rotateY(0deg)   scale(1);    filter: brightness(1);    }
-      30%  { transform: perspective(1200px) rotateY(70deg)  scale(0.88); filter: brightness(0.55); }
-      50%  { transform: perspective(1200px) rotateY(90deg)  scale(0.82); filter: brightness(0.3);  }
-      70%  { transform: perspective(1200px) rotateY(110deg) scale(0.88); filter: brightness(0.55); }
-      100% { transform: perspective(1200px) rotateY(180deg) scale(1);    filter: brightness(1);    }
+      0% { transform: perspective(1200px) rotateY(0deg) scale(1); filter: brightness(1); }
+      44% { transform: perspective(1200px) rotateY(88deg) scale(0.84); filter: brightness(0.34); }
+      50% { transform: perspective(1200px) rotateY(90deg) scale(0.82); filter: brightness(0.28); }
+      56% { transform: perspective(1200px) rotateY(92deg) scale(0.84); filter: brightness(0.34); }
+      100% { transform: perspective(1200px) rotateY(180deg) scale(1); filter: brightness(1); }
     }
 
     html, body, #root { margin: 0; width: 100%; min-height: 100%; }
@@ -1973,12 +2277,12 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       transition: transform 0.15s ease, background 0.15s ease,
                   border-color 0.15s ease, opacity 0.15s ease;
     }
-    button:hover  { transform: translateY(-1px); }
+    button:hover { transform: translateY(-1px); }
     button:active { transform: translateY(0); }
 
     ::placeholder { color: currentColor; opacity: 0.55; }
 
-    ::-webkit-scrollbar       { width: 10px; height: 10px; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-thumb {
       background: rgba(150,150,160,0.35);
       border-radius: 999px;
@@ -1989,6 +2293,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
+
 
 
 
