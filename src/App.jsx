@@ -256,7 +256,7 @@ function sideCoverFor(side, covers, repeatFirstPair, fallback) {
 
 // Constants
 
-const DEFAULT_VINYL_COLORS = ["#111111", "#3a7bd5", "#9d4edd", "#ff7a59"];
+const DEFAULT_VINYL_COLORS = ["#111111", "#111111", "#111111", "#111111"];
 
 const DECK_STYLES = [
   "classic", "dark", "chrome", "wood", "minimal",
@@ -289,12 +289,12 @@ function normalizeDeckStyle(style) {
 function deckGeometry(style) {
   const s = normalizeDeckStyle(style);
   if (s === "realistic3") {
-    return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 456, pivotY: 392 };
+    return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 472, pivotY: 112 };
   }
   if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) {
-    return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 500, pivotY: 418 };
+    return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 508, pivotY: 126 };
   }
-  return { width: 560, height: 560, cx: 280, cy: 280, pivotX: 516, pivotY: 410 };
+  return { width: 560, height: 560, cx: 280, cy: 280, pivotX: 520, pivotY: 120 };
 }
 
 function holePath(cx, cy, r) {
@@ -326,10 +326,10 @@ function deckBase(style, color) {
 
 function groovePoint(g, radius, progress) {
   const p = Math.max(0, Math.min(1, progress || 0));
-  const outerR = radius * 0.9;
+  const outerR = radius * 0.98;
   const innerR = radius * 0.44;
   const r = outerR + (innerR - outerR) * p;
-  const angle = (28 - 15 * p) * Math.PI / 180;
+  const angle = (22 - 15 * p) * Math.PI / 180;
   return { x: g.cx + Math.cos(angle) * r, y: g.cy + Math.sin(angle) * r };
 }
 
@@ -674,6 +674,33 @@ function DeckDefs({ id, style, color }) {
 
 function Tonearm({ id, geometry, stylus, textColor }) {
   const angle = Math.atan2(stylus.y - geometry.pivotY, stylus.x - geometry.pivotX) * 180 / Math.PI;
+  const dx = stylus.x - geometry.pivotX;
+  const dy = stylus.y - geometry.pivotY;
+  const len = Math.max(1, Math.hypot(dx, dy));
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
+  const armStart = {
+    x: geometry.pivotX + ux * 18,
+    y: geometry.pivotY + uy * 18,
+  };
+  const armEnd = {
+    x: stylus.x - ux * 24,
+    y: stylus.y - uy * 24,
+  };
+  const shineStart = {
+    x: armStart.x + px * 2.2,
+    y: armStart.y + py * 2.2,
+  };
+  const shineEnd = {
+    x: armEnd.x + px * 2.2,
+    y: armEnd.y + py * 2.2,
+  };
+  const counter = {
+    x: geometry.pivotX - ux * 24,
+    y: geometry.pivotY - uy * 24,
+  };
 
   return (
     <g>
@@ -690,46 +717,48 @@ function Tonearm({ id, geometry, stylus, textColor }) {
       <circle cx={geometry.pivotX - 3} cy={geometry.pivotY - 3} r="2.2" fill="rgba(255,255,255,0.75)" />
 
       <line
-        x1={geometry.pivotX}
-        y1={geometry.pivotY}
-        x2={stylus.x}
-        y2={stylus.y}
+        x1={armStart.x}
+        y1={armStart.y}
+        x2={armEnd.x}
+        y2={armEnd.y}
         stroke={`url(#${id}-arm)`}
-        strokeWidth="8"
+        strokeWidth="7"
         strokeLinecap="round"
       />
       <line
-        x1={geometry.pivotX - 4}
-        y1={geometry.pivotY - 3}
-        x2={stylus.x - 4}
-        y2={stylus.y - 3}
+        x1={shineStart.x}
+        y1={shineStart.y}
+        x2={shineEnd.x}
+        y2={shineEnd.y}
         stroke="rgba(255,255,255,0.42)"
-        strokeWidth="2.4"
+        strokeWidth="2"
         strokeLinecap="round"
       />
 
       <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
         <rect
-          x="-7"
-          y="-10"
-          width="28"
-          height="20"
+          x="-30"
+          y="-8"
+          width="34"
+          height="17"
           rx="3"
           fill="#b9b9b9"
           stroke="rgba(0,0,0,0.35)"
           strokeWidth="0.9"
           filter={`url(#${id}-soft)`}
         />
-        <rect x="-2" y="2" width="16" height="10" rx="2" fill="#2b2b2b" />
-        <line x1="2" y1="12" x2="2" y2="20" stroke="#111" strokeWidth="1.8" strokeLinecap="round" />
+        <rect x="-27" y="-5" width="19" height="11" rx="2" fill="#2b2b2b" />
+        <path d="M -4 7 L 5 13 L 2 17 L -8 10 Z" fill="#181818" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5" />
+        <line x1="3" y1="15" x2="8" y2="21" stroke="#111" strokeWidth="1.8" strokeLinecap="round" />
       </g>
 
       <circle cx={stylus.x} cy={stylus.y} r="2.3" fill="#111" />
       <ellipse
-        cx={geometry.pivotX + 21}
-        cy={geometry.pivotY}
-        rx="14"
-        ry="9"
+        cx={counter.x}
+        cy={counter.y}
+        rx="16"
+        ry="10"
+        transform={`rotate(${angle} ${counter.x} ${counter.y})`}
         fill="#8a8a8a"
         stroke="rgba(0,0,0,0.3)"
         strokeWidth="0.8"
