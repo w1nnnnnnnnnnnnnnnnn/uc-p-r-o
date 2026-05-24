@@ -289,12 +289,12 @@ function normalizeDeckStyle(style) {
 function deckGeometry(style) {
   const s = normalizeDeckStyle(style);
   if (s === "realistic3") {
-    return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 472, pivotY: 82 };
+    return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 456, pivotY: 392 };
   }
   if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) {
-    return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 500, pivotY: 104 };
+    return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 500, pivotY: 418 };
   }
-  return { width: 560, height: 560, cx: 280, cy: 280, pivotX: 516, pivotY: 96 };
+  return { width: 560, height: 560, cx: 280, cy: 280, pivotX: 516, pivotY: 410 };
 }
 
 function holePath(cx, cy, r) {
@@ -326,10 +326,10 @@ function deckBase(style, color) {
 
 function groovePoint(g, radius, progress) {
   const p = Math.max(0, Math.min(1, progress || 0));
-  const outerR = radius * 0.94;
-  const innerR = radius * 0.42;
+  const outerR = radius * 0.9;
+  const innerR = radius * 0.44;
   const r = outerR + (innerR - outerR) * p;
-  const angle = (-4 - 17 * p) * Math.PI / 180;
+  const angle = (28 - 15 * p) * Math.PI / 180;
   return { x: g.cx + Math.cos(angle) * r, y: g.cy + Math.sin(angle) * r };
 }
 
@@ -781,9 +781,9 @@ function StandardControls({ id, style, textColor }) {
   if (s === "minimal") {
     return (
       <g>
-        <line x1="520" y1="308" x2="520" y2="458" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-        <circle cx="520" cy="378" r="5" fill={textColor} opacity="0.75" />
-        <text x="520" y="482" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">
+        <line x1="520" y1="82" x2="520" y2="232" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+        <circle cx="520" cy="152" r="5" fill={textColor} opacity="0.75" />
+        <text x="520" y="256" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">
           VOL
         </text>
       </g>
@@ -794,7 +794,7 @@ function StandardControls({ id, style, textColor }) {
     <g>
       <rect
         x="430"
-        y="330"
+        y="58"
         width="96"
         height="150"
         rx={s === "dark" ? 3 : 9}
@@ -803,20 +803,20 @@ function StandardControls({ id, style, textColor }) {
         strokeWidth="1"
         filter={`url(#${id}-soft)`}
       />
-      <rect x="444" y="346" width="68" height="28" rx="5" fill="rgba(0,0,0,0.35)" />
-      <text x="478" y="364" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
+      <rect x="444" y="74" width="68" height="28" rx="5" fill="rgba(0,0,0,0.35)" />
+      <text x="478" y="92" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
         {s === "wood" ? "CONTROL" : "START"}
       </text>
       <circle
         cx="478"
-        cy="414"
+        cy="142"
         r="22"
         fill={s === "wood" ? "#241406" : `url(#${id}-knob)`}
         stroke="rgba(255,255,255,0.18)"
         strokeWidth="2"
       />
-      <line x1="478" y1="398" x2="478" y2="407" stroke={textColor} strokeWidth="2" />
-      <text x="478" y="454" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
+      <line x1="478" y1="126" x2="478" y2="135" stroke={textColor} strokeWidth="2" />
+      <text x="478" y="182" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
         {s === "dark" ? "RPM" : "LEVEL"}
       </text>
     </g>
@@ -2176,10 +2176,17 @@ function makeStyles(dark, text) {
     ? "radial-gradient(circle at 16% 12%, rgba(120,160,255,0.12), transparent 28%), radial-gradient(circle at 78% 20%, rgba(255,120,190,0.10), transparent 28%), #070708"
     : "radial-gradient(circle at 14% 12%, rgba(120,170,255,0.22), transparent 28%), radial-gradient(circle at 82% 16%, rgba(255,160,210,0.18), transparent 32%), #f4f6f8";
   const baseFont = "Courier New, monospace";
+  const scrollVars = {
+    "--aurae-scroll-track": dark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.045)",
+    "--aurae-scroll-thumb": dark ? "rgba(255,255,255,0.26)" : "rgba(0,0,0,0.20)",
+    "--aurae-scroll-thumb-hover": dark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.32)",
+    "--aurae-scroll-thumb-active": dark ? "rgba(255,255,255,0.56)" : "rgba(0,0,0,0.44)",
+    "--aurae-scroll-border": dark ? "rgba(8,8,10,0.92)" : "rgba(245,247,250,0.92)",
+  };
 
   return {
-    app: { display: "flex", height: "100vh", background: pageBg, color: text, fontFamily: baseFont, overflow: "hidden" },
-    auth: { height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: pageBg, color: text },
+    app: { ...scrollVars, display: "flex", height: "100vh", background: pageBg, color: text, fontFamily: baseFont, overflow: "hidden" },
+    auth: { ...scrollVars, height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: pageBg, color: text },
     panel: { width: 340, padding: 30, borderRadius: 24, background: glass, color: text, border, boxShadow: shadow, display: "flex", flexDirection: "column", gap: 12, backdropFilter: "blur(26px) saturate(1.25)" },
     logo: { fontSize: 42, textAlign: "center", color: text, fontFamily: baseFont, letterSpacing: 2, marginBottom: 10 },
     input: { width: "100%", padding: "12px 14px", borderRadius: 14, border, outline: "none", background: dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.76)", color: text, fontFamily: baseFont },
@@ -2189,7 +2196,7 @@ function makeStyles(dark, text) {
     btn: { padding: "11px 14px", borderRadius: 14, border, background: glass, color: text, cursor: "pointer", backdropFilter: "blur(20px) saturate(1.3)", boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.08)" : "0 8px 22px rgba(70,80,100,0.08)", fontFamily: baseFont, fontSize: 12 },
     smallBtn: { padding: "7px 10px", minHeight: 30, borderRadius: 10, border, background: dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.62)", color: text, cursor: "pointer", fontSize: 11, fontFamily: baseFont },
     iconBtn: { padding: "8px 10px", borderRadius: 12, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11 },
-    home: { minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
+    home: { ...scrollVars, minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
     centerHome: { width: "min(1180px, calc(100% - 36px))", margin: "0 auto", paddingTop: 68, paddingBottom: 48, color: text },
     topBtns: { display: "flex", justifyContent: "center", gap: 10, marginBottom: 24, flexWrap: "wrap", color: text },
     loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
@@ -2222,7 +2229,7 @@ function makeStyles(dark, text) {
     sideCoverPreview: { width: 34, height: 34, borderRadius: "50%", flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.06)", color: text },
     sideCoverImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
     clearCoverBtn: { padding: "5px 8px", borderRadius: 9, border, background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 10 },
-    list: { flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 3, color: text },
+    list: { flex: 1, minHeight: 0, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: `${scrollVars["--aurae-scroll-thumb"]} transparent`, display: "flex", flexDirection: "column", gap: 8, paddingRight: 6, color: text },
     track: { display: "flex", alignItems: "center", gap: 9, minHeight: 48, padding: "10px 11px", borderRadius: 14, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.68)", border: dark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)", color: text, cursor: "pointer" },
     dragGrip: { color: text, opacity: 0.7, cursor: "grab", fontSize: 12, flexShrink: 0 },
     trackName: { flex: 1, minWidth: 0, color: text, fontFamily: baseFont, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -2270,7 +2277,11 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 
     html, body, #root { margin: 0; width: 100%; min-height: 100%; }
     body { overflow: hidden; }
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: var(--aurae-scroll-thumb, rgba(150,150,160,0.35)) transparent;
+    }
     button, input { font: inherit; }
 
     button {
@@ -2282,18 +2293,46 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 
     ::placeholder { color: currentColor; opacity: 0.55; }
 
-    ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(150,150,160,0.35);
+    ::-webkit-scrollbar { width: 12px; height: 12px; }
+    ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+    ::-webkit-scrollbar-corner { background: transparent; }
+    ::-webkit-scrollbar-track {
+      background: var(--aurae-scroll-track, transparent);
       border-radius: 999px;
-      border: 3px solid transparent;
+      margin: 6px 0;
+    }
+    ::-webkit-scrollbar-thumb {
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.24),
+          var(--aurae-scroll-thumb, rgba(150,150,160,0.35))
+        );
+      border-radius: 999px;
+      border: 3px solid var(--aurae-scroll-border, transparent);
+      background-clip: padding-box;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        0 4px 12px rgba(0,0,0,0.18);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.30),
+          var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48))
+        );
       background-clip: padding-box;
     }
-    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb:active {
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.36),
+          var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))
+        );
+      background-clip: padding-box;
+    }
   `;
   document.head.appendChild(style);
 }
-
 
 
 
