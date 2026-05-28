@@ -320,6 +320,45 @@ function getWoodTheme(id) {
   return STORAGE_WOODS.find(wood => wood.id === id) || STORAGE_WOODS[0];
 }
 
+function makeStorageId() {
+  return `storage-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeStorageShelf(raw, projectNames = []) {
+  if (raw?.items?.length) {
+    const items = raw.items.map((item, i) => ({
+      id: item.id || `storage-${i + 1}`,
+      name: item.name || `Storage ${i + 1}`,
+      wood: item.wood || "oak",
+      projects: Array.isArray(item.projects) ? item.projects.filter(name => projectNames.includes(name)) : [],
+      createdAt: item.createdAt || Date.now() + i,
+    }));
+    const assigned = new Set(items.flatMap(item => item.projects));
+    const unassigned = projectNames.filter(name => !assigned.has(name));
+    if (items[0] && unassigned.length) items[0].projects = [...items[0].projects, ...unassigned];
+    return {
+      activeId: items.some(item => item.id === raw.activeId) ? raw.activeId : items[0]?.id || null,
+      items,
+    };
+  }
+
+  if (raw?.name || raw?.wood) {
+    const id = raw.id || "main-storage";
+    return {
+      activeId: id,
+      items: [{
+        id,
+        name: raw.name || "My Vinyl Storage",
+        wood: raw.wood || "oak",
+        projects: projectNames,
+        createdAt: raw.createdAt || Date.now(),
+      }],
+    };
+  }
+
+  return { activeId: null, items: [] };
+}
+
 // Deck helpers
 
 function normalizeDeckStyle(style) {
@@ -1089,6 +1128,9 @@ export default function App() {
   const [storageConfigs, setStorageConfigs] = useState(() => safeJSON("aurae_storage_configs", {}));
   const [storageDraftName, setStorageDraftName] = useState("My Vinyl Storage");
   const [storageDraftWood, setStorageDraftWood] = useState("oak");
+  const [showStorageCreate, setShowStorageCreate] = useState(false);
+  const [newStorageName, setNewStorageName] = useState("New Storage");
+  const [newStorageWood, setNewStorageWood] = useState("walnut");
   const [selectedProject, setSelectedProject] = useState(null);
   const [hoveredProject, setHoveredProject] = useState(null);
   const [dragOverProject, setDragOverProject] = useState(null);
@@ -1322,27 +1364,91 @@ export default function App() {
   function createStorage() {
     if (!currentUser) return;
     const cleanName = storageDraftName.trim() || "My Vinyl Storage";
+    const id = makeStorageId();
     setStorageConfigs(prev => ({
       ...prev,
       [currentUser]: {
-        name: cleanName,
-        wood: storageDraftWood,
-        createdAt: Date.now(),
+        activeId: id,
+        items: [{
+          id,
+          name: cleanName,
+          wood: storageDraftWood,
+          projects: Object.keys(projectsMeta),
+          createdAt: Date.now(),
+        }],
       },
     }));
   }
 
-  function updateStorageConfig(key, value) {
+  function setActiveStorage(storageId) {
     if (!currentUser) return;
     setStorageConfigs(prev => ({
       ...prev,
       [currentUser]: {
-        name: "My Vinyl Storage",
-        wood: "oak",
-        ...(prev[currentUser] || {}),
-        [key]: value,
+        ...normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta)),
+        activeId: storageId,
       },
     }));
+    setSelectedProject(null);
+    setHoveredProject(null);
+  }
+
+  function updateActiveStorage(key, value) {
+    if (!currentUser) return;
+    setStorageConfigs(prev => {
+      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
+      return {
+        ...prev,
+        [currentUser]: {
+          ...shelf,
+          items: shelf.items.map(item =>
+            item.id === shelf.activeId ? { ...item, [key]: value } : item
+          ),
+        },
+      };
+    });
+  }
+
+  function createAdditionalStorage() {
+    if (!currentUser) return;
+    const cleanName = newStorageName.trim() || `Storage ${Date.now().toString().slice(-4)}`;
+    const id = makeStorageId();
+    setStorageConfigs(prev => {
+      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
+      return {
+        ...prev,
+        [currentUser]: {
+          activeId: id,
+          items: [
+            ...shelf.items,
+            { id, name: cleanName, wood: newStorageWood, projects: [], createdAt: Date.now() },
+          ],
+        },
+      };
+    });
+    setSelectedProject(null);
+    setHoveredProject(null);
+    setNewStorageName("New Storage");
+    setShowStorageCreate(false);
+  }
+
+  function addProjectToActiveStorage(projectNameForStorage) {
+    if (!currentUser || !projectNameForStorage) return;
+    setStorageConfigs(prev => {
+      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
+      if (!shelf.activeId) return prev;
+      return {
+        ...prev,
+        [currentUser]: {
+          ...shelf,
+          items: shelf.items.map(item => {
+            const without = item.projects.filter(name => name !== projectNameForStorage);
+            if (item.id !== shelf.activeId) return { ...item, projects: without };
+            return { ...item, projects: [projectNameForStorage, ...without] };
+          }),
+        },
+      };
+    });
   }
 
   async function createProject(name = projectName) {
@@ -1370,6 +1476,22 @@ export default function App() {
     };
     setProjectsMeta(prev => ({ ...prev, [clean]: p }));
     setSelectedProject(clean);
+    if (currentUser) {
+      setStorageConfigs(prev => {
+        const shelf = normalizeStorageShelf(prev[currentUser], [...Object.keys(projectsMeta), clean]);
+        return {
+          ...prev,
+          [currentUser]: {
+            ...shelf,
+            items: shelf.items.map(item =>
+              item.id === shelf.activeId
+                ? { ...item, projects: [clean, ...item.projects.filter(project => project !== clean)] }
+                : { ...item, projects: item.projects.filter(project => project !== clean) }
+            ),
+          },
+        };
+      });
+    }
     await saveProjectToDB(clean, p);
     setProjectName("");
     setShowCreate(false);
@@ -1505,6 +1627,20 @@ export default function App() {
       projects: f.projects.map(p => p === oldName ? clean : p),
     })));
     setProjectOrder(prev => prev.map(p => p === oldName ? clean : p));
+    setStorageConfigs(prev => {
+      if (!currentUser) return prev;
+      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta).map(name => name === oldName ? clean : name));
+      return {
+        ...prev,
+        [currentUser]: {
+          ...shelf,
+          items: shelf.items.map(item => ({
+            ...item,
+            projects: item.projects.map(project => project === oldName ? clean : project),
+          })),
+        },
+      };
+    });
     setSelectedProject(prev => prev === oldName ? clean : prev);
     setHoveredProject(prev => prev === oldName ? clean : prev);
     if (activeProject === oldName) setActiveProject(clean);
@@ -1520,6 +1656,21 @@ export default function App() {
     });
     setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.filter(p => p !== name) })));
     setProjectOrder(prev => prev.filter(p => p !== name));
+    setStorageConfigs(prev => {
+      if (!currentUser) return prev;
+      const remaining = Object.keys(projectsMeta).filter(project => project !== name);
+      const shelf = normalizeStorageShelf(prev[currentUser], remaining);
+      return {
+        ...prev,
+        [currentUser]: {
+          ...shelf,
+          items: shelf.items.map(item => ({
+            ...item,
+            projects: item.projects.filter(project => project !== name),
+          })),
+        },
+      };
+    });
     setSelectedProject(prev => prev === name ? null : prev);
     setHoveredProject(prev => prev === name ? null : prev);
     if (activeProject === name) setView("home");
@@ -1773,9 +1924,11 @@ export default function App() {
   }
 
   if (view === "home") {
-    const storageConfig = currentUser ? storageConfigs[currentUser] : null;
+    const allProjectNames = Object.keys(projectsMeta);
+    const storageShelf = currentUser ? normalizeStorageShelf(storageConfigs[currentUser], allProjectNames) : { activeId: null, items: [] };
+    const storageConfig = storageShelf.items.find(item => item.id === storageShelf.activeId) || storageShelf.items[0] || null;
     const wood = getWoodTheme(storageConfig?.wood || storageDraftWood);
-    const storageProjects = Object.keys(projectsMeta).sort((a, b) => {
+    const storageProjects = (storageConfig?.projects || []).filter(name => projectsMeta[name]).sort((a, b) => {
       const pa = projectsMeta[a] || {};
       const pb = projectsMeta[b] || {};
       return (pb.createdAt || pb.updatedAt || 0) - (pa.createdAt || pa.updatedAt || 0);
@@ -1836,6 +1989,7 @@ export default function App() {
               <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>
                 {dark ? "Light" : "Dark"}
               </button>
+              <button style={S.btn} onClick={() => setShowStorageCreate(true)}>+ storage</button>
               <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
             </div>
           </div>
@@ -1844,6 +1998,25 @@ export default function App() {
 
           <div style={S.storageLayout}>
             <div style={S.storageControls}>
+              <div style={S.sectionTitle}>Storages</div>
+              <div style={S.storageTabs}>
+                {storageShelf.items.map(item => (
+                  <button
+                    key={item.id}
+                    style={{ ...S.storageTab, ...(item.id === storageConfig.id ? S.storageTabActive : {}) }}
+                    onClick={() => setActiveStorage(item.id)}
+                  >
+                    <span>{item.name}</span>
+                    <small>{item.projects.length}</small>
+                  </button>
+                ))}
+              </div>
+              <input
+                style={S.input}
+                value={storageConfig.name}
+                onChange={e => updateActiveStorage("name", e.target.value)}
+                placeholder="storage name"
+              />
               <div style={S.sectionTitle}>Wood</div>
               <div style={S.woodGridCompact}>
                 {STORAGE_WOODS.map(item => (
@@ -1853,7 +2026,7 @@ export default function App() {
                       ...S.woodChoice,
                       ...(storageConfig.wood === item.id ? S.woodChoiceActive : {}),
                     }}
-                    onClick={() => updateStorageConfig("wood", item.id)}
+                    onClick={() => updateActiveStorage("wood", item.id)}
                   >
                     <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
                     {item.label}
@@ -1904,21 +2077,20 @@ export default function App() {
                   const depth = Math.min(i, 12);
                   const selected = selectedProject === name;
                   const hovered = hoveredProject === name;
-                  const left = 248 - depth * 18;
-                  const top = 105 + depth * 13;
-                  const lift = hovered && !selected ? -18 : 0;
+                  const sideShift = (i % 2 === 0 ? -1 : 1) * Math.min(depth * 3, 20);
+                  const top = 150 - depth * 8;
                   return (
                     <button
                       key={name}
                       style={{
                         ...S.storageRecord,
-                        left,
+                        left: "50%",
                         top,
                         zIndex: selected ? 800 : 500 - i,
-                        opacity: i > 13 && !selected ? 0 : 1,
+                        opacity: i > 16 && !selected ? 0 : 1,
                         transform: selected
-                          ? "translate(182px, -20px) rotate(-2deg) scale(1.06)"
-                          : `translate(${hovered ? 38 : 0}px, ${lift}px) rotate(${Math.max(-4, -i * 0.35)}deg) scale(${1 - Math.min(i, 10) * 0.01})`,
+                          ? "translate(-50%, -92px) rotate(0deg) scale(1.08)"
+                          : `translate(calc(-50% + ${hovered ? 0 : sideShift}px), ${hovered ? -34 : 0}px) rotate(${hovered ? 0 : sideShift / 8}deg) scale(${1 - Math.min(i, 12) * 0.012})`,
                       }}
                       onMouseEnter={() => setHoveredProject(name)}
                       onMouseLeave={() => setHoveredProject(null)}
@@ -1968,6 +2140,35 @@ export default function App() {
                 onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }}
               />
               <button style={S.btn} onClick={() => createProject()}>create</button>
+            </div>
+          </div>
+        )}
+
+        {showStorageCreate && (
+          <div style={OVL} onClick={() => setShowStorageCreate(false)}>
+            <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
+              <div style={S.modalTitle}>Create storage</div>
+              <input
+                autoFocus
+                style={S.input}
+                placeholder="storage name"
+                value={newStorageName}
+                onChange={e => setNewStorageName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") createAdditionalStorage(); if (e.key === "Escape") setShowStorageCreate(false); }}
+              />
+              <div style={S.woodGrid}>
+                {STORAGE_WOODS.map(item => (
+                  <button
+                    key={item.id}
+                    style={{ ...S.woodChoice, ...(newStorageWood === item.id ? S.woodChoiceActive : {}) }}
+                    onClick={() => setNewStorageWood(item.id)}
+                  >
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <button style={S.btn} onClick={createAdditionalStorage}>create storage</button>
             </div>
           </div>
         )}
@@ -2353,21 +2554,24 @@ function makeStyles(dark, text) {
     storageHome: { width: "min(1240px, calc(100% - 36px))", minHeight: "100vh", margin: "0 auto", padding: "44px 0 58px", color: text },
     storageTopbar: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 18, marginBottom: 22 },
     storageSubtitle: { color: text, opacity: 0.66, fontSize: 12, marginTop: -4, textAlign: "center", letterSpacing: 1 },
-    storageLayout: { display: "grid", gridTemplateColumns: "260px minmax(620px, 1fr)", gap: 24, alignItems: "center" },
+    storageLayout: { display: "grid", gridTemplateColumns: "280px minmax(620px, 1fr)", gap: 24, alignItems: "center" },
     storageControls: { padding: 14, borderRadius: 22, background: glass, border, boxShadow: shadow, backdropFilter: "blur(26px) saturate(1.2)", display: "flex", flexDirection: "column", gap: 14 },
+    storageTabs: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 170, overflowY: "auto", paddingRight: 3 },
+    storageTab: { padding: "9px 10px", borderRadius: 13, border, background: dark ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.58)", color: text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontFamily: baseFont, fontSize: 11, textAlign: "left" },
+    storageTabActive: { background: dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.09)", borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
     focusPanel: { padding: 12, borderRadius: 18, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.62)", border, display: "flex", flexDirection: "column", gap: 9 },
     focusCover: { width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" },
     focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
     focusActions: { display: "flex", flexWrap: "wrap", gap: 6 },
-    storageCabinet: { position: "relative", minHeight: 620, borderRadius: 26, overflow: "hidden", background: "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.12)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 34px 90px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.22)", perspective: 1000 },
-    storageLid: { position: "absolute", left: 34, right: 34, top: 34, height: 80, borderRadius: "18px 18px 8px 8px", background: "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.10)), repeating-linear-gradient(90deg, transparent 0 12px, var(--storage-line) 13px), var(--storage-face)", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 18px 32px rgba(0,0,0,0.20), inset 0 -8px 18px rgba(0,0,0,0.12)" },
-    storageInsideGlow: { position: "absolute", left: 54, right: 54, top: 96, height: 320, borderRadius: 22, background: dark ? "radial-gradient(circle at 50% 10%, rgba(255,255,255,0.12), rgba(0,0,0,0.24) 60%, rgba(0,0,0,0.40))" : "radial-gradient(circle at 50% 10%, rgba(255,255,255,0.56), rgba(255,255,255,0.16) 58%, rgba(0,0,0,0.14))", boxShadow: "inset 0 18px 36px rgba(0,0,0,0.28)" },
-    storageCards: { position: "absolute", left: 70, right: 70, top: 48, bottom: 92 },
-    storageRecord: { position: "absolute", width: 270, height: 270, padding: 0, border: "none", borderRadius: 18, background: "transparent", color: text, cursor: "pointer", transformOrigin: "50% 100%", transition: "transform 0.38s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease, filter 0.2s ease", filter: "drop-shadow(0 18px 28px rgba(0,0,0,0.30))" },
+    storageCabinet: { position: "relative", minHeight: 650, borderRadius: 28, overflow: "hidden", background: "linear-gradient(90deg, rgba(0,0,0,0.18), transparent 9%, transparent 91%, rgba(0,0,0,0.22)), linear-gradient(180deg, rgba(255,255,255,0.13), rgba(0,0,0,0.16)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 38px 95px rgba(0,0,0,0.38), inset 14px 0 24px rgba(0,0,0,0.16), inset -14px 0 24px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.24)", perspective: 1200 },
+    storageLid: { position: "absolute", left: 46, right: 46, top: 32, height: 92, borderRadius: "18px 18px 10px 10px", background: "linear-gradient(180deg, rgba(255,255,255,0.20), rgba(0,0,0,0.12)), repeating-linear-gradient(90deg, transparent 0 12px, var(--storage-line) 13px), var(--storage-face)", border: "1px solid rgba(255,255,255,0.17)", boxShadow: "0 20px 34px rgba(0,0,0,0.24), inset 0 -12px 20px rgba(0,0,0,0.14)" },
+    storageInsideGlow: { position: "absolute", left: 66, right: 66, top: 104, height: 360, borderRadius: 24, background: dark ? "radial-gradient(circle at 50% 8%, rgba(255,255,255,0.13), rgba(0,0,0,0.26) 58%, rgba(0,0,0,0.46))" : "radial-gradient(circle at 50% 8%, rgba(255,255,255,0.62), rgba(255,255,255,0.16) 58%, rgba(0,0,0,0.18))", boxShadow: "inset 0 24px 42px rgba(0,0,0,0.32), inset 16px 0 28px rgba(0,0,0,0.16), inset -16px 0 28px rgba(0,0,0,0.16)" },
+    storageCards: { position: "absolute", left: 78, right: 78, top: 52, bottom: 112 },
+    storageRecord: { position: "absolute", width: 310, height: 310, padding: 0, border: "none", borderRadius: 18, background: "transparent", color: text, cursor: "pointer", transformOrigin: "50% 100%", transition: "transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease, filter 0.2s ease", filter: "drop-shadow(0 22px 32px rgba(0,0,0,0.34))" },
     recordSleeve: { position: "absolute", inset: 0, borderRadius: 18, overflow: "hidden", background: dark ? "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))" : "linear-gradient(135deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48))", border: dark ? "1px solid rgba(255,255,255,0.16)" : "1px solid rgba(0,0,0,0.09)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)" },
     recordBlank: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: text, fontSize: 44, letterSpacing: 2, background: "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.20))" },
     recordTitle: { position: "absolute", left: 14, right: 14, bottom: 14, padding: "9px 10px", borderRadius: 12, background: dark ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.78)", color: text, fontSize: 12, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", backdropFilter: "blur(14px)", transition: "opacity 0.2s ease, transform 0.2s ease" },
-    storageFront: { position: "absolute", left: 0, right: 0, bottom: 0, height: 138, background: "linear-gradient(180deg, rgba(255,255,255,0.12), rgba(0,0,0,0.16)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", borderTop: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 -22px 40px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.20)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 30px 24px" },
+    storageFront: { position: "absolute", left: 0, right: 0, bottom: 0, height: 168, zIndex: 650, background: "linear-gradient(180deg, rgba(255,255,255,0.16), rgba(0,0,0,0.20)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", borderTop: "1px solid rgba(255,255,255,0.20)", boxShadow: "0 -26px 44px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -18px 28px rgba(0,0,0,0.18)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 34px 28px" },
     storageBrand: { color: "#f4d98c", fontSize: 18, fontFamily: "Georgia, serif", fontStyle: "italic", textShadow: "0 2px 4px rgba(0,0,0,0.45)" },
     storageCount: { color: text, opacity: 0.72, fontSize: 12 },
     storageEmpty: { position: "absolute", left: "50%", top: "45%", transform: "translate(-50%, -50%)", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: text, fontSize: 13 },
