@@ -278,6 +278,48 @@ const SPLATTER_STYLES = [
   { id: "drip", label: "drip" },
 ];
 
+const STORAGE_WOODS = [
+  {
+    id: "oak",
+    label: "oak",
+    face: "linear-gradient(135deg, #c98f45 0%, #9a6128 42%, #d6a45a 100%)",
+    edge: "#6e431d",
+    line: "rgba(80,42,13,0.24)",
+  },
+  {
+    id: "walnut",
+    label: "walnut",
+    face: "linear-gradient(135deg, #7a4a2a 0%, #3f2416 48%, #9a6538 100%)",
+    edge: "#24140c",
+    line: "rgba(255,220,170,0.14)",
+  },
+  {
+    id: "ash",
+    label: "ash",
+    face: "linear-gradient(135deg, #d8c8ae 0%, #a89170 48%, #efe3ce 100%)",
+    edge: "#7a684f",
+    line: "rgba(70,52,32,0.18)",
+  },
+  {
+    id: "cherry",
+    label: "cherry",
+    face: "linear-gradient(135deg, #b4643d 0%, #71321f 48%, #d28a58 100%)",
+    edge: "#4f2114",
+    line: "rgba(60,20,10,0.22)",
+  },
+  {
+    id: "black",
+    label: "black oak",
+    face: "linear-gradient(135deg, #242424 0%, #0f0f0f 52%, #383838 100%)",
+    edge: "#070707",
+    line: "rgba(255,255,255,0.08)",
+  },
+];
+
+function getWoodTheme(id) {
+  return STORAGE_WOODS.find(wood => wood.id === id) || STORAGE_WOODS[0];
+}
+
 // Deck helpers
 
 function normalizeDeckStyle(style) {
@@ -1044,6 +1086,11 @@ export default function App() {
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [folders, setFolders] = useState(() => safeJSON("aurae_folders", []));
   const [projectOrder, setProjectOrder] = useState(() => safeJSON("aurae_project_order", []));
+  const [storageConfigs, setStorageConfigs] = useState(() => safeJSON("aurae_storage_configs", {}));
+  const [storageDraftName, setStorageDraftName] = useState("My Vinyl Storage");
+  const [storageDraftWood, setStorageDraftWood] = useState("oak");
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [hoveredProject, setHoveredProject] = useState(null);
   const [dragOverProject, setDragOverProject] = useState(null);
   const [dragOverTrack, setDragOverTrack] = useState(null);
 
@@ -1170,6 +1217,7 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem("aurae_folders", JSON.stringify(folders)); }, [folders]);
   useEffect(() => { localStorage.setItem("aurae_project_order", JSON.stringify(projectOrder)); }, [projectOrder]);
+  useEffect(() => { localStorage.setItem("aurae_storage_configs", JSON.stringify(storageConfigs)); }, [storageConfigs]);
   useEffect(() => { localStorage.setItem("aurae_theme", theme); }, [theme]);
 
   useEffect(() => {
@@ -1271,10 +1319,38 @@ export default function App() {
     setAuthLoading(false);
   }
 
+  function createStorage() {
+    if (!currentUser) return;
+    const cleanName = storageDraftName.trim() || "My Vinyl Storage";
+    setStorageConfigs(prev => ({
+      ...prev,
+      [currentUser]: {
+        name: cleanName,
+        wood: storageDraftWood,
+        createdAt: Date.now(),
+      },
+    }));
+  }
+
+  function updateStorageConfig(key, value) {
+    if (!currentUser) return;
+    setStorageConfigs(prev => ({
+      ...prev,
+      [currentUser]: {
+        name: "My Vinyl Storage",
+        wood: "oak",
+        ...(prev[currentUser] || {}),
+        [key]: value,
+      },
+    }));
+  }
+
   async function createProject(name = projectName) {
     const clean = name.trim();
     if (!clean || projectsMeta[clean]) return;
     const p = {
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
       tracks: [],
       cover: null,
       sideCovers: [],
@@ -1284,7 +1360,7 @@ export default function App() {
       homeCover: null,
       vinylColor: "#111111",
       vinylColors: DEFAULT_VINYL_COLORS,
-      vinylGradient: "radial",
+      vinylGradient: "solid",
       vinylOpacity: 1,
       splatterColor: "#3a7bd5",
       splatterOn: false,
@@ -1293,6 +1369,7 @@ export default function App() {
       deckColor: "#1a1a1a",
     };
     setProjectsMeta(prev => ({ ...prev, [clean]: p }));
+    setSelectedProject(clean);
     await saveProjectToDB(clean, p);
     setProjectName("");
     setShowCreate(false);
@@ -1307,11 +1384,14 @@ export default function App() {
   }
 
   function projectPayload(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
+    const existing = projectsMeta[activeProject] || {};
     const nextColors = overrides.vinylColors || vinylColors;
     const nextSideCovers = overrides.sideCovers ?? sideCovers;
     const nextVinylColor = overrides.vinylColor || nextColors[0] || vinylColor;
     const nextSplatStyle = overrides.splatterStyle === "comet" ? "burst" : overrides.splatterStyle ?? splatterStyle;
     return {
+      createdAt: existing.createdAt || Date.now(),
+      updatedAt: Date.now(),
       tracks: nextTracks.map(({ url, ...m }) => m),
       cover: nextCover,
       sideCovers: nextSideCovers,
@@ -1425,6 +1505,8 @@ export default function App() {
       projects: f.projects.map(p => p === oldName ? clean : p),
     })));
     setProjectOrder(prev => prev.map(p => p === oldName ? clean : p));
+    setSelectedProject(prev => prev === oldName ? clean : prev);
+    setHoveredProject(prev => prev === oldName ? clean : prev);
     if (activeProject === oldName) setActiveProject(clean);
     setRenameModal(null);
   }
@@ -1438,6 +1520,8 @@ export default function App() {
     });
     setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.filter(p => p !== name) })));
     setProjectOrder(prev => prev.filter(p => p !== name));
+    setSelectedProject(prev => prev === name ? null : prev);
+    setHoveredProject(prev => prev === name ? null : prev);
     if (activeProject === name) setView("home");
   }
 
@@ -1689,141 +1773,186 @@ export default function App() {
   }
 
   if (view === "home") {
-    const currentFolder = folders.find(f => f.id === folderOpen);
-    const rawProjects = folderOpen ? currentFolder?.projects || [] : rootProjects();
-    const visibleProjects = getOrdered(rawProjects);
+    const storageConfig = currentUser ? storageConfigs[currentUser] : null;
+    const wood = getWoodTheme(storageConfig?.wood || storageDraftWood);
+    const storageProjects = Object.keys(projectsMeta).sort((a, b) => {
+      const pa = projectsMeta[a] || {};
+      const pb = projectsMeta[b] || {};
+      return (pb.createdAt || pb.updatedAt || 0) - (pa.createdAt || pa.updatedAt || 0);
+    });
+    const focusedProject = selectedProject || hoveredProject || storageProjects[0] || null;
+    const focusedMeta = focusedProject ? projectsMeta[focusedProject] || {} : {};
+    const focusedCovers = focusedProject ? normalizeSideCovers(focusedMeta) : [];
+    const focusedCover = focusedMeta.homeCover || focusedMeta.cover || focusedCovers[0] || null;
+
+    if (!storageConfig) {
+      return (
+        <div style={S.home}>
+          <div style={S.storageSetup}>
+            <div style={S.logo}>AURAE OS</div>
+            <div style={S.storageSetupPanel}>
+              <div style={S.storageSetupTitle}>Create your vinyl storage</div>
+              <div style={S.storageSetupCopy}>
+                Choose a cabinet style first. Your projects will live here as records.
+              </div>
+              <input
+                style={S.input}
+                value={storageDraftName}
+                onChange={e => setStorageDraftName(e.target.value)}
+                placeholder="storage name"
+              />
+              <div style={S.woodGrid}>
+                {STORAGE_WOODS.map(item => (
+                  <button
+                    key={item.id}
+                    style={{
+                      ...S.woodChoice,
+                      ...(storageDraftWood === item.id ? S.woodChoiceActive : {}),
+                    }}
+                    onClick={() => setStorageDraftWood(item.id)}
+                  >
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <button style={S.btn} onClick={createStorage}>create storage</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div style={S.home}>
-        <div style={S.centerHome}>
-          <div style={S.logo}>AURAE OS</div>
+        <div style={S.storageHome}>
+          <div style={S.storageTopbar}>
+            <div>
+              <div style={S.logo}>AURAE OS</div>
+              <div style={S.storageSubtitle}>{storageConfig.name}</div>
+            </div>
 
-          <div style={S.topBtns}>
-            <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>
-              {dark ? "Light" : "Dark"}
-            </button>
-            <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
-            <button style={S.btn} onClick={() => setShowFolder(true)}>+ folder</button>
-            {folderOpen && <button style={S.btn} onClick={() => setFolderOpen(null)}>back</button>}
+            <div style={S.topBtns}>
+              <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>
+                {dark ? "Light" : "Dark"}
+              </button>
+              <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
+            </div>
           </div>
 
           {!projectsLoaded && <div style={S.loading}>Loading...</div>}
 
-          <div style={S.grid}>
-            {!folderOpen && folders.map(folder => (
-              <div
-                key={folder.id}
-                style={S.card}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => moveToFolder(e.dataTransfer.getData("text/plain"), folder.id)}
-                onClick={() => setFolderOpen(folder.id)}
-              >
-                {(() => {
-                  const covers = folder.projects
-                    .map(project => {
-                      const p = projectsMeta[project] || {};
-                      const coversForProject = normalizeSideCovers(p);
-                      return p.homeCover || p.cover || coversForProject[0] || null;
-                    })
-                    .filter(Boolean);
-
-                  if (covers.length === 1) {
-                    return (
-                      <div style={S.coverWrap}>
-                        <img src={covers[0]} alt="" style={S.cover} />
-                      </div>
-                    );
-                  }
-                  return (
-                    <div style={S.folderGrid}>
-                      {[0, 1, 2, 3].map(i =>
-                        covers[i]
-                          ? <img key={i} src={covers[i]} alt="" style={S.folderImg} />
-                          : <div key={i} style={S.folderBlank} />
-                      )}
-                    </div>
-                  );
-                })()}
-
-                <div style={S.cardName}>{folder.name}</div>
-                <div style={S.cardSub}>{folder.projects.length} projects</div>
-
-                <div style={S.cardActions}>
+          <div style={S.storageLayout}>
+            <div style={S.storageControls}>
+              <div style={S.sectionTitle}>Wood</div>
+              <div style={S.woodGridCompact}>
+                {STORAGE_WOODS.map(item => (
                   <button
-                    style={S.smallBtn}
-                    onClick={e => { e.stopPropagation(); setRenameModal({ type: "folder", id: folder.id, value: folder.name }); }}
+                    key={item.id}
+                    style={{
+                      ...S.woodChoice,
+                      ...(storageConfig.wood === item.id ? S.woodChoiceActive : {}),
+                    }}
+                    onClick={() => updateStorageConfig("wood", item.id)}
                   >
-                    rename
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
+                    {item.label}
                   </button>
-                  <button
-                    style={S.smallBtn}
-                    onClick={e => { e.stopPropagation(); deleteFolder(folder.id); }}
-                  >
-                    delete
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
 
-            {visibleProjects.map(name => {
-              const p = projectsMeta[name] || {};
-              const covers = normalizeSideCovers(p);
-              const cover = p.homeCover || p.cover || covers[0];
-              return (
-                <div
-                  key={name}
-                  style={{ ...S.card, outline: dragOverProject === name ? "2px solid rgba(255,255,255,0.5)" : "none" }}
-                  draggable
-                  onDragStart={e => {
-                    e.dataTransfer.setData("text/plain", name);
-                    e.dataTransfer.setData("aurae_project", name);
-                  }}
-                  onDragOver={e => { e.preventDefault(); setDragOverProject(name); }}
-                  onDragLeave={() => setDragOverProject(null)}
-                  onDrop={e => {
-                    e.preventDefault();
-                    setDragOverProject(null);
-                    const dragged = e.dataTransfer.getData("aurae_project");
-                    if (dragged && dragged !== name) moveOrder(dragged, name);
-                  }}
-                  onClick={() => openProject(name)}
-                >
-                  <div style={S.coverWrap}>
-                    {cover ? <img src={cover} alt="" style={S.cover} /> : <div style={S.blankCover} />}
+              {focusedProject && (
+                <div style={S.focusPanel}>
+                  <div style={S.focusCover}>
+                    {focusedCover ? <img src={focusedCover} alt="" style={S.cover} /> : <div style={S.blankCover} />}
                   </div>
-
-                  <div style={S.cardName}>{name}</div>
-                  <div style={S.cardSub}>{p.tracks?.length || 0} tracks</div>
-
-                  <div style={S.cardActions}>
-                    <label style={S.smallBtn} onClick={e => e.stopPropagation()}>
+                  <div style={S.focusTitle}>{focusedProject}</div>
+                  <div style={S.cardSub}>{focusedMeta.tracks?.length || 0} tracks</div>
+                  <div style={S.focusActions}>
+                    <button style={S.smallBtn} onClick={() => openProject(focusedProject)}>open player</button>
+                    <label style={S.smallBtn}>
                       cover art
-                      <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addHomeCover(e, name)} />
+                      <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addHomeCover(e, focusedProject)} />
                     </label>
-                    {folderOpen && (
-                      <button
-                        style={S.smallBtn}
-                        onClick={e => { e.stopPropagation(); removeFromFolder(name, folderOpen); }}
-                      >
-                        remove
-                      </button>
-                    )}
                     <button
                       style={S.smallBtn}
-                      onClick={e => { e.stopPropagation(); setRenameModal({ type: "project", id: name, value: name }); }}
+                      onClick={() => setRenameModal({ type: "project", id: focusedProject, value: focusedProject })}
                     >
                       rename
                     </button>
-                    <button
-                      style={S.smallBtn}
-                      onClick={e => { e.stopPropagation(); deleteProject(name); }}
-                    >
-                      delete
-                    </button>
+                    <button style={S.smallBtn} onClick={() => deleteProject(focusedProject)}>delete</button>
                   </div>
                 </div>
-              );
-            })}
+              )}
+            </div>
+
+            <div
+              style={{
+                ...S.storageCabinet,
+                "--storage-face": wood.face,
+                "--storage-edge": wood.edge,
+                "--storage-line": wood.line,
+              }}
+            >
+              <div style={S.storageLid} />
+              <div style={S.storageInsideGlow} />
+              <div style={S.storageCards}>
+                {storageProjects.map((name, i) => {
+                  const p = projectsMeta[name] || {};
+                  const covers = normalizeSideCovers(p);
+                  const cover = p.homeCover || p.cover || covers[0] || null;
+                  const depth = Math.min(i, 12);
+                  const selected = selectedProject === name;
+                  const hovered = hoveredProject === name;
+                  const left = 248 - depth * 18;
+                  const top = 105 + depth * 13;
+                  const lift = hovered && !selected ? -18 : 0;
+                  return (
+                    <button
+                      key={name}
+                      style={{
+                        ...S.storageRecord,
+                        left,
+                        top,
+                        zIndex: selected ? 800 : 500 - i,
+                        opacity: i > 13 && !selected ? 0 : 1,
+                        transform: selected
+                          ? "translate(182px, -20px) rotate(-2deg) scale(1.06)"
+                          : `translate(${hovered ? 38 : 0}px, ${lift}px) rotate(${Math.max(-4, -i * 0.35)}deg) scale(${1 - Math.min(i, 10) * 0.01})`,
+                      }}
+                      onMouseEnter={() => setHoveredProject(name)}
+                      onMouseLeave={() => setHoveredProject(null)}
+                      onFocus={() => setHoveredProject(name)}
+                      onClick={() => {
+                        if (selectedProject === name) openProject(name);
+                        else setSelectedProject(name);
+                      }}
+                    >
+                      <span style={S.recordSleeve}>
+                        {cover ? <img src={cover} alt="" style={S.cover} /> : <span style={S.recordBlank}>{name.slice(0, 2).toUpperCase()}</span>}
+                      </span>
+                      <span style={{
+                        ...S.recordTitle,
+                        opacity: selected || hovered ? 1 : 0,
+                        transform: selected || hovered ? "translateY(0)" : "translateY(8px)",
+                      }}>
+                        {name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={S.storageFront}>
+                <div style={S.storageBrand}>{storageConfig.name}</div>
+                <div style={S.storageCount}>{storageProjects.length} records</div>
+              </div>
+              {!storageProjects.length && (
+                <div style={S.storageEmpty}>
+                  <div>No records yet</div>
+                  <button style={S.btn} onClick={() => setShowCreate(true)}>create first project</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1839,22 +1968,6 @@ export default function App() {
                 onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }}
               />
               <button style={S.btn} onClick={() => createProject()}>create</button>
-            </div>
-          </div>
-        )}
-
-        {showFolder && (
-          <div style={OVL} onClick={() => setShowFolder(false)}>
-            <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
-              <input
-                autoFocus
-                style={S.input}
-                placeholder="folder name"
-                value={folderName}
-                onChange={e => setFolderName(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") createFolder(); if (e.key === "Escape") setShowFolder(false); }}
-              />
-              <button style={S.btn} onClick={createFolder}>create</button>
             </div>
           </div>
         )}
@@ -2228,6 +2341,36 @@ function makeStyles(dark, text) {
     home: { ...scrollVars, minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
     centerHome: { width: "min(1180px, calc(100% - 36px))", margin: "0 auto", paddingTop: 68, paddingBottom: 48, color: text },
     topBtns: { display: "flex", justifyContent: "center", gap: 10, marginBottom: 24, flexWrap: "wrap", color: text },
+    storageSetup: { minHeight: "100vh", width: "min(760px, calc(100% - 36px))", margin: "0 auto", padding: "72px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: 18 },
+    storageSetupPanel: { padding: 22, borderRadius: 24, background: glass, color: text, border, boxShadow: shadow, backdropFilter: "blur(28px) saturate(1.25)", display: "flex", flexDirection: "column", gap: 14 },
+    storageSetupTitle: { color: text, fontSize: 20, fontFamily: baseFont, letterSpacing: 0.5 },
+    storageSetupCopy: { color: text, opacity: 0.72, fontSize: 12, lineHeight: 1.55 },
+    woodGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))", gap: 10 },
+    woodGridCompact: { display: "grid", gridTemplateColumns: "1fr", gap: 8 },
+    woodChoice: { minHeight: 42, padding: "8px 10px", borderRadius: 13, border, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.64)", color: text, cursor: "pointer", display: "flex", alignItems: "center", gap: 9, fontFamily: baseFont, fontSize: 11, textAlign: "left" },
+    woodChoiceActive: { background: dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.09)", borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.20)" },
+    woodSwatch: { width: 28, height: 28, borderRadius: 8, border: "1px solid", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22), 0 6px 16px rgba(0,0,0,0.20)", flexShrink: 0 },
+    storageHome: { width: "min(1240px, calc(100% - 36px))", minHeight: "100vh", margin: "0 auto", padding: "44px 0 58px", color: text },
+    storageTopbar: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 18, marginBottom: 22 },
+    storageSubtitle: { color: text, opacity: 0.66, fontSize: 12, marginTop: -4, textAlign: "center", letterSpacing: 1 },
+    storageLayout: { display: "grid", gridTemplateColumns: "260px minmax(620px, 1fr)", gap: 24, alignItems: "center" },
+    storageControls: { padding: 14, borderRadius: 22, background: glass, border, boxShadow: shadow, backdropFilter: "blur(26px) saturate(1.2)", display: "flex", flexDirection: "column", gap: 14 },
+    focusPanel: { padding: 12, borderRadius: 18, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.62)", border, display: "flex", flexDirection: "column", gap: 9 },
+    focusCover: { width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" },
+    focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+    focusActions: { display: "flex", flexWrap: "wrap", gap: 6 },
+    storageCabinet: { position: "relative", minHeight: 620, borderRadius: 26, overflow: "hidden", background: "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.12)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 34px 90px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.22)", perspective: 1000 },
+    storageLid: { position: "absolute", left: 34, right: 34, top: 34, height: 80, borderRadius: "18px 18px 8px 8px", background: "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.10)), repeating-linear-gradient(90deg, transparent 0 12px, var(--storage-line) 13px), var(--storage-face)", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 18px 32px rgba(0,0,0,0.20), inset 0 -8px 18px rgba(0,0,0,0.12)" },
+    storageInsideGlow: { position: "absolute", left: 54, right: 54, top: 96, height: 320, borderRadius: 22, background: dark ? "radial-gradient(circle at 50% 10%, rgba(255,255,255,0.12), rgba(0,0,0,0.24) 60%, rgba(0,0,0,0.40))" : "radial-gradient(circle at 50% 10%, rgba(255,255,255,0.56), rgba(255,255,255,0.16) 58%, rgba(0,0,0,0.14))", boxShadow: "inset 0 18px 36px rgba(0,0,0,0.28)" },
+    storageCards: { position: "absolute", left: 70, right: 70, top: 48, bottom: 92 },
+    storageRecord: { position: "absolute", width: 270, height: 270, padding: 0, border: "none", borderRadius: 18, background: "transparent", color: text, cursor: "pointer", transformOrigin: "50% 100%", transition: "transform 0.38s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease, filter 0.2s ease", filter: "drop-shadow(0 18px 28px rgba(0,0,0,0.30))" },
+    recordSleeve: { position: "absolute", inset: 0, borderRadius: 18, overflow: "hidden", background: dark ? "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))" : "linear-gradient(135deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48))", border: dark ? "1px solid rgba(255,255,255,0.16)" : "1px solid rgba(0,0,0,0.09)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)" },
+    recordBlank: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: text, fontSize: 44, letterSpacing: 2, background: "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.20))" },
+    recordTitle: { position: "absolute", left: 14, right: 14, bottom: 14, padding: "9px 10px", borderRadius: 12, background: dark ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.78)", color: text, fontSize: 12, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", backdropFilter: "blur(14px)", transition: "opacity 0.2s ease, transform 0.2s ease" },
+    storageFront: { position: "absolute", left: 0, right: 0, bottom: 0, height: 138, background: "linear-gradient(180deg, rgba(255,255,255,0.12), rgba(0,0,0,0.16)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", borderTop: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 -22px 40px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.20)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 30px 24px" },
+    storageBrand: { color: "#f4d98c", fontSize: 18, fontFamily: "Georgia, serif", fontStyle: "italic", textShadow: "0 2px 4px rgba(0,0,0,0.45)" },
+    storageCount: { color: text, opacity: 0.72, fontSize: 12 },
+    storageEmpty: { position: "absolute", left: "50%", top: "45%", transform: "translate(-50%, -50%)", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: text, fontSize: 13 },
     loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
     grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))", gap: 16, color: text },
     card: { minHeight: 244, padding: 12, borderRadius: 18, background: glass, color: text, border, boxShadow: dark ? "0 18px 60px rgba(0,0,0,0.22)" : "0 18px 50px rgba(50,60,80,0.11)", textAlign: "center", cursor: "pointer", backdropFilter: "blur(24px) saturate(1.3)", display: "flex", flexDirection: "column" },
@@ -2362,6 +2505,5 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
-
 
 
