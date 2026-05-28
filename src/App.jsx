@@ -2069,28 +2069,48 @@ export default function App() {
             >
               <div style={S.storageLid} />
               <div style={S.storageInsideGlow} />
+              <div style={S.storageLeftRail} />
+              <div style={S.storageRightRail} />
+              <div style={S.storageLeftLeg} />
+              <div style={S.storageRightLeg} />
               <div style={S.storageCards}>
+                {Array.from({ length: Math.max(0, 34 - storageProjects.length) }).map((_, i) => {
+                  const left = 36 + i * 18;
+                  const shade = 38 + (i * 19) % 150;
+                  return (
+                    <span
+                      key={`filler-${i}`}
+                      style={{
+                        ...S.storageFillerRecord,
+                        left,
+                        top: 38 + (i % 5) * 3,
+                        zIndex: 70 + i,
+                        background: `linear-gradient(90deg, rgb(${shade},${Math.max(30, shade - 18)},${Math.max(26, shade - 28)}), #f2f2e8 48%, #1f1f22 52%, rgb(${Math.max(42, shade - 16)},${Math.max(35, shade - 22)},${Math.max(32, shade - 32)}))`,
+                      }}
+                    />
+                  );
+                })}
                 {storageProjects.map((name, i) => {
                   const p = projectsMeta[name] || {};
                   const covers = normalizeSideCovers(p);
                   const cover = p.homeCover || p.cover || covers[0] || null;
-                  const depth = Math.min(i, 12);
                   const selected = selectedProject === name;
                   const hovered = hoveredProject === name;
-                  const sideShift = (i % 2 === 0 ? -1 : 1) * Math.min(depth * 3, 20);
-                  const top = 150 - depth * 8;
+                  const left = 46 + i * 22;
+                  const top = 34 + (i % 6) * 3;
                   return (
                     <button
                       key={name}
                       style={{
                         ...S.storageRecord,
-                        left: "50%",
+                        left,
                         top,
-                        zIndex: selected ? 800 : 500 - i,
-                        opacity: i > 16 && !selected ? 0 : 1,
+                        width: selected ? 292 : hovered ? 112 : 82,
+                        zIndex: selected ? 820 : hovered ? 720 : 170 + i,
+                        opacity: i > 22 && !selected ? 0 : 1,
                         transform: selected
-                          ? "translate(-50%, -92px) rotate(0deg) scale(1.08)"
-                          : `translate(calc(-50% + ${hovered ? 0 : sideShift}px), ${hovered ? -34 : 0}px) rotate(${hovered ? 0 : sideShift / 8}deg) scale(${1 - Math.min(i, 12) * 0.012})`,
+                          ? "translate(420px, 22px) rotate(-2deg) skewY(0deg) scale(1.02)"
+                          : `translate(${hovered ? 10 : 0}px, ${hovered ? -24 : 0}px) rotate(${hovered ? -2 : -6 + (i % 5) * 0.5}deg) skewY(-7deg) scale(${hovered ? 1.02 : 1})`,
                       }}
                       onMouseEnter={() => setHoveredProject(name)}
                       onMouseLeave={() => setHoveredProject(null)}
@@ -2101,7 +2121,18 @@ export default function App() {
                       }}
                     >
                       <span style={S.recordSleeve}>
-                        {cover ? <img src={cover} alt="" style={S.cover} /> : <span style={S.recordBlank}>{name.slice(0, 2).toUpperCase()}</span>}
+                        {cover ? (
+                          <img
+                            src={cover}
+                            alt=""
+                            style={{
+                              ...S.cover,
+                              objectPosition: selected ? "center center" : `${35 + (i % 5) * 12}% center`,
+                            }}
+                          />
+                        ) : (
+                          <span style={S.recordBlank}>{name.slice(0, 2).toUpperCase()}</span>
+                        )}
                       </span>
                       <span style={{
                         ...S.recordTitle,
@@ -2563,15 +2594,20 @@ function makeStyles(dark, text) {
     focusCover: { width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" },
     focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
     focusActions: { display: "flex", flexWrap: "wrap", gap: 6 },
-    storageCabinet: { position: "relative", minHeight: 650, borderRadius: 28, overflow: "hidden", background: "linear-gradient(90deg, rgba(0,0,0,0.18), transparent 9%, transparent 91%, rgba(0,0,0,0.22)), linear-gradient(180deg, rgba(255,255,255,0.13), rgba(0,0,0,0.16)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 38px 95px rgba(0,0,0,0.38), inset 14px 0 24px rgba(0,0,0,0.16), inset -14px 0 24px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.24)", perspective: 1200 },
-    storageLid: { position: "absolute", left: 46, right: 46, top: 32, height: 92, borderRadius: "18px 18px 10px 10px", background: "linear-gradient(180deg, rgba(255,255,255,0.20), rgba(0,0,0,0.12)), repeating-linear-gradient(90deg, transparent 0 12px, var(--storage-line) 13px), var(--storage-face)", border: "1px solid rgba(255,255,255,0.17)", boxShadow: "0 20px 34px rgba(0,0,0,0.24), inset 0 -12px 20px rgba(0,0,0,0.14)" },
-    storageInsideGlow: { position: "absolute", left: 66, right: 66, top: 104, height: 360, borderRadius: 24, background: dark ? "radial-gradient(circle at 50% 8%, rgba(255,255,255,0.13), rgba(0,0,0,0.26) 58%, rgba(0,0,0,0.46))" : "radial-gradient(circle at 50% 8%, rgba(255,255,255,0.62), rgba(255,255,255,0.16) 58%, rgba(0,0,0,0.18))", boxShadow: "inset 0 24px 42px rgba(0,0,0,0.32), inset 16px 0 28px rgba(0,0,0,0.16), inset -16px 0 28px rgba(0,0,0,0.16)" },
-    storageCards: { position: "absolute", left: 78, right: 78, top: 52, bottom: 112 },
-    storageRecord: { position: "absolute", width: 310, height: 310, padding: 0, border: "none", borderRadius: 18, background: "transparent", color: text, cursor: "pointer", transformOrigin: "50% 100%", transition: "transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease, filter 0.2s ease", filter: "drop-shadow(0 22px 32px rgba(0,0,0,0.34))" },
-    recordSleeve: { position: "absolute", inset: 0, borderRadius: 18, overflow: "hidden", background: dark ? "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))" : "linear-gradient(135deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48))", border: dark ? "1px solid rgba(255,255,255,0.16)" : "1px solid rgba(0,0,0,0.09)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)" },
+    storageCabinet: { position: "relative", minHeight: 620, borderRadius: 26, overflow: "visible", background: "transparent", perspective: 1200, filter: "drop-shadow(0 40px 48px rgba(0,0,0,0.34))" },
+    storageLid: { position: "absolute", left: 54, right: 88, top: 338, height: 90, transform: "skewX(-16deg) rotate(-1deg)", transformOrigin: "50% 0", borderRadius: "8px 8px 14px 14px", background: "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.18)), repeating-linear-gradient(0deg, transparent 0 9px, var(--storage-line) 10px), var(--storage-face)", border: "1px solid rgba(0,0,0,0.28)", boxShadow: "0 18px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.20), inset 0 -18px 22px rgba(0,0,0,0.18)" },
+    storageInsideGlow: { position: "absolute", left: 70, right: 126, top: 326, height: 26, transform: "skewX(-18deg)", borderRadius: 999, background: "rgba(0,0,0,0.36)", filter: "blur(7px)", opacity: 0.66 },
+    storageLeftRail: { position: "absolute", left: 26, top: 312, width: 22, height: 220, borderRadius: 14, background: "linear-gradient(90deg, #08090c, #242831 55%, #07080a)", transform: "rotate(13deg)", boxShadow: "0 14px 22px rgba(0,0,0,0.35)", zIndex: 760 },
+    storageRightRail: { position: "absolute", right: 72, top: 246, width: 26, height: 276, borderRadius: 15, background: "linear-gradient(90deg, #050608, #2a2f37 55%, #07080b)", transform: "rotate(-12deg)", boxShadow: "0 18px 28px rgba(0,0,0,0.38)", zIndex: 780 },
+    storageLeftLeg: { position: "absolute", left: 80, bottom: 30, width: 18, height: 150, borderRadius: 12, background: "linear-gradient(90deg, #050608, #252932 55%, #090a0d)", transform: "rotate(17deg)", transformOrigin: "50% 0", zIndex: 20, boxShadow: "0 16px 24px rgba(0,0,0,0.34)" },
+    storageRightLeg: { position: "absolute", right: 134, bottom: 22, width: 18, height: 172, borderRadius: 12, background: "linear-gradient(90deg, #050608, #252932 55%, #090a0d)", transform: "rotate(-15deg)", transformOrigin: "50% 0", zIndex: 20, boxShadow: "0 16px 24px rgba(0,0,0,0.34)" },
+    storageCards: { position: "absolute", left: 40, right: 104, top: 46, height: 380, overflow: "visible", transform: "rotate(-2deg) skewX(-8deg)", transformOrigin: "0 100%" },
+    storageFillerRecord: { position: "absolute", width: 58, height: 342, borderRadius: "7px 7px 4px 4px", border: "1px solid rgba(0,0,0,0.32)", boxShadow: "inset 3px 0 0 rgba(255,255,255,0.30), inset -5px 0 8px rgba(0,0,0,0.30), 5px 18px 16px rgba(0,0,0,0.22)", transform: "rotate(-6deg) skewY(-7deg)", transformOrigin: "50% 100%", pointerEvents: "none" },
+    storageRecord: { position: "absolute", height: 350, padding: 0, border: "none", borderRadius: 12, background: "transparent", color: text, cursor: "pointer", transformOrigin: "50% 100%", transition: "transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.28s ease, opacity 0.2s ease, filter 0.2s ease", filter: "drop-shadow(8px 22px 18px rgba(0,0,0,0.30))" },
+    recordSleeve: { position: "absolute", inset: 0, borderRadius: 12, overflow: "hidden", background: dark ? "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))" : "linear-gradient(135deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48))", border: dark ? "1px solid rgba(255,255,255,0.17)" : "1px solid rgba(0,0,0,0.16)", boxShadow: "inset 4px 0 0 rgba(255,255,255,0.34), inset -8px 0 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.10)" },
     recordBlank: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: text, fontSize: 44, letterSpacing: 2, background: "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.20))" },
     recordTitle: { position: "absolute", left: 14, right: 14, bottom: 14, padding: "9px 10px", borderRadius: 12, background: dark ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.78)", color: text, fontSize: 12, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", backdropFilter: "blur(14px)", transition: "opacity 0.2s ease, transform 0.2s ease" },
-    storageFront: { position: "absolute", left: 0, right: 0, bottom: 0, height: 168, zIndex: 650, background: "linear-gradient(180deg, rgba(255,255,255,0.16), rgba(0,0,0,0.20)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", borderTop: "1px solid rgba(255,255,255,0.20)", boxShadow: "0 -26px 44px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -18px 28px rgba(0,0,0,0.18)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 34px 28px" },
+    storageFront: { position: "absolute", left: 34, right: 104, bottom: 110, height: 86, zIndex: 650, transform: "skewX(-16deg) rotate(-1deg)", background: "linear-gradient(180deg, rgba(255,255,255,0.16), rgba(0,0,0,0.24)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", border: "1px solid rgba(0,0,0,0.34)", boxShadow: "0 -20px 38px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -18px 28px rgba(0,0,0,0.20)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 34px 22px" },
     storageBrand: { color: "#f4d98c", fontSize: 18, fontFamily: "Georgia, serif", fontStyle: "italic", textShadow: "0 2px 4px rgba(0,0,0,0.45)" },
     storageCount: { color: text, opacity: 0.72, fontSize: 12 },
     storageEmpty: { position: "absolute", left: "50%", top: "45%", transform: "translate(-50%, -50%)", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: text, fontSize: 13 },
@@ -2709,5 +2745,4 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
-
 
