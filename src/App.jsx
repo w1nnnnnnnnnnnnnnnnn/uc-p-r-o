@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 
 // IndexedDB helpers
 
@@ -112,7 +112,7 @@ async function emailDomainHasMailExchange(email) {
   const domain = normalizeEmail(email).split("@")[1];
   if (!domain || domain.includes("..")) return false;
 
-  const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`, {
+  const res = await fetch(`[cloudflare-dns.com](https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX)`, {
     headers: { accept: "application/dns-json" },
   });
   if (!res.ok) return false;
@@ -1115,6 +1115,70 @@ const MOD = (dark, text) => ({
   gap: 12,
 });
 
+// Storage Record Component - optimized for performance
+const StorageRecord = React.memo(function StorageRecord({
+  name,
+  cover,
+  index,
+  isSelected,
+  isHovered,
+  totalProjects,
+  onMouseEnter,
+  onMouseLeave,
+  onClick,
+  dark,
+  text,
+  S,
+}) {
+  const left = 46 + index * 22;
+  const top = 34 + (index % 6) * 3;
+  
+  // Only show records that can fit visually (max ~25 visible)
+  const maxVisible = 25;
+  if (index > maxVisible && !isSelected) return null;
+
+  return (
+    <button
+      style={{
+        ...S.storageRecord,
+        left,
+        top,
+        width: isSelected ? 292 : isHovered ? 112 : 82,
+        zIndex: isSelected ? 820 : isHovered ? 720 : 170 + index,
+        opacity: index > maxVisible - 3 && !isSelected && !isHovered ? 0.5 : 1,
+        transform: isSelected
+          ? "translate(420px, 22px) rotate(-2deg) skewY(0deg) scale(1.02)"
+          : `translate(${isHovered ? 10 : 0}px, ${isHovered ? -24 : 0}px) rotate(${isHovered ? -2 : -6 + (index % 5) * 0.5}deg) skewY(-7deg) scale(${isHovered ? 1.02 : 1})`,
+      }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onClick={onClick}
+    >
+      <span style={S.recordSleeve}>
+        {cover ? (
+          <img
+            src={cover}
+            alt=""
+            style={{
+              ...S.cover,
+              objectPosition: isSelected ? "center center" : `${35 + (index % 5) * 12}% center`,
+            }}
+          />
+        ) : (
+          <span style={S.recordBlank}>{name.slice(0, 2).toUpperCase()}</span>
+        )}
+      </span>
+      <span style={{
+        ...S.recordTitle,
+        opacity: isSelected || isHovered ? 1 : 0,
+        transform: isSelected || isHovered ? "translateY(0)" : "translateY(8px)",
+      }}>
+        {name}
+      </span>
+    </button>
+  );
+});
+
 export default function App() {
   const initialUser = getInitialSessionUser();
   const [view, setView] = useState(() => initialUser ? "home" : "auth");
@@ -1133,7 +1197,6 @@ export default function App() {
   const [newStorageWood, setNewStorageWood] = useState("walnut");
   const [selectedProject, setSelectedProject] = useState(null);
   const [hoveredProject, setHoveredProject] = useState(null);
-  const [dragOverProject, setDragOverProject] = useState(null);
   const [dragOverTrack, setDragOverTrack] = useState(null);
 
   const [email, setEmail] = useState("");
@@ -1143,10 +1206,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
-  const [showFolder, setShowFolder] = useState(false);
   const [projectName, setProjectName] = useState("");
-  const [folderName, setFolderName] = useState("");
-  const [folderOpen, setFolderOpen] = useState(null);
   const [renameModal, setRenameModal] = useState(null);
   const [songMenu, setSongMenu] = useState(null);
 
@@ -1177,10 +1237,11 @@ export default function App() {
   const [awaitingFlip, setAwaitingFlip] = useState(false);
 
   const audioRef = useRef(null);
+  const hoverTimeoutRef = useRef(null);
 
   const dark = theme === "dark";
   const text = dark ? "#ffffff" : "#000000";
-  const S = makeStyles(dark, text);
+  const S = useMemo(() => makeStyles(dark, text), [dark, text]);
 
   const sideBoundaries = useMemo(() => computeSideBoundaries(tracks), [tracks]);
   const totalSides = sideBoundaries.length;
@@ -1200,6 +1261,41 @@ export default function App() {
   }, [tracks, sideBoundaries, vinylSide, index, currentTime, duration]);
 
   const needsTurn = awaitingFlip && !flipping;
+
+  // Debounced hover handlers
+  const handleRecordMouseEnter = useCallback((name) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    setHoveredProject(name);
+  }, []);
+
+  const handleRecordMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredProject(null);
+    }, 50);
+  }, []);
+
+  // Clear hover timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Clear hovered project when clicking outside storage area
+  const handleStorageAreaClick = useCallback((e) => {
+    // Only clear if clicking directly on the storage area, not on a record
+    if (e.target === e.currentTarget) {
+      setHoveredProject(null);
+      setSelectedProject(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!tracks.length) return;
@@ -1432,25 +1528,6 @@ export default function App() {
     setShowStorageCreate(false);
   }
 
-  function addProjectToActiveStorage(projectNameForStorage) {
-    if (!currentUser || !projectNameForStorage) return;
-    setStorageConfigs(prev => {
-      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
-      if (!shelf.activeId) return prev;
-      return {
-        ...prev,
-        [currentUser]: {
-          ...shelf,
-          items: shelf.items.map(item => {
-            const without = item.projects.filter(name => name !== projectNameForStorage);
-            if (item.id !== shelf.activeId) return { ...item, projects: without };
-            return { ...item, projects: [projectNameForStorage, ...without] };
-          }),
-        },
-      };
-    });
-  }
-
   async function createProject(name = projectName) {
     const clean = name.trim();
     if (!clean || projectsMeta[clean]) return;
@@ -1495,14 +1572,6 @@ export default function App() {
     await saveProjectToDB(clean, p);
     setProjectName("");
     setShowCreate(false);
-  }
-
-  function createFolder() {
-    const clean = folderName.trim();
-    if (!clean) return;
-    setFolders(prev => [...prev, { id: Date.now(), name: clean, projects: [] }]);
-    setFolderName("");
-    setShowFolder(false);
   }
 
   function projectPayload(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
@@ -1676,57 +1745,6 @@ export default function App() {
     if (activeProject === name) setView("home");
   }
 
-  function applyRenameFolder(id, nextName) {
-    const clean = nextName.trim();
-    if (!clean) return;
-    setFolders(prev => prev.map(f => f.id === id ? { ...f, name: clean } : f));
-    setRenameModal(null);
-  }
-
-  function deleteFolder(id) {
-    setFolders(prev => prev.filter(f => f.id !== id));
-    if (folderOpen === id) setFolderOpen(null);
-  }
-
-  function rootProjects() {
-    const inside = new Set(folders.flatMap(f => f.projects));
-    return Object.keys(projectsMeta).filter(p => !inside.has(p));
-  }
-
-  function getOrdered(list) {
-    return [
-      ...projectOrder.filter(p => list.includes(p)),
-      ...list.filter(p => !projectOrder.includes(p)),
-    ];
-  }
-
-  function moveOrder(from, to) {
-    const list = getOrdered(Object.keys(projectsMeta));
-    const next = [...list];
-    const fi = next.indexOf(from);
-    const ti = next.indexOf(to);
-    if (fi < 0 || ti < 0) return;
-    const item = next.splice(fi, 1)[0];
-    next.splice(ti, 0, item);
-    setProjectOrder(next);
-  }
-
-  function moveToFolder(project, folderId) {
-    if (!project || !folderId) return;
-    setFolders(prev => prev.map(f => {
-      const without = f.projects.filter(p => p !== project);
-      if (f.id !== folderId) return { ...f, projects: without };
-      return { ...f, projects: [...new Set([...without, project])] };
-    }));
-  }
-
-  function removeFromFolder(project, folderId = folderOpen) {
-    if (!project || !folderId) return;
-    setFolders(prev => prev.map(f =>
-      f.id === folderId ? { ...f, projects: f.projects.filter(p => p !== project) } : f
-    ));
-  }
-
   async function addTracks(e) {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -1831,7 +1849,6 @@ export default function App() {
     setAwaitingFlip(false);
     setFlipping(true);
 
-    // Swap the side cover while the record is edge-on, so the image does not pop in after the flip.
     setTimeout(() => setVinylSide(nextSide), FLIP_COVER_SWAP);
 
     setTimeout(() => {
@@ -2007,7 +2024,7 @@ export default function App() {
                     onClick={() => setActiveStorage(item.id)}
                   >
                     <span>{item.name}</span>
-                    <small>{item.projects.length}</small>
+                    <small>{item.projects.filter(name => projectsMeta[name]).length}</small>
                   </button>
                 ))}
               </div>
@@ -2066,6 +2083,7 @@ export default function App() {
                 "--storage-edge": wood.edge,
                 "--storage-line": wood.line,
               }}
+              onClick={handleStorageAreaClick}
             >
               <div style={S.storageLid} />
               <div style={S.storageInsideGlow} />
@@ -2074,74 +2092,31 @@ export default function App() {
               <div style={S.storageLeftLeg} />
               <div style={S.storageRightLeg} />
               <div style={S.storageCards}>
-                {Array.from({ length: Math.max(0, 34 - storageProjects.length) }).map((_, i) => {
-                  const left = 36 + i * 18;
-                  const shade = 38 + (i * 19) % 150;
-                  return (
-                    <span
-                      key={`filler-${i}`}
-                      style={{
-                        ...S.storageFillerRecord,
-                        left,
-                        top: 38 + (i % 5) * 3,
-                        zIndex: 70 + i,
-                        background: `linear-gradient(90deg, rgb(${shade},${Math.max(30, shade - 18)},${Math.max(26, shade - 28)}), #f2f2e8 48%, #1f1f22 52%, rgb(${Math.max(42, shade - 16)},${Math.max(35, shade - 22)},${Math.max(32, shade - 32)}))`,
-                      }}
-                    />
-                  );
-                })}
+                {/* Only render project records - NO filler records */}
                 {storageProjects.map((name, i) => {
                   const p = projectsMeta[name] || {};
                   const covers = normalizeSideCovers(p);
                   const cover = p.homeCover || p.cover || covers[0] || null;
-                  const selected = selectedProject === name;
-                  const hovered = hoveredProject === name;
-                  const left = 46 + i * 22;
-                  const top = 34 + (i % 6) * 3;
+                  
                   return (
-                    <button
+                    <StorageRecord
                       key={name}
-                      style={{
-                        ...S.storageRecord,
-                        left,
-                        top,
-                        width: selected ? 292 : hovered ? 112 : 82,
-                        zIndex: selected ? 820 : hovered ? 720 : 170 + i,
-                        opacity: i > 22 && !selected ? 0 : 1,
-                        transform: selected
-                          ? "translate(420px, 22px) rotate(-2deg) skewY(0deg) scale(1.02)"
-                          : `translate(${hovered ? 10 : 0}px, ${hovered ? -24 : 0}px) rotate(${hovered ? -2 : -6 + (i % 5) * 0.5}deg) skewY(-7deg) scale(${hovered ? 1.02 : 1})`,
-                      }}
-                      onMouseEnter={() => setHoveredProject(name)}
-                      onMouseLeave={() => setHoveredProject(null)}
-                      onFocus={() => setHoveredProject(name)}
+                      name={name}
+                      cover={cover}
+                      index={i}
+                      isSelected={selectedProject === name}
+                      isHovered={hoveredProject === name}
+                      totalProjects={storageProjects.length}
+                      onMouseEnter={() => handleRecordMouseEnter(name)}
+                      onMouseLeave={handleRecordMouseLeave}
                       onClick={() => {
                         if (selectedProject === name) openProject(name);
                         else setSelectedProject(name);
                       }}
-                    >
-                      <span style={S.recordSleeve}>
-                        {cover ? (
-                          <img
-                            src={cover}
-                            alt=""
-                            style={{
-                              ...S.cover,
-                              objectPosition: selected ? "center center" : `${35 + (i % 5) * 12}% center`,
-                            }}
-                          />
-                        ) : (
-                          <span style={S.recordBlank}>{name.slice(0, 2).toUpperCase()}</span>
-                        )}
-                      </span>
-                      <span style={{
-                        ...S.recordTitle,
-                        opacity: selected || hovered ? 1 : 0,
-                        transform: selected || hovered ? "translateY(0)" : "translateY(8px)",
-                      }}>
-                        {name}
-                      </span>
-                    </button>
+                      dark={dark}
+                      text={text}
+                      S={S}
+                    />
                   );
                 })}
               </div>
@@ -2217,9 +2192,7 @@ export default function App() {
                 onChange={e => setRenameModal({ ...renameModal, value: e.target.value })}
                 onKeyDown={e => {
                   if (e.key === "Enter") {
-                    renameModal.type === "project"
-                      ? applyRenameProject(renameModal.id, renameModal.value)
-                      : applyRenameFolder(renameModal.id, renameModal.value);
+                    applyRenameProject(renameModal.id, renameModal.value);
                   }
                   if (e.key === "Escape") setRenameModal(null);
                 }}
@@ -2227,11 +2200,7 @@ export default function App() {
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   style={S.btn}
-                  onClick={() =>
-                    renameModal.type === "project"
-                      ? applyRenameProject(renameModal.id, renameModal.value)
-                      : applyRenameFolder(renameModal.id, renameModal.value)
-                  }
+                  onClick={() => applyRenameProject(renameModal.id, renameModal.value)}
                 >
                   save
                 </button>
@@ -2571,7 +2540,6 @@ function makeStyles(dark, text) {
     smallBtn: { padding: "7px 10px", minHeight: 30, borderRadius: 10, border, background: dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.62)", color: text, cursor: "pointer", fontSize: 11, fontFamily: baseFont },
     iconBtn: { padding: "8px 10px", borderRadius: 12, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11 },
     home: { ...scrollVars, minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
-    centerHome: { width: "min(1180px, calc(100% - 36px))", margin: "0 auto", paddingTop: 68, paddingBottom: 48, color: text },
     topBtns: { display: "flex", justifyContent: "center", gap: 10, marginBottom: 24, flexWrap: "wrap", color: text },
     storageSetup: { minHeight: "100vh", width: "min(760px, calc(100% - 36px))", margin: "0 auto", padding: "72px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: 18 },
     storageSetupPanel: { padding: 22, borderRadius: 24, background: glass, color: text, border, boxShadow: shadow, backdropFilter: "blur(28px) saturate(1.25)", display: "flex", flexDirection: "column", gap: 14 },
@@ -2602,7 +2570,6 @@ function makeStyles(dark, text) {
     storageLeftLeg: { position: "absolute", left: 80, bottom: 30, width: 18, height: 150, borderRadius: 12, background: "linear-gradient(90deg, #050608, #252932 55%, #090a0d)", transform: "rotate(17deg)", transformOrigin: "50% 0", zIndex: 20, boxShadow: "0 16px 24px rgba(0,0,0,0.34)" },
     storageRightLeg: { position: "absolute", right: 134, bottom: 22, width: 18, height: 172, borderRadius: 12, background: "linear-gradient(90deg, #050608, #252932 55%, #090a0d)", transform: "rotate(-15deg)", transformOrigin: "50% 0", zIndex: 20, boxShadow: "0 16px 24px rgba(0,0,0,0.34)" },
     storageCards: { position: "absolute", left: 40, right: 104, top: 46, height: 380, overflow: "visible", transform: "rotate(-2deg) skewX(-8deg)", transformOrigin: "0 100%" },
-    storageFillerRecord: { position: "absolute", width: 58, height: 342, borderRadius: "7px 7px 4px 4px", border: "1px solid rgba(0,0,0,0.32)", boxShadow: "inset 3px 0 0 rgba(255,255,255,0.30), inset -5px 0 8px rgba(0,0,0,0.30), 5px 18px 16px rgba(0,0,0,0.22)", transform: "rotate(-6deg) skewY(-7deg)", transformOrigin: "50% 100%", pointerEvents: "none" },
     storageRecord: { position: "absolute", height: 350, padding: 0, border: "none", borderRadius: 12, background: "transparent", color: text, cursor: "pointer", transformOrigin: "50% 100%", transition: "transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.28s ease, opacity 0.2s ease, filter 0.2s ease", filter: "drop-shadow(8px 22px 18px rgba(0,0,0,0.30))" },
     recordSleeve: { position: "absolute", inset: 0, borderRadius: 12, overflow: "hidden", background: dark ? "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))" : "linear-gradient(135deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48))", border: dark ? "1px solid rgba(255,255,255,0.17)" : "1px solid rgba(0,0,0,0.16)", boxShadow: "inset 4px 0 0 rgba(255,255,255,0.34), inset -8px 0 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.10)" },
     recordBlank: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: text, fontSize: 44, letterSpacing: 2, background: "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.20))" },
@@ -2612,17 +2579,9 @@ function makeStyles(dark, text) {
     storageCount: { color: text, opacity: 0.72, fontSize: 12 },
     storageEmpty: { position: "absolute", left: "50%", top: "45%", transform: "translate(-50%, -50%)", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: text, fontSize: 13 },
     loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
-    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(168px, 1fr))", gap: 16, color: text },
-    card: { minHeight: 244, padding: 12, borderRadius: 18, background: glass, color: text, border, boxShadow: dark ? "0 18px 60px rgba(0,0,0,0.22)" : "0 18px 50px rgba(50,60,80,0.11)", textAlign: "center", cursor: "pointer", backdropFilter: "blur(24px) saturate(1.3)", display: "flex", flexDirection: "column" },
-    coverWrap: { width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", marginBottom: 10, flexShrink: 0, background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" },
     cover: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
     blankCover: { width: "100%", height: "100%", background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))", display: "block" },
-    cardName: { color: text, fontFamily: baseFont, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
     cardSub: { color: text, fontSize: 10, opacity: 0.76, marginTop: 4 },
-    cardActions: { marginTop: "auto", paddingTop: 10, display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", color: text },
-    folderGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 10, aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden" },
-    folderImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-    folderBlank: { width: "100%", height: "100%", background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" },
     modalTitle: { color: text, fontSize: 12, opacity: 0.9, fontFamily: baseFont },
     sidebar: { width: 360, minWidth: 360, height: "100vh", padding: 18, display: "flex", flexDirection: "column", gap: 12, overflow: "hidden", background: dark ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.34)", color: text, borderRight: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
     sidebarHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, color: text },
@@ -2745,4 +2704,5 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
+
 
