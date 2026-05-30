@@ -112,7 +112,7 @@ async function emailDomainHasMailExchange(email) {
   const domain = normalizeEmail(email).split("@")[1];
   if (!domain || domain.includes("..")) return false;
 
-  const res = await fetch(`[cloudflare-dns.com](https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX)`, {
+  const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`, {
     headers: { accept: "application/dns-json" },
   });
   if (!res.ok) return false;
@@ -282,37 +282,37 @@ const STORAGE_WOODS = [
   {
     id: "oak",
     label: "oak",
-    face: "linear-gradient(135deg, #c98f45 0%, #9a6128 42%, #d6a45a 100%)",
-    edge: "#6e431d",
-    line: "rgba(80,42,13,0.24)",
+    face: "linear-gradient(180deg, #6b3f1f 0%, #4a2912 60%, #2e1808 100%)",
+    edge: "#2a1608",
+    line: "rgba(20,10,4,0.45)",
   },
   {
     id: "walnut",
     label: "walnut",
-    face: "linear-gradient(135deg, #7a4a2a 0%, #3f2416 48%, #9a6538 100%)",
-    edge: "#24140c",
-    line: "rgba(255,220,170,0.14)",
+    face: "linear-gradient(180deg, #4a2a17 0%, #2e1709 60%, #1a0d05 100%)",
+    edge: "#140a05",
+    line: "rgba(20,10,4,0.55)",
   },
   {
     id: "ash",
     label: "ash",
-    face: "linear-gradient(135deg, #d8c8ae 0%, #a89170 48%, #efe3ce 100%)",
-    edge: "#7a684f",
-    line: "rgba(70,52,32,0.18)",
+    face: "linear-gradient(180deg, #a08866 0%, #7b6346 60%, #574532 100%)",
+    edge: "#3a2c1f",
+    line: "rgba(30,20,12,0.40)",
   },
   {
     id: "cherry",
     label: "cherry",
-    face: "linear-gradient(135deg, #b4643d 0%, #71321f 48%, #d28a58 100%)",
-    edge: "#4f2114",
-    line: "rgba(60,20,10,0.22)",
+    face: "linear-gradient(180deg, #7a3a22 0%, #4a1e10 60%, #2c1208 100%)",
+    edge: "#26100a",
+    line: "rgba(40,18,10,0.45)",
   },
   {
     id: "black",
     label: "black oak",
-    face: "linear-gradient(135deg, #242424 0%, #0f0f0f 52%, #383838 100%)",
-    edge: "#070707",
-    line: "rgba(255,255,255,0.08)",
+    face: "linear-gradient(180deg, #1f1c19 0%, #110f0d 60%, #050403 100%)",
+    edge: "#020202",
+    line: "rgba(255,255,255,0.05)",
   },
 ];
 
@@ -410,7 +410,9 @@ function groovePoint(g, radius, progress) {
   const outerR = radius * 0.98;
   const innerR = radius * 0.44;
   const r = outerR + (innerR - outerR) * p;
-  const angle = (22 - 15 * p) * Math.PI / 180;
+  // Real tonearms start near the right edge and sweep inward.
+  // 18°→42° keeps the needle in the upper half of the platter — natural & realistic.
+  const angle = (18 + 24 * p) * Math.PI / 180;
   return { x: g.cx + Math.cos(angle) * r, y: g.cy + Math.sin(angle) * r };
 }
 
@@ -1115,66 +1117,57 @@ const MOD = (dark, text) => ({
   gap: 12,
 });
 
-// Storage Record Component - optimized for performance
+// ──────────────────────────────────────────────────────────────────────────
+// Vinyl-crate record
+const SLEEVE_SIZE = 220;
+const SPINE_W     = 16;
+const HOVER_LIFT  = 28;
+
+function nameHue(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
 const StorageRecord = React.memo(function StorageRecord({
-  name,
-  cover,
-  index,
-  isSelected,
-  isHovered,
-  totalProjects,
-  onMouseEnter,
-  onMouseLeave,
-  onClick,
-  dark,
-  text,
-  S,
+  name, cover, spineColor, isHovered,
+  onPointerEnter, onPointerLeave, onClick, S,
 }) {
-  const left = 46 + index * 22;
-  const top = 34 + (index % 6) * 3;
-  
-  // Only show records that can fit visually (max ~25 visible)
-  const maxVisible = 25;
-  if (index > maxVisible && !isSelected) return null;
+  const hue = nameHue(name);
+  const spineBg = spineColor
+    ? spineColor
+    : cover ? "#111"
+    : `linear-gradient(175deg,hsl(${hue} 52% 28%) 0%,hsl(${(hue+48)%360} 42% 14%) 100%)`;
 
   return (
     <button
       style={{
         ...S.storageRecord,
-        left,
-        top,
-        width: isSelected ? 292 : isHovered ? 112 : 82,
-        zIndex: isSelected ? 820 : isHovered ? 720 : 170 + index,
-        opacity: index > maxVisible - 3 && !isSelected && !isHovered ? 0.5 : 1,
-        transform: isSelected
-          ? "translate(420px, 22px) rotate(-2deg) skewY(0deg) scale(1.02)"
-          : `translate(${isHovered ? 10 : 0}px, ${isHovered ? -24 : 0}px) rotate(${isHovered ? -2 : -6 + (index % 5) * 0.5}deg) skewY(-7deg) scale(${isHovered ? 1.02 : 1})`,
+        width: SPINE_W,
+        height: SLEEVE_SIZE,
+        background: spineBg,
+        borderRadius: 2,
+        overflow: "hidden",
+        border: "none",
+        borderRight: "1px solid rgba(0,0,0,0.48)",
+        transform: isHovered ? `translateY(-${HOVER_LIFT}px)` : "translateY(0)",
+        transition: "transform 0.20s cubic-bezier(0.22,1,0.36,1), filter 0.14s ease",
+        filter: isHovered ? "brightness(1.35) saturate(1.15)" : "brightness(1)",
+        zIndex: isHovered ? 50 : "auto",
       }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       onClick={onClick}
+      title={name}
     >
-      <span style={S.recordSleeve}>
-        {cover ? (
-          <img
-            src={cover}
-            alt=""
-            style={{
-              ...S.cover,
-              objectPosition: isSelected ? "center center" : `${35 + (index % 5) * 12}% center`,
-            }}
-          />
-        ) : (
-          <span style={S.recordBlank}>{name.slice(0, 2).toUpperCase()}</span>
-        )}
-      </span>
-      <span style={{
-        ...S.recordTitle,
-        opacity: isSelected || isHovered ? 1 : 0,
-        transform: isSelected || isHovered ? "translateY(0)" : "translateY(8px)",
-      }}>
-        {name}
-      </span>
+      {cover && (
+        <img src={cover} alt="" style={{ ...S.cover, objectPosition: "left center", opacity: 0.82 }} />
+      )}
+      <span style={{ position:"absolute", top:0, bottom:0, right:0, width:4,
+        background:"linear-gradient(90deg,transparent,rgba(0,0,0,0.52))",
+        pointerEvents:"none" }} />
+      <span style={{ position:"absolute", top:0, bottom:0, left:0, width:2,
+        background:"rgba(255,255,255,0.16)", pointerEvents:"none" }} />
     </button>
   );
 });
@@ -1195,7 +1188,6 @@ export default function App() {
   const [showStorageCreate, setShowStorageCreate] = useState(false);
   const [newStorageName, setNewStorageName] = useState("New Storage");
   const [newStorageWood, setNewStorageWood] = useState("walnut");
-  const [selectedProject, setSelectedProject] = useState(null);
   const [hoveredProject, setHoveredProject] = useState(null);
   const [dragOverTrack, setDragOverTrack] = useState(null);
 
@@ -1262,39 +1254,27 @@ export default function App() {
 
   const needsTurn = awaitingFlip && !flipping;
 
-  // Debounced hover handlers
   const handleRecordMouseEnter = useCallback((name) => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoveredProject(name);
   }, []);
 
   const handleRecordMouseLeave = useCallback(() => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoveredProject(null);
-    }, 50);
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => setHoveredProject(null), 80);
   }, []);
 
-  // Clear hover timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
+  function handleRecordClick(name) { openProject(name); }
 
-  // Clear hovered project when clicking outside storage area
-  const handleStorageAreaClick = useCallback((e) => {
-    // Only clear if clicking directly on the storage area, not on a record
-    if (e.target === e.currentTarget) {
-      setHoveredProject(null);
-      setSelectedProject(null);
-    }
+  async function saveSpineColor(projectName, color) {
+    const existing = projectsMeta[projectName] || {};
+    const updated = { ...existing, spineColor: color || null };
+    setProjectsMeta(prev => ({ ...prev, [projectName]: updated }));
+    await saveProjectToDB(projectName, updated);
+  }
+
+  useEffect(() => () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
   }, []);
 
   useEffect(() => {
@@ -1485,7 +1465,6 @@ export default function App() {
         activeId: storageId,
       },
     }));
-    setSelectedProject(null);
     setHoveredProject(null);
   }
 
@@ -1522,7 +1501,6 @@ export default function App() {
         },
       };
     });
-    setSelectedProject(null);
     setHoveredProject(null);
     setNewStorageName("New Storage");
     setShowStorageCreate(false);
@@ -1552,7 +1530,6 @@ export default function App() {
       deckColor: "#1a1a1a",
     };
     setProjectsMeta(prev => ({ ...prev, [clean]: p }));
-    setSelectedProject(clean);
     if (currentUser) {
       setStorageConfigs(prev => {
         const shelf = normalizeStorageShelf(prev[currentUser], [...Object.keys(projectsMeta), clean]);
@@ -1710,7 +1687,6 @@ export default function App() {
         },
       };
     });
-    setSelectedProject(prev => prev === oldName ? clean : prev);
     setHoveredProject(prev => prev === oldName ? clean : prev);
     if (activeProject === oldName) setActiveProject(clean);
     setRenameModal(null);
@@ -1740,7 +1716,6 @@ export default function App() {
         },
       };
     });
-    setSelectedProject(prev => prev === name ? null : prev);
     setHoveredProject(prev => prev === name ? null : prev);
     if (activeProject === name) setView("home");
   }
@@ -1945,12 +1920,8 @@ export default function App() {
     const storageShelf = currentUser ? normalizeStorageShelf(storageConfigs[currentUser], allProjectNames) : { activeId: null, items: [] };
     const storageConfig = storageShelf.items.find(item => item.id === storageShelf.activeId) || storageShelf.items[0] || null;
     const wood = getWoodTheme(storageConfig?.wood || storageDraftWood);
-    const storageProjects = (storageConfig?.projects || []).filter(name => projectsMeta[name]).sort((a, b) => {
-      const pa = projectsMeta[a] || {};
-      const pb = projectsMeta[b] || {};
-      return (pb.createdAt || pb.updatedAt || 0) - (pa.createdAt || pa.updatedAt || 0);
-    });
-    const focusedProject = selectedProject || hoveredProject || storageProjects[0] || null;
+    const storageProjects = (storageConfig?.projects || []).filter(name => projectsMeta[name]);
+    const focusedProject = hoveredProject || storageProjects[storageProjects.length - 1] || null;
     const focusedMeta = focusedProject ? projectsMeta[focusedProject] || {} : {};
     const focusedCovers = focusedProject ? normalizeSideCovers(focusedMeta) : [];
     const focusedCover = focusedMeta.homeCover || focusedMeta.cover || focusedCovers[0] || null;
@@ -1993,15 +1964,15 @@ export default function App() {
       );
     }
 
+    const totalRecords = storageProjects.length;
+    const crateInnerWidth = Math.max(280, totalRecords * SPINE_W + 24);
+    const crateWidth = crateInnerWidth + 88;
+
     return (
       <div style={S.home}>
         <div style={S.storageHome}>
           <div style={S.storageTopbar}>
-            <div>
-              <div style={S.logo}>AURAE OS</div>
-              <div style={S.storageSubtitle}>{storageConfig.name}</div>
-            </div>
-
+            <div style={S.logo}>AURAE</div>
             <div style={S.topBtns}>
               <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>
                 {dark ? "Light" : "Dark"}
@@ -2053,11 +2024,16 @@ export default function App() {
 
               {focusedProject && (
                 <div style={S.focusPanel}>
-                  <div style={S.focusCover}>
-                    {focusedCover ? <img src={focusedCover} alt="" style={S.cover} /> : <div style={S.blankCover} />}
+                  <div style={S.focusCoverRow}>
+                    <div style={S.focusCover}>
+                      {focusedCover ? <img src={focusedCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={S.blankCover} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={S.focusTitle}>{focusedProject}</div>
+                      <div style={S.cardSub}>{focusedMeta.tracks?.length || 0} tracks</div>
+                    </div>
                   </div>
-                  <div style={S.focusTitle}>{focusedProject}</div>
-                  <div style={S.cardSub}>{focusedMeta.tracks?.length || 0} tracks</div>
+
                   <div style={S.focusActions}>
                     <button style={S.smallBtn} onClick={() => openProject(focusedProject)}>open player</button>
                     <label style={S.smallBtn}>
@@ -2076,60 +2052,53 @@ export default function App() {
               )}
             </div>
 
-            <div
-              style={{
-                ...S.storageCabinet,
-                "--storage-face": wood.face,
-                "--storage-edge": wood.edge,
-                "--storage-line": wood.line,
-              }}
-              onClick={handleStorageAreaClick}
-            >
-              <div style={S.storageLid} />
-              <div style={S.storageInsideGlow} />
-              <div style={S.storageLeftRail} />
-              <div style={S.storageRightRail} />
-              <div style={S.storageLeftLeg} />
-              <div style={S.storageRightLeg} />
-              <div style={S.storageCards}>
-                {/* Only render project records - NO filler records */}
-                {storageProjects.map((name, i) => {
-                  const p = projectsMeta[name] || {};
-                  const covers = normalizeSideCovers(p);
-                  const cover = p.homeCover || p.cover || covers[0] || null;
-                  
-                  return (
-                    <StorageRecord
-                      key={name}
-                      name={name}
-                      cover={cover}
-                      index={i}
-                      isSelected={selectedProject === name}
-                      isHovered={hoveredProject === name}
-                      totalProjects={storageProjects.length}
-                      onMouseEnter={() => handleRecordMouseEnter(name)}
-                      onMouseLeave={handleRecordMouseLeave}
-                      onClick={() => {
-                        if (selectedProject === name) openProject(name);
-                        else setSelectedProject(name);
-                      }}
-                      dark={dark}
-                      text={text}
-                      S={S}
-                    />
-                  );
-                })}
-              </div>
-              <div style={S.storageFront}>
-                <div style={S.storageBrand}>{storageConfig.name}</div>
-                <div style={S.storageCount}>{storageProjects.length} records</div>
-              </div>
-              {!storageProjects.length && (
-                <div style={S.storageEmpty}>
-                  <div>No records yet</div>
-                  <button style={S.btn} onClick={() => setShowCreate(true)}>create first project</button>
+            {/* THE CRATE */}
+            <div style={S.crateStage}>
+              <div
+                style={{
+                  ...S.crate,
+                  width: crateWidth,
+                  "--storage-face": wood.face,
+                  "--storage-edge": wood.edge,
+                  "--storage-line": wood.line,
+                }}
+              >
+                <div style={S.crateBack} />
+                <div style={S.crateFloor} />
+                <div style={S.crateLeftWall} />
+                <div style={S.crateRightWall} />
+
+                <div style={{ ...S.crateLeg, left: 18, transform: "rotate(18deg)" }} />
+                <div style={{ ...S.crateLeg, right: 18, transform: "rotate(-18deg)" }} />
+
+                <div style={S.crateRecords}>
+                  {storageProjects.map((name) => {
+                    const p = projectsMeta[name] || {};
+                    const covers = normalizeSideCovers(p);
+                    const cover = p.homeCover || p.cover || covers[0] || null;
+                    return (
+                      <StorageRecord
+                        key={name}
+                        name={name}
+                        cover={cover}
+                        spineColor={p.spineColor || null}
+                        isHovered={hoveredProject === name}
+                        onPointerEnter={() => handleRecordMouseEnter(name)}
+                        onPointerLeave={handleRecordMouseLeave}
+                        onClick={() => openProject(name)}
+                        S={S}
+                      />
+                    );
+                  })}
+                  {!storageProjects.length && (
+                    <div style={S.crateEmpty}>
+                      <div>No records yet</div>
+                      <button style={S.btn} onClick={() => setShowCreate(true)}>create first project</button>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+              <div style={S.crateLabel}>{storageConfig.name} · {storageProjects.length} records</div>
             </div>
           </div>
         </div>
@@ -2531,7 +2500,7 @@ function makeStyles(dark, text) {
     app: { ...scrollVars, display: "flex", height: "100vh", background: pageBg, color: text, fontFamily: baseFont, overflow: "hidden" },
     auth: { ...scrollVars, height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: pageBg, color: text },
     panel: { width: 340, padding: 30, borderRadius: 24, background: glass, color: text, border, boxShadow: shadow, display: "flex", flexDirection: "column", gap: 12, backdropFilter: "blur(26px) saturate(1.25)" },
-    logo: { fontSize: 42, textAlign: "center", color: text, fontFamily: baseFont, letterSpacing: 2, marginBottom: 10 },
+    logo: { fontSize: 38, textAlign: "center", color: text, fontFamily: baseFont, letterSpacing: 4, marginBottom: 0 },
     input: { width: "100%", padding: "12px 14px", borderRadius: 14, border, outline: "none", background: dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.76)", color: text, fontFamily: baseFont },
     rememberRow: { display: "flex", alignItems: "center", gap: 9, color: text, fontFamily: baseFont, fontSize: 12, cursor: "pointer", userSelect: "none" },
     checkbox: { width: 16, height: 16, accentColor: text, cursor: "pointer" },
@@ -2540,7 +2509,7 @@ function makeStyles(dark, text) {
     smallBtn: { padding: "7px 10px", minHeight: 30, borderRadius: 10, border, background: dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.62)", color: text, cursor: "pointer", fontSize: 11, fontFamily: baseFont },
     iconBtn: { padding: "8px 10px", borderRadius: 12, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11 },
     home: { ...scrollVars, minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
-    topBtns: { display: "flex", justifyContent: "center", gap: 10, marginBottom: 24, flexWrap: "wrap", color: text },
+    topBtns: { display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap", color: text },
     storageSetup: { minHeight: "100vh", width: "min(760px, calc(100% - 36px))", margin: "0 auto", padding: "72px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: 18 },
     storageSetupPanel: { padding: 22, borderRadius: 24, background: glass, color: text, border, boxShadow: shadow, backdropFilter: "blur(28px) saturate(1.25)", display: "flex", flexDirection: "column", gap: 14 },
     storageSetupTitle: { color: text, fontSize: 20, fontFamily: baseFont, letterSpacing: 0.5 },
@@ -2551,33 +2520,50 @@ function makeStyles(dark, text) {
     woodChoiceActive: { background: dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.09)", borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.20)" },
     woodSwatch: { width: 28, height: 28, borderRadius: 8, border: "1px solid", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22), 0 6px 16px rgba(0,0,0,0.20)", flexShrink: 0 },
     storageHome: { width: "min(1240px, calc(100% - 36px))", minHeight: "100vh", margin: "0 auto", padding: "44px 0 58px", color: text },
-    storageTopbar: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 18, marginBottom: 22 },
-    storageSubtitle: { color: text, opacity: 0.66, fontSize: 12, marginTop: -4, textAlign: "center", letterSpacing: 1 },
-    storageLayout: { display: "grid", gridTemplateColumns: "280px minmax(620px, 1fr)", gap: 24, alignItems: "center" },
-    storageControls: { padding: 14, borderRadius: 22, background: glass, border, boxShadow: shadow, backdropFilter: "blur(26px) saturate(1.2)", display: "flex", flexDirection: "column", gap: 14 },
+    storageTopbar: { display: "flex", flexDirection: "column", alignItems: "center", gap: 12, marginBottom: 28 },
+    storageLayout: { display: "grid", gridTemplateColumns: "280px minmax(620px, 1fr)", gap: 24, alignItems: "start" },
+    storageControls: { padding: 14, borderRadius: 22, background: glass, border, boxShadow: shadow, backdropFilter: "blur(26px) saturate(1.2)", display: "flex", flexDirection: "column", gap: 14, maxHeight: "calc(100vh - 130px)", overflowY: "auto" },
     storageTabs: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 170, overflowY: "auto", paddingRight: 3 },
     storageTab: { padding: "9px 10px", borderRadius: 13, border, background: dark ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.58)", color: text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontFamily: baseFont, fontSize: 11, textAlign: "left" },
     storageTabActive: { background: dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.09)", borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
     focusPanel: { padding: 12, borderRadius: 18, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.62)", border, display: "flex", flexDirection: "column", gap: 9 },
-    focusCover: { width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" },
-    focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+    focusCoverRow: { display: "flex", alignItems: "center", gap: 10 },
+    focusCover: { width: 88, height: 88, borderRadius: 12, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", flexShrink: 0 },
+    focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 },
     focusActions: { display: "flex", flexWrap: "wrap", gap: 6 },
-    storageCabinet: { position: "relative", minHeight: 620, borderRadius: 26, overflow: "visible", background: "transparent", perspective: 1200, filter: "drop-shadow(0 40px 48px rgba(0,0,0,0.34))" },
-    storageLid: { position: "absolute", left: 54, right: 88, top: 338, height: 90, transform: "skewX(-16deg) rotate(-1deg)", transformOrigin: "50% 0", borderRadius: "8px 8px 14px 14px", background: "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.18)), repeating-linear-gradient(0deg, transparent 0 9px, var(--storage-line) 10px), var(--storage-face)", border: "1px solid rgba(0,0,0,0.28)", boxShadow: "0 18px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.20), inset 0 -18px 22px rgba(0,0,0,0.18)" },
-    storageInsideGlow: { position: "absolute", left: 70, right: 126, top: 326, height: 26, transform: "skewX(-18deg)", borderRadius: 999, background: "rgba(0,0,0,0.36)", filter: "blur(7px)", opacity: 0.66 },
-    storageLeftRail: { position: "absolute", left: 26, top: 312, width: 22, height: 220, borderRadius: 14, background: "linear-gradient(90deg, #08090c, #242831 55%, #07080a)", transform: "rotate(13deg)", boxShadow: "0 14px 22px rgba(0,0,0,0.35)", zIndex: 760 },
-    storageRightRail: { position: "absolute", right: 72, top: 246, width: 26, height: 276, borderRadius: 15, background: "linear-gradient(90deg, #050608, #2a2f37 55%, #07080b)", transform: "rotate(-12deg)", boxShadow: "0 18px 28px rgba(0,0,0,0.38)", zIndex: 780 },
-    storageLeftLeg: { position: "absolute", left: 80, bottom: 30, width: 18, height: 150, borderRadius: 12, background: "linear-gradient(90deg, #050608, #252932 55%, #090a0d)", transform: "rotate(17deg)", transformOrigin: "50% 0", zIndex: 20, boxShadow: "0 16px 24px rgba(0,0,0,0.34)" },
-    storageRightLeg: { position: "absolute", right: 134, bottom: 22, width: 18, height: 172, borderRadius: 12, background: "linear-gradient(90deg, #050608, #252932 55%, #090a0d)", transform: "rotate(-15deg)", transformOrigin: "50% 0", zIndex: 20, boxShadow: "0 16px 24px rgba(0,0,0,0.34)" },
-    storageCards: { position: "absolute", left: 40, right: 104, top: 46, height: 380, overflow: "visible", transform: "rotate(-2deg) skewX(-8deg)", transformOrigin: "0 100%" },
-    storageRecord: { position: "absolute", height: 350, padding: 0, border: "none", borderRadius: 12, background: "transparent", color: text, cursor: "pointer", transformOrigin: "50% 100%", transition: "transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.28s ease, opacity 0.2s ease, filter 0.2s ease", filter: "drop-shadow(8px 22px 18px rgba(0,0,0,0.30))" },
-    recordSleeve: { position: "absolute", inset: 0, borderRadius: 12, overflow: "hidden", background: dark ? "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))" : "linear-gradient(135deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48))", border: dark ? "1px solid rgba(255,255,255,0.17)" : "1px solid rgba(0,0,0,0.16)", boxShadow: "inset 4px 0 0 rgba(255,255,255,0.34), inset -8px 0 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.10)" },
-    recordBlank: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: text, fontSize: 44, letterSpacing: 2, background: "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.20))" },
-    recordTitle: { position: "absolute", left: 14, right: 14, bottom: 14, padding: "9px 10px", borderRadius: 12, background: dark ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.78)", color: text, fontSize: 12, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", backdropFilter: "blur(14px)", transition: "opacity 0.2s ease, transform 0.2s ease" },
-    storageFront: { position: "absolute", left: 34, right: 104, bottom: 110, height: 86, zIndex: 650, transform: "skewX(-16deg) rotate(-1deg)", background: "linear-gradient(180deg, rgba(255,255,255,0.16), rgba(0,0,0,0.24)), repeating-linear-gradient(0deg, transparent 0 10px, var(--storage-line) 11px), var(--storage-face)", border: "1px solid rgba(0,0,0,0.34)", boxShadow: "0 -20px 38px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -18px 28px rgba(0,0,0,0.20)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 34px 22px" },
-    storageBrand: { color: "#f4d98c", fontSize: 18, fontFamily: "Georgia, serif", fontStyle: "italic", textShadow: "0 2px 4px rgba(0,0,0,0.45)" },
-    storageCount: { color: text, opacity: 0.72, fontSize: 12 },
-    storageEmpty: { position: "absolute", left: "50%", top: "45%", transform: "translate(-50%, -50%)", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: text, fontSize: 13 },
+    crateStage: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: "40px 0 50px" },
+    crate: { position: "relative", height: SLEEVE_SIZE + HOVER_LIFT + 70, maxWidth: "100%", overflow: "visible", filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))" },
+    crateBack: { position: "absolute", left: 22, right: 22, top: HOVER_LIFT + 4, bottom: 64, background: "var(--storage-face)", backgroundBlendMode: "multiply", backgroundImage: "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)", borderRadius: "3px 3px 5px 5px", border: "1px solid rgba(0,0,0,0.5)", boxShadow: "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)" },
+    crateLeftWall: { position: "absolute", left: 30, top: HOVER_LIFT + 4, bottom: 60, width: 16, background: "var(--storage-face)", borderRight: "1px solid rgba(0,0,0,0.45)", borderTopLeftRadius: 4, borderBottomLeftRadius: 4, boxShadow: "inset -4px 0 6px rgba(0,0,0,0.45)" },
+    crateRightWall: { position: "absolute", right: 30, top: HOVER_LIFT + 6, bottom: 60, width: 16, background: "var(--storage-face)", borderLeft: "1px solid rgba(0,0,0,0.45)", borderTopRightRadius: 4, borderBottomRightRadius: 4, boxShadow: "inset 4px 0 6px rgba(0,0,0,0.45)" },
+    crateFloor: { position: "absolute", left: 30, right: 30, bottom: 56, height: 12, background: "var(--storage-face)", backgroundImage: "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)", borderTop: "1px solid rgba(0,0,0,0.5)", borderBottom: "1px solid rgba(0,0,0,0.55)", boxShadow: "0 6px 10px rgba(0,0,0,0.35)" },
+    crateLeg: { position: "absolute", bottom: 0, width: 5, height: 72, borderRadius: 2, background: "linear-gradient(180deg, #1c1c1c 0%, #050505 100%)", boxShadow: "0 8px 12px rgba(0,0,0,0.55), inset 1px 0 0 rgba(255,255,255,0.20)", transformOrigin: "50% 0%" },
+    crateRecords: { position: "absolute", left: 44, right: 44, top: HOVER_LIFT + 4, bottom: 72, overflow: "visible", scrollbarColor: dark ? "rgba(255,255,255,0.15) transparent" : "rgba(0,0,0,0.15) transparent", scrollbarWidth: "thin", display: "flex", flexDirection: "row", alignItems: "flex-end", paddingLeft: 8, paddingRight: 8, paddingTop: 4, gap: 0 },
+    crateEmpty: { position: "absolute", left: 0, right: 0, top: "40%", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: dark ? "#eee" : "#fff", fontSize: 13, textShadow: "0 2px 6px rgba(0,0,0,0.7)" },
+    crateLabel: { color: text, opacity: 0.6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" },
+    storageRecord: { position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" },
+    vinylSleeveSquare: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", borderRadius: 3, overflow: "hidden", border: "1px solid rgba(0,0,0,0.55)", boxShadow: "4px 0 0 rgba(0,0,0,0.28), 0 14px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.16)", display: "block" },
+    vinylGlossWrap: { position: "absolute", inset: 0, background: "linear-gradient(120deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0) 32%,rgba(255,255,255,0.28) 48%,rgba(255,255,255,0) 64%,rgba(255,255,255,0) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
+    vinylSpineEdge: { position: "absolute", top: 0, bottom: 0, right: 0, width: 7, background: "linear-gradient(270deg,rgba(0,0,0,0.75) 0%,rgba(0,0,0,0.25) 65%,transparent 100%)", pointerEvents: "none" },
+    vinylPaperEdge: { position: "absolute", top: 0, bottom: 0, left: 0, width: 4, background: "linear-gradient(90deg,rgba(238,226,206,0.92) 0%,rgba(200,186,162,0.44) 55%,transparent 100%)", boxShadow: "inset 1px 0 0 rgba(255,255,255,0.55)", pointerEvents: "none" },
+    vinylSpineShadow: { position: "absolute", top: 0, bottom: 0, right: 0, width: 14, background: "linear-gradient(270deg,rgba(0,0,0,0.55) 0%,rgba(0,0,0,0.10) 70%,transparent 100%)", pointerEvents: "none" },
+    recordSleeve: { position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden", background: "#181614", border: "1px solid rgba(0,0,0,0.6)", boxShadow: "0 18px 30px rgba(0,0,0,0.55), 0 6px 10px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20), inset 0 -2px 0 rgba(0,0,0,0.45)", display: "block" },
+    sleeveGloss: { position: "absolute", inset: 0, background: "linear-gradient(118deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 36%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0) 64%, rgba(255,255,255,0) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
+    sleeveShine: { position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 16%, rgba(255,255,255,0) 38%, rgba(0,0,0,0.18) 78%, rgba(0,0,0,0.30) 100%)", pointerEvents: "none" },
+    sleeveLeftShadow: { position: "absolute", top: 0, bottom: 0, left: 0, width: 12, background: "linear-gradient(90deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)", pointerEvents: "none" },
+    sleeveRightShadow: { position: "absolute", top: 0, bottom: 0, right: 0, width: 12, background: "linear-gradient(270deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)", pointerEvents: "none" },
+    sleevePaperEdge: { position: "absolute", top: 0, bottom: 0, left: 0, width: 3, background: "linear-gradient(90deg, rgba(255,255,255,0.55) 0%, rgba(220,210,195,0.35) 70%, rgba(0,0,0,0.20) 100%)", boxShadow: "inset 1px 0 0 rgba(255,255,255,0.55)", pointerEvents: "none" },
+    sleeveTopEdge: { position: "absolute", left: 0, right: 0, top: 0, height: 3, background: "linear-gradient(180deg, rgba(245,238,225,0.95) 0%, rgba(190,180,160,0.55) 60%, rgba(0,0,0,0.30) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)", pointerEvents: "none" },
+    sleeveLabel: { position: "absolute", left: 10, right: 10, bottom: 10, padding: "6px 10px", borderRadius: 8, background: "rgba(0,0,0,0.62)", color: "#fff", fontSize: 11, fontFamily: baseFont, letterSpacing: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", backdropFilter: "blur(10px)", pointerEvents: "none" },
+    recordFrontSleeve: { position: "absolute", inset: 0, borderRadius: 3, overflow: "hidden", background: "#181614", border: "1px solid rgba(0,0,0,0.65)", boxShadow: "0 14px 28px rgba(0,0,0,0.6), inset -12px 0 22px rgba(0,0,0,0.45), inset 6px 0 0 rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.18)", display: "block" },
+    frontSleeveGloss: { position: "absolute", inset: 0, background: "linear-gradient(115deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0) 62%, rgba(255,255,255,0) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
+    frontSleeveShine: { position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 18%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.22) 100%)", pointerEvents: "none" },
+    frontSleeveLabel: { position: "absolute", left: 8, right: 8, bottom: 8, padding: "5px 8px", borderRadius: 6, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, fontFamily: baseFont, letterSpacing: 0.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", backdropFilter: "blur(10px)" },
+    recordSpine: { position: "absolute", inset: 0, borderRadius: 2, overflow: "hidden", borderLeft: "1px solid rgba(255,255,255,0.14)", borderRight: "1px solid rgba(0,0,0,0.70)", boxShadow: "0 6px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18)", display: "block" },
+    spineGloss: { position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.10) 35%, rgba(0,0,0,0.45) 75%, rgba(0,0,0,0.65) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
+    spineShine: { position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 30%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0) 66%, rgba(255,255,255,0) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
+    spineHoverTip: { position: "absolute", bottom: "100%", left: "50%", transform: "translate(-50%, -6px)", whiteSpace: "nowrap", padding: "6px 10px", borderRadius: 8, background: dark ? "rgba(20,20,22,0.92)" : "rgba(255,255,255,0.94)", color: text, fontSize: 11, fontFamily: baseFont, boxShadow: "0 8px 20px rgba(0,0,0,0.35)", pointerEvents: "none" },
+    recordBlank: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#eee", fontSize: 42, letterSpacing: 2, background: "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.40))" },
     loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
     cover: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
     blankCover: { width: "100%", height: "100%", background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))", display: "block" },
@@ -2611,98 +2597,7 @@ function makeStyles(dark, text) {
     sectionTitle: { color: text, fontSize: 12, opacity: 0.9, textTransform: "uppercase", letterSpacing: 1 },
     optionGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, color: text },
     optionActive: { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", color: text, borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
-    colorGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 },
-    inlineControls: { display: "flex", gap: 8, alignItems: "center", color: text },
-    colorInput: { width: "100%", minWidth: 42, height: 38, border: "none", borderRadius: 12, padding: 4, background: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.72)", color: text, cursor: "pointer" },
-    sliderLabel: { display: "flex", flexDirection: "column", gap: 8, color: text, fontSize: 12, opacity: 0.9 },
-    range: { width: "100%", accentColor: text },
-    stage: { flex: 1, minWidth: 0, height: "calc(100vh - 78px)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px 24px 34px", overflow: "hidden", color: text },
-    turnBtn: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 10, padding: "14px 20px", borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)", color: text, fontFamily: baseFont, fontSize: 13, cursor: "pointer", backdropFilter: "blur(24px) saturate(1.25)", boxShadow: shadow },
-    player: { position: "fixed", left: 360, right: 0, bottom: 0, height: 78, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 18px", background: dark ? "rgba(12,12,14,0.82)" : "rgba(255,255,255,0.82)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
-    transportBtn: { padding: "10px 13px", minWidth: 58, borderRadius: 14, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 12 },
-    now: { width: 230, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: text, fontFamily: baseFont, fontSize: 12 },
-    time: { minWidth: 92, color: text, fontFamily: baseFont, fontSize: 12, opacity: 0.86 },
-    playerRange: { width: 240, accentColor: text },
-    menu: { position: "fixed", zIndex: 999, background: dark ? "rgba(20,20,22,0.94)" : "rgba(255,255,255,0.94)", color: text, border, borderRadius: 14, padding: 8, display: "flex", flexDirection: "column", gap: 6, boxShadow: shadow, backdropFilter: "blur(20px)" },
-    menuBtn: { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont },
-  };
-}
+    colorGrid: { display: "grid", gridTemplateColumns: "repeat
 
-const _auraeStyleId = "aurae-global-style";
-if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) {
-  const style = document.createElement("style");
-  style.id = _auraeStyleId;
-  style.innerHTML = `
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    @keyframes vinylFlip {
-      0% { transform: perspective(1200px) rotateY(0deg) scale(1); filter: brightness(1); }
-      44% { transform: perspective(1200px) rotateY(88deg) scale(0.84); filter: brightness(0.34); }
-      50% { transform: perspective(1200px) rotateY(90deg) scale(0.82); filter: brightness(0.28); }
-      56% { transform: perspective(1200px) rotateY(92deg) scale(0.84); filter: brightness(0.34); }
-      100% { transform: perspective(1200px) rotateY(180deg) scale(1); filter: brightness(1); }
-    }
-
-    html, body, #root { margin: 0; width: 100%; min-height: 100%; }
-    body { overflow: hidden; }
-    * {
-      box-sizing: border-box;
-      scrollbar-width: thin;
-      scrollbar-color: var(--aurae-scroll-thumb, rgba(150,150,160,0.35)) transparent;
-    }
-    button, input { font: inherit; }
-
-    button {
-      transition: transform 0.15s ease, background 0.15s ease,
-                  border-color 0.15s ease, opacity 0.15s ease;
-    }
-    button:hover { transform: translateY(-1px); }
-    button:active { transform: translateY(0); }
-
-    ::placeholder { color: currentColor; opacity: 0.55; }
-
-    ::-webkit-scrollbar { width: 12px; height: 12px; }
-    ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
-    ::-webkit-scrollbar-corner { background: transparent; }
-    ::-webkit-scrollbar-track {
-      background: var(--aurae-scroll-track, transparent);
-      border-radius: 999px;
-      margin: 6px 0;
-    }
-    ::-webkit-scrollbar-thumb {
-      background:
-        linear-gradient(180deg,
-          rgba(255,255,255,0.24),
-          var(--aurae-scroll-thumb, rgba(150,150,160,0.35))
-        );
-      border-radius: 999px;
-      border: 3px solid var(--aurae-scroll-border, transparent);
-      background-clip: padding-box;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.18),
-        0 4px 12px rgba(0,0,0,0.18);
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background:
-        linear-gradient(180deg,
-          rgba(255,255,255,0.30),
-          var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48))
-        );
-      background-clip: padding-box;
-    }
-    ::-webkit-scrollbar-thumb:active {
-      background:
-        linear-gradient(180deg,
-          rgba(255,255,255,0.36),
-          var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))
-        );
-      background-clip: padding-box;
-    }
-  `;
-  document.head.appendChild(style);
-}
 
 
