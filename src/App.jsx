@@ -2598,6 +2598,86 @@ function makeStyles(dark, text) {
     optionGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, color: text },
     optionActive: { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", color: text, borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
     colorGrid: { display: "grid", gridTemplateColumns: "repeat
+    menuBtn: { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont },
+  };
+}
+
+const _auraeStyleId = "aurae-global-style";
+if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) {
+  const style = document.createElement("style");
+  style.id = _auraeStyleId;
+  style.innerHTML = `
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes coverPop {
+      from { opacity: 0; transform: translate(-50%, 0px) scale(0.88); }
+      to   { opacity: 1; transform: translate(-50%, -4px) scale(1); }
+    }
+
+    @keyframes vinylFlip {
+      0% { transform: perspective(1200px) rotateY(0deg) scale(1); filter: brightness(1); }
+      44% { transform: perspective(1200px) rotateY(88deg) scale(0.84); filter: brightness(0.34); }
+      50% { transform: perspective(1200px) rotateY(90deg) scale(0.82); filter: brightness(0.28); }
+      56% { transform: perspective(1200px) rotateY(92deg) scale(0.84); filter: brightness(0.34); }
+      100% { transform: perspective(1200px) rotateY(180deg) scale(1); filter: brightness(1); }
+    }
+
+    html, body, #root { margin: 0; width: 100%; min-height: 100%; }
+    body { overflow: hidden; }
+    * {
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: var(--aurae-scroll-thumb, rgba(150,150,160,0.35)) transparent;
+    }
+    button, input { font: inherit; }
+
+    button { transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
+
+    ::placeholder { color: currentColor; opacity: 0.55; }
+
+    ::-webkit-scrollbar { width: 12px; height: 12px; }
+    ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+    ::-webkit-scrollbar-corner { background: transparent; }
+    ::-webkit-scrollbar-track {
+      background: var(--aurae-scroll-track, transparent);
+      border-radius: 999px;
+      margin: 6px 0;
+    }
+    ::-webkit-scrollbar-thumb {
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.24),
+          var(--aurae-scroll-thumb, rgba(150,150,160,0.35))
+        );
+      border-radius: 999px;
+      border: 3px solid var(--aurae-scroll-border, transparent);
+      background-clip: padding-box;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        0 4px 12px rgba(0,0,0,0.18);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.30),
+          var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48))
+        );
+      background-clip: padding-box;
+    }
+    ::-webkit-scrollbar-thumb:active {
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.36),
+          var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))
+        );
+      background-clip: padding-box;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 
 
