@@ -410,8 +410,6 @@ function groovePoint(g, radius, progress) {
   const outerR = radius * 0.98;
   const innerR = radius * 0.44;
   const r = outerR + (innerR - outerR) * p;
-  // Real tonearms start near the right edge and sweep inward.
-  // 18°→42° keeps the needle in the upper half of the platter — natural & realistic.
   const angle = (18 + 24 * p) * Math.PI / 180;
   return { x: g.cx + Math.cos(angle) * r, y: g.cy + Math.sin(angle) * r };
 }
@@ -458,14 +456,8 @@ function SplatterOverlay({ color, style }) {
       const a = rand() * Math.PI * 2;
       const r = 35 + rand() * 150;
       dots.push(
-        <circle
-          key={`m${i}`}
-          cx={cx + Math.cos(a) * r}
-          cy={cy + Math.sin(a) * r}
-          r={0.7 + rand() * 3.5}
-          fill={color}
-          opacity={0.12 + rand() * 0.42}
-        />
+        <circle key={`m${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={0.7 + rand() * 3.5} fill={color} opacity={0.12 + rand() * 0.42} />
       );
     }
   } else if (sel === "ring") {
@@ -473,14 +465,8 @@ function SplatterOverlay({ color, style }) {
       const a = (i / 70) * Math.PI * 2 + (rand() - 0.5) * 0.16;
       const r = 105 + rand() * 54;
       dots.push(
-        <circle
-          key={`r${i}`}
-          cx={cx + Math.cos(a) * r}
-          cy={cy + Math.sin(a) * r}
-          r={1.5 + rand() * 6}
-          fill={color}
-          opacity={0.25 + rand() * 0.62}
-        />
+        <circle key={`r${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={1.5 + rand() * 6} fill={color} opacity={0.25 + rand() * 0.62} />
       );
     }
   } else if (sel === "drip") {
@@ -493,15 +479,10 @@ function SplatterOverlay({ color, style }) {
       const x2 = cx + Math.cos(a) * out;
       const y2 = cy + Math.sin(a) * out;
       paths.push(
-        <path
-          key={`d${i}`}
+        <path key={`d${i}`}
           d={`M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 + rand() * 28} ${x2} ${y2}`}
-          stroke={color}
-          strokeWidth={3 + rand() * 7}
-          strokeLinecap="round"
-          fill="none"
-          opacity={0.32 + rand() * 0.48}
-        />
+          stroke={color} strokeWidth={3 + rand() * 7} strokeLinecap="round" fill="none"
+          opacity={0.32 + rand() * 0.48} />
       );
     }
   } else {
@@ -515,46 +496,27 @@ function SplatterOverlay({ color, style }) {
       const x2 = cx + Math.cos(a + bend) * out;
       const y2 = cy + Math.sin(a + bend) * out;
       paths.push(
-        <path
-          key={`b${i}`}
+        <path key={`b${i}`}
           d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 20} ${(y1 + y2) / 2 + (rand() - 0.5) * 20} ${x2} ${y2}`}
-          stroke={color}
-          strokeWidth={2.5 + rand() * 9}
-          strokeLinecap="round"
-          fill="none"
-          opacity={0.34 + rand() * 0.56}
-        />
+          stroke={color} strokeWidth={2.5 + rand() * 9} strokeLinecap="round" fill="none"
+          opacity={0.34 + rand() * 0.56} />
       );
     }
     for (let i = 0; i < 45; i++) {
       const a = rand() * Math.PI * 2;
       const r = 68 + rand() * 120;
       dots.push(
-        <circle
-          key={`bd${i}`}
-          cx={cx + Math.cos(a) * r}
-          cy={cy + Math.sin(a) * r}
-          r={1.2 + rand() * 5.4}
-          fill={color}
-          opacity={0.34 + rand() * 0.56}
-        />
+        <circle key={`bd${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={1.2 + rand() * 5.4} fill={color} opacity={0.34 + rand() * 0.56} />
       );
     }
   }
 
   return (
-    <svg
-      viewBox="0 0 390 390"
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        borderRadius: "50%",
-        overflow: "hidden",
-        pointerEvents: "none",
-      }}
-    >
+    <svg viewBox="0 0 390 390" style={{
+      position: "absolute", inset: 0, width: "100%", height: "100%",
+      borderRadius: "50%", overflow: "hidden", pointerEvents: "none",
+    }}>
       <defs>
         <clipPath id="aurae-splatter-clip">
           <circle cx="195" cy="195" r="195" />
@@ -572,20 +534,11 @@ function SplatterOverlay({ color, style }) {
 }
 
 function VinylDisc({
-  radius,
-  colors,
-  gradient,
-  opacity,
-  splatterOn,
-  splatterColor,
-  splatterStyle,
-  cover,
-  isSingle,
-  playing,
-  textColor,
-  flipping,
+  radius, colors, gradient, opacity, splatterOn, splatterColor, splatterStyle,
+  cover, isSingle, playing, textColor, flipping, pictureVinyl,
 }) {
   const labelSize = Math.round(radius * (isSingle ? 0.68 : 0.75));
+  const isPicture = Boolean(pictureVinyl && cover);
 
   return (
     <div
@@ -594,7 +547,7 @@ function VinylDisc({
         width: radius * 2,
         height: radius * 2,
         borderRadius: "50%",
-        background: vinylBackground(colors, gradient),
+        background: isPicture ? "#000" : vinylBackground(colors, gradient),
         opacity,
         overflow: "hidden",
         boxShadow:
@@ -607,6 +560,22 @@ function VinylDisc({
         transformOrigin: "50% 50%",
       }}
     >
+      {isPicture && (
+        <img
+          src={cover}
+          alt=""
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            borderRadius: "50%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      )}
+
       <div
         style={{
           position: "absolute",
@@ -615,9 +584,11 @@ function VinylDisc({
           background:
             "repeating-radial-gradient(circle, rgba(255,255,255,0.13) 0 1px, rgba(0,0,0,0.17) 2px, transparent 4px, transparent 8px)",
           mixBlendMode: "screen",
-          opacity: 0.34,
+          opacity: isPicture ? 0.18 : 0.34,
+          pointerEvents: "none",
         }}
       />
+
       <div
         style={{
           position: "absolute",
@@ -625,12 +596,13 @@ function VinylDisc({
           borderRadius: "50%",
           border: "1px solid rgba(255,255,255,0.12)",
           boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)",
+          pointerEvents: "none",
         }}
       />
 
-      {splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
+      {!isPicture && splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
 
-      {cover ? (
+      {!isPicture && (cover ? (
         <img
           src={cover}
           alt=""
@@ -670,7 +642,7 @@ function VinylDisc({
         >
           {isSingle ? "7 IN" : "AURAE"}
         </div>
-      )}
+      ))}
 
       <div
         style={{
@@ -764,97 +736,38 @@ function Tonearm({ id, geometry, stylus, textColor }) {
   const uy = dy / len;
   const px = -uy;
   const py = ux;
-  const armStart = {
-    x: geometry.pivotX + ux * 18,
-    y: geometry.pivotY + uy * 18,
-  };
-  const armEnd = {
-    x: stylus.x - ux * 24,
-    y: stylus.y - uy * 24,
-  };
-  const shineStart = {
-    x: armStart.x + px * 2.2,
-    y: armStart.y + py * 2.2,
-  };
-  const shineEnd = {
-    x: armEnd.x + px * 2.2,
-    y: armEnd.y + py * 2.2,
-  };
-  const counter = {
-    x: geometry.pivotX - ux * 24,
-    y: geometry.pivotY - uy * 24,
-  };
+  const armStart = { x: geometry.pivotX + ux * 18, y: geometry.pivotY + uy * 18 };
+  const armEnd = { x: stylus.x - ux * 24, y: stylus.y - uy * 24 };
+  const shineStart = { x: armStart.x + px * 2.2, y: armStart.y + py * 2.2 };
+  const shineEnd = { x: armEnd.x + px * 2.2, y: armEnd.y + py * 2.2 };
+  const counter = { x: geometry.pivotX - ux * 24, y: geometry.pivotY - uy * 24 };
 
   return (
     <g>
-      <circle
-        cx={geometry.pivotX}
-        cy={geometry.pivotY}
-        r="25"
-        fill={`url(#${id}-knob)`}
-        stroke="rgba(0,0,0,0.34)"
-        strokeWidth="1.4"
-        filter={`url(#${id}-soft)`}
-      />
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="25"
+        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.34)" strokeWidth="1.4" filter={`url(#${id}-soft)`} />
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="10" fill="rgba(0,0,0,0.36)" />
       <circle cx={geometry.pivotX - 3} cy={geometry.pivotY - 3} r="2.2" fill="rgba(255,255,255,0.75)" />
 
-      <line
-        x1={armStart.x}
-        y1={armStart.y}
-        x2={armEnd.x}
-        y2={armEnd.y}
-        stroke={`url(#${id}-arm)`}
-        strokeWidth="7"
-        strokeLinecap="round"
-      />
-      <line
-        x1={shineStart.x}
-        y1={shineStart.y}
-        x2={shineEnd.x}
-        y2={shineEnd.y}
-        stroke="rgba(255,255,255,0.42)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <line x1={armStart.x} y1={armStart.y} x2={armEnd.x} y2={armEnd.y}
+        stroke={`url(#${id}-arm)`} strokeWidth="7" strokeLinecap="round" />
+      <line x1={shineStart.x} y1={shineStart.y} x2={shineEnd.x} y2={shineEnd.y}
+        stroke="rgba(255,255,255,0.42)" strokeWidth="2" strokeLinecap="round" />
 
       <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
-        <rect
-          x="-30"
-          y="-8"
-          width="34"
-          height="17"
-          rx="3"
-          fill="#b9b9b9"
-          stroke="rgba(0,0,0,0.35)"
-          strokeWidth="0.9"
-          filter={`url(#${id}-soft)`}
-        />
+        <rect x="-30" y="-8" width="34" height="17" rx="3"
+          fill="#b9b9b9" stroke="rgba(0,0,0,0.35)" strokeWidth="0.9" filter={`url(#${id}-soft)`} />
         <rect x="-27" y="-5" width="19" height="11" rx="2" fill="#2b2b2b" />
         <path d="M -4 7 L 5 13 L 2 17 L -8 10 Z" fill="#181818" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5" />
         <line x1="3" y1="15" x2="8" y2="21" stroke="#111" strokeWidth="1.8" strokeLinecap="round" />
       </g>
 
       <circle cx={stylus.x} cy={stylus.y} r="2.3" fill="#111" />
-      <ellipse
-        cx={counter.x}
-        cy={counter.y}
-        rx="16"
-        ry="10"
+      <ellipse cx={counter.x} cy={counter.y} rx="16" ry="10"
         transform={`rotate(${angle} ${counter.x} ${counter.y})`}
-        fill="#8a8a8a"
-        stroke="rgba(0,0,0,0.3)"
-        strokeWidth="0.8"
-      />
-      <text
-        x={geometry.pivotX}
-        y={geometry.pivotY + 44}
-        fill={textColor}
-        opacity="0.82"
-        fontSize="8"
-        fontFamily="monospace"
-        textAnchor="middle"
-      >
+        fill="#8a8a8a" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
+      <text x={geometry.pivotX} y={geometry.pivotY + 44} fill={textColor} opacity="0.82"
+        fontSize="8" fontFamily="monospace" textAnchor="middle">
         TONE
       </text>
     </g>
@@ -871,16 +784,8 @@ function StandardControls({ id, style, textColor }) {
         <rect x="48" y="474" width="210" height="42" rx="10" fill="rgba(0,0,0,0.16)" stroke="rgba(255,255,255,0.15)" />
         {["33", "45", "78"].map((label, i) => (
           <g key={label}>
-            <rect
-              x={62 + i * 58}
-              y="486"
-              width="42"
-              height="18"
-              rx="5"
-              fill="rgba(255,255,255,0.12)"
-              stroke="rgba(0,0,0,0.22)"
-              strokeWidth="0.8"
-            />
+            <rect x={62 + i * 58} y="486" width="42" height="18" rx="5"
+              fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" strokeWidth="0.8" />
             <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
               {label}
             </text>
@@ -904,29 +809,16 @@ function StandardControls({ id, style, textColor }) {
 
   return (
     <g>
-      <rect
-        x="430"
-        y="58"
-        width="96"
-        height="150"
-        rx={s === "dark" ? 3 : 9}
+      <rect x="430" y="58" width="96" height="150" rx={s === "dark" ? 3 : 9}
         fill={s === "wood" ? "rgba(0,0,0,0.24)" : "rgba(0,0,0,0.25)"}
-        stroke="rgba(255,255,255,0.14)"
-        strokeWidth="1"
-        filter={`url(#${id}-soft)`}
-      />
+        stroke="rgba(255,255,255,0.14)" strokeWidth="1" filter={`url(#${id}-soft)`} />
       <rect x="444" y="74" width="68" height="28" rx="5" fill="rgba(0,0,0,0.35)" />
       <text x="478" y="92" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
         {s === "wood" ? "CONTROL" : "START"}
       </text>
-      <circle
-        cx="478"
-        cy="142"
-        r="22"
+      <circle cx="478" cy="142" r="22"
         fill={s === "wood" ? "#241406" : `url(#${id}-knob)`}
-        stroke="rgba(255,255,255,0.18)"
-        strokeWidth="2"
-      />
+        stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
       <line x1="478" y1="126" x2="478" y2="135" stroke={textColor} strokeWidth="2" />
       <text x="478" y="182" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
         {s === "dark" ? "RPM" : "LEVEL"}
@@ -945,10 +837,8 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
   const board = boardPath(s);
 
   return (
-    <svg
-      viewBox="0 0 560 560"
-      style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}
-    >
+    <svg viewBox="0 0 560 560"
+      style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
       <DeckDefs id={id} style={s} color={color} />
       <path d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
 
@@ -976,14 +866,10 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
       )}
 
       {s === "realistic1" && (
-        <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">
-          DIRECT DRIVE
-        </text>
+        <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>
       )}
       {s === "realistic2" && (
-        <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">
-          BELT DRIVE
-        </text>
+        <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">BELT DRIVE</text>
       )}
 
       <circle cx={g.cx} cy={g.cy} r={holeR + 13} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="7" />
@@ -1007,17 +893,11 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
   const hole = holePath(g.cx, g.cy, holeR);
 
   return (
-    <svg
-      viewBox="0 0 760 560"
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}
-    >
+    <svg viewBox="0 0 760 560"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
       <defs>
-        <filter id={`${id}-shadow`}>
-          <feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" />
-        </filter>
-        <filter id={`${id}-soft`}>
-          <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
-        </filter>
+        <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" /></filter>
+        <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
         <linearGradient id={`${id}-plinth`} x1="0" y1="0" x2="0.4" y2="1">
           <stop offset="0%" stopColor="#ebe4d8" />
           <stop offset="44%" stopColor="#d2c7b6" />
@@ -1050,30 +930,22 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
       <circle cx={g.cx} cy={g.cy} r={holeR + 10} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
 
       <rect x="502" y="20" width="108" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">
-        POWER
-      </text>
+      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">POWER</text>
 
       <rect x="620" y="20" width="120" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">
-        SELECTOR
-      </text>
+      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">SELECTOR</text>
 
       {["BASS", "TREBLE", "VOL L", "VOL R"].map((label, i) => (
         <g key={label}>
           <rect x={502 + i * 60} y="104" width="52" height="312" rx="5" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)" />
-          <text x={507 + i * 60} y="117" fill={textColor} fontSize="7" fontFamily="monospace">
-            {label}
-          </text>
+          <text x={507 + i * 60} y="117" fill={textColor} fontSize="7" fontFamily="monospace">{label}</text>
           <rect x={512 + i * 60} y="140" width="8" height="230" rx="4" fill="#101010" />
           <rect x={508 + i * 60} y={230 + i * 8} width="16" height="21" rx="3" fill="#d0d0d0" />
         </g>
       ))}
 
       <rect x="326" y="462" width="72" height="52" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
-      <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">
-        LIFT
-      </text>
+      <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">LIFT</text>
 
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
 
@@ -1089,6 +961,287 @@ function TurntableDeck({ style, color, vinylRadius, textColor, progress }) {
     return <Realistic3Deck vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
   }
   return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Modern in-app color picker. Replaces the native <input type="color">.
+// • ColorSwatch  — the chip + hex label
+// • ColorPicker  — popover with SV pad + hue strip + hex input
+// ──────────────────────────────────────────────────────────────────────
+
+function rgbToHex(r, g, b) {
+  const h = n => clamp(Math.round(n)).toString(16).padStart(2, "0");
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+function hexToHsv(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+  const d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const s = max === 0 ? 0 : d / max;
+  return { h, s, v: max };
+}
+function hsvToHex(h, s, v) {
+  const c = v * s;
+  const hh = (h % 360) / 60;
+  const x = c * (1 - Math.abs((hh % 2) - 1));
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (hh >= 0 && hh < 1) { r1 = c; g1 = x; }
+  else if (hh < 2)        { r1 = x; g1 = c; }
+  else if (hh < 3)        { g1 = c; b1 = x; }
+  else if (hh < 4)        { g1 = x; b1 = c; }
+  else if (hh < 5)        { r1 = x; b1 = c; }
+  else                    { r1 = c; b1 = x; }
+  const m = v - c;
+  return rgbToHex((r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255);
+}
+
+function ColorPicker({ value, onChange, onClose, dark, anchorRect }) {
+  const text = dark ? "#fff" : "#111";
+  const panelBg = dark ? "rgba(22,22,24,0.96)" : "rgba(255,255,255,0.98)";
+  const border = dark ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(0,0,0,0.10)";
+
+  const [hsv, setHsv] = useState(() => hexToHsv(value));
+  const [hexInput, setHexInput] = useState(normalizeHex(value).toUpperCase());
+  const padRef = useRef(null);
+  const hueRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    const onDown = e => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) onClose();
+    };
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const commit = next => {
+    setHsv(next);
+    const hex = hsvToHex(next.h, next.s, next.v);
+    setHexInput(hex.toUpperCase());
+    onChange(hex);
+  };
+
+  const padDragging = useRef(false);
+  const handlePadEvent = e => {
+    const rect = padRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    commit({ h: hsv.h, s: x, v: 1 - y });
+  };
+  const hueDragging = useRef(false);
+  const handleHueEvent = e => {
+    const rect = hueRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    commit({ h: y * 360, s: hsv.s, v: hsv.v });
+  };
+
+  useEffect(() => {
+    const move = e => {
+      if (padDragging.current) handlePadEvent(e);
+      if (hueDragging.current) handleHueEvent(e);
+    };
+    const up = () => { padDragging.current = false; hueDragging.current = false; };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hsv]);
+
+  const PANEL_W = 240, PANEL_H = 260;
+  const pad = 8;
+  let top = (anchorRect?.top ?? 0) + (anchorRect?.height ?? 0) + pad;
+  let left = (anchorRect?.left ?? 0) + (anchorRect?.width ?? 0) / 2 - PANEL_W / 2;
+  if (typeof window !== "undefined") {
+    if (top + PANEL_H > window.innerHeight - 8) top = (anchorRect?.top ?? 0) - PANEL_H - pad;
+    left = Math.max(8, Math.min(left, window.innerWidth - PANEL_W - 8));
+  }
+
+  const hueColor = hsvToHex(hsv.h, 1, 1);
+
+  return (
+    <div
+      ref={panelRef}
+      style={{
+        position: "fixed", top, left, width: PANEL_W, zIndex: 2000,
+        padding: 12, borderRadius: 16, border, background: panelBg, color: text,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.40)",
+        backdropFilter: "blur(22px) saturate(1.25)",
+        display: "flex", flexDirection: "column", gap: 10,
+        fontFamily: "Courier New, monospace",
+      }}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div style={{ display: "flex", gap: 10 }}>
+        <div
+          ref={padRef}
+          onPointerDown={e => { padDragging.current = true; handlePadEvent(e); }}
+          style={{
+            position: "relative", flex: 1, height: 160, borderRadius: 10, cursor: "crosshair",
+            background:
+              `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueColor})`,
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)",
+            touchAction: "none",
+          }}
+        >
+          <div style={{
+            position: "absolute",
+            left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`,
+            width: 14, height: 14, borderRadius: "50%",
+            transform: "translate(-50%, -50%)",
+            border: "2px solid #fff",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35)",
+            pointerEvents: "none",
+          }} />
+        </div>
+        <div
+          ref={hueRef}
+          onPointerDown={e => { hueDragging.current = true; handleHueEvent(e); }}
+          style={{
+            position: "relative", width: 18, height: 160, borderRadius: 10, cursor: "ns-resize",
+            background:
+              "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)",
+            touchAction: "none",
+          }}
+        >
+          <div style={{
+            position: "absolute",
+            left: "50%", top: `${(hsv.h / 360) * 100}%`,
+            width: 22, height: 8, borderRadius: 3,
+            transform: "translate(-50%, -50%)",
+            background: "#fff",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.30)",
+            pointerEvents: "none",
+          }} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{
+          width: 36, height: 30, borderRadius: 8, background: hsvToHex(hsv.h, hsv.s, hsv.v),
+          boxShadow: "0 0 0 1px rgba(0,0,0,0.20), inset 0 0 0 1px rgba(255,255,255,0.10)",
+          flexShrink: 0,
+        }} />
+        <span style={{ fontSize: 11, opacity: 0.7 }}>#</span>
+        <input
+          value={hexInput.replace(/^#/, "")}
+          onChange={e => {
+            const v = e.target.value.replace(/[^0-9a-f]/gi, "").slice(0, 6).toUpperCase();
+            setHexInput(`#${v}`);
+            if (v.length === 6) {
+              const next = hexToHsv(`#${v}`);
+              setHsv(next);
+              onChange(`#${v.toLowerCase()}`);
+            }
+          }}
+          spellCheck={false}
+          style={{
+            flex: 1, padding: "6px 8px", borderRadius: 8,
+            border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
+            background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+            color: text, fontFamily: "Courier New, monospace", fontSize: 12,
+            outline: "none", letterSpacing: 1, textTransform: "uppercase",
+          }}
+        />
+        <button
+          onClick={onClose}
+          style={{
+            padding: "6px 10px", borderRadius: 8,
+            border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
+            background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+            color: text, cursor: "pointer", fontFamily: "Courier New, monospace", fontSize: 11,
+          }}
+        >
+          done
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ColorSwatch({ value, onChange, label, dark }) {
+  const text = dark ? "#fff" : "#111";
+  const hex = normalizeHex(value).toUpperCase();
+  const [open, setOpen] = useState(false);
+  const swatchRef = useRef(null);
+  const [rect, setRect] = useState(null);
+
+  const handleOpen = () => {
+    const r = swatchRef.current?.getBoundingClientRect();
+    if (r) setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    setOpen(true);
+  };
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 6,
+        userSelect: "none",
+      }}
+    >
+      <button
+        ref={swatchRef}
+        onClick={handleOpen}
+        aria-label={label || "pick color"}
+        style={{
+          position: "relative",
+          width: "100%",
+          aspectRatio: "1 / 1",
+          minWidth: 40,
+          borderRadius: 14,
+          background: value,
+          boxShadow:
+            "0 4px 10px rgba(0,0,0,0.18), 0 0 0 1px " + (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
+          transition: "transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease",
+          cursor: "pointer",
+          padding: 0,
+          border: "none",
+        }}
+      />
+      {label && (
+        <span style={{ fontSize: 9, opacity: 0.7, color: text, letterSpacing: 0.5, textTransform: "uppercase" }}>
+          {label}
+        </span>
+      )}
+      <span style={{
+        fontSize: 10, fontFamily: "Courier New, monospace", color: text, opacity: 0.85, letterSpacing: 0.5,
+      }}>
+        {hex}
+      </span>
+      {open && (
+        <ColorPicker
+          value={value}
+          onChange={onChange}
+          onClose={() => setOpen(false)}
+          dark={dark}
+          anchorRect={rect}
+        />
+      )}
+    </div>
+  );
 }
 
 // Modal helpers
@@ -1117,51 +1270,17 @@ const MOD = (dark, text) => ({
   gap: 12,
 });
 
-// ──────────────────────────────────────────────────────────────────────────
-// Vinyl-crate record
-//
-// Records stand vertically side-by-side, packed tightly like in the reference
-// photo. Each project is a thin sleeve "spine" with a hint of cover colour.
-// The very last one tilts forward so the full album cover is visible.
-// Hovering a spine smoothly lifts it slightly. Clicking opens the project
-// straight into the song menu.
-// ──────────────────────────────────────────────────────────────────────────
+// Vinyl-crate constants
+const SLEEVE_SIZE = 220;
+const SPINE_W     = 16;
+const HOVER_LIFT  = 28;
 
-// Full album-cover sleeves stacked BEHIND each other in the crate (like
-// flipping through records). Every project shows its real cover. The stack
-// spans the full inner width of the crate — with many projects only a thin
-// slice of each cover peeks out behind the next one; with few projects the
-// covers spread out to fill the whole crate. The view is tilted slightly
-// from above so every cover stays clickable.
-// Real vinyl crate: all records are equal thin spines standing upright.
-// Hovering lifts a record slightly out of the crate — no cover popup, no special front.
-const SLEEVE_SIZE = 220; // full sleeve height (records are square)
-const SPINE_W     = 16;  // visible spine width — real vinyl thin
-const HOVER_LIFT  = 28;  // px a hovered spine lifts up (subtle, not dramatic)
-
-// Deterministic pastel hue for each project name, used to colour the spine
-// when a record has no custom cover — so the stack always looks varied like
-// a real vinyl crate, never a row of identical black slabs.
 function nameHue(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return h % 360;
 }
 
-// StorageRecord — one vinyl spine in the crate. All records are equal.
-//
-// NON-FRONT records (all except the rightmost):
-//   • The <button> itself is always SLEEVE_SIZE wide but has a fixed negative
-//     marginRight so only SPINE_W px of it is "claimed" in the flex row.
-//   • The inner sleeve <span> is SLEEVE_SIZE × SLEEVE_SIZE but the button clips
-//     it to SPINE_W via overflow:hidden in the resting state.
-//   • On hover the sleeve translateY lifts above the crate edge; z-index brings
-//     it on top of all neighbours. The button footprint NEVER changes — so
-//     neighbours never jump when you hover left-to-right.
-//
-// FRONT record (rightmost, isFront=true):
-//   • Always shown at full SLEEVE_SIZE, cover fully visible, slightly elevated.
-//   • No hover-lift (it’s already the hero).
 const StorageRecord = React.memo(function StorageRecord({
   name, cover, spineColor, isHovered,
   onPointerEnter, onPointerLeave, onClick, S,
@@ -1260,6 +1379,7 @@ export default function App() {
   const [vinylSide, setVinylSide] = useState(1);
   const [flipping, setFlipping] = useState(false);
   const [awaitingFlip, setAwaitingFlip] = useState(false);
+  const [pictureVinyl, setPictureVinyl] = useState(false);
 
   const audioRef = useRef(null);
   const hoverTimeoutRef = useRef(null);
@@ -1287,27 +1407,15 @@ export default function App() {
 
   const needsTurn = awaitingFlip && !flipping;
 
-  const handleRecordMouseEnter = useCallback((name) => {
-    // Cancel any pending clear so hovering left-to-right is instant and smooth
+  const handleRecordMouseEnter = useCallback(name => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoveredProject(name);
   }, []);
 
   const handleRecordMouseLeave = useCallback(() => {
-    // Small delay so the mouse can move between touching spine buttons
-    // without a flicker of "nothing hovered" between them.
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => setHoveredProject(null), 80);
   }, []);
-
-  function handleRecordClick(name) { openProject(name); }
-
-  async function saveSpineColor(projectName, color) {
-    const existing = projectsMeta[projectName] || {};
-    const updated = { ...existing, spineColor: color || null };
-    setProjectsMeta(prev => ({ ...prev, [projectName]: updated }));
-    await saveProjectToDB(projectName, updated);
-  }
 
   useEffect(() => () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -1338,6 +1446,7 @@ export default function App() {
             repeatSideCovers: Boolean(data.repeatSideCovers),
             deckStyle: normalizeDeckStyle(data.deckStyle || "classic"),
             splatterStyle: data.splatterStyle === "comet" ? "burst" : data.splatterStyle || "burst",
+            pictureVinyl: Boolean(data.pictureVinyl),
             tracks: (data.tracks || []).map(({ url, ...rest }) => rest),
           };
         }
@@ -1356,6 +1465,7 @@ export default function App() {
               repeatSideCovers: Boolean(p.repeatSideCovers),
               deckStyle: normalizeDeckStyle(p.deckStyle || "classic"),
               splatterStyle: p.splatterStyle === "comet" ? "burst" : p.splatterStyle || "burst",
+              pictureVinyl: Boolean(p.pictureVinyl),
             };
             await saveProjectToDB(name, meta[name]);
           }
@@ -1404,6 +1514,7 @@ export default function App() {
       audio.removeEventListener("loadedmetadata", update);
       audio.removeEventListener("ended", end);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, tracks, sideBoundaries, vinylSide, totalSides]);
 
   const fmt = (s = 0) => {
@@ -1564,6 +1675,7 @@ export default function App() {
       splatterStyle: "burst",
       deckStyle: "classic",
       deckColor: "#1a1a1a",
+      pictureVinyl: false,
     };
     setProjectsMeta(prev => ({ ...prev, [clean]: p }));
     if (currentUser) {
@@ -1612,6 +1724,7 @@ export default function App() {
       splatterStyle: nextSplatStyle === "comet" ? "burst" : nextSplatStyle,
       deckStyle: normalizeDeckStyle(overrides.deckStyle ?? deckStyle),
       deckColor: overrides.deckColor ?? deckColor,
+      pictureVinyl: overrides.pictureVinyl ?? pictureVinyl,
     };
   }
 
@@ -1669,6 +1782,7 @@ export default function App() {
     setSplatterStyle(p.splatterStyle === "comet" ? "burst" : p.splatterStyle || "burst");
     setDeckStyle(style);
     setDeckColor(p.deckColor || "#1a1a1a");
+    setPictureVinyl(Boolean(p.pictureVinyl));
     setVinylSide(1);
     setFlipping(false);
     setAwaitingFlip(false);
@@ -1956,9 +2070,6 @@ export default function App() {
     const storageShelf = currentUser ? normalizeStorageShelf(storageConfigs[currentUser], allProjectNames) : { activeId: null, items: [] };
     const storageConfig = storageShelf.items.find(item => item.id === storageShelf.activeId) || storageShelf.items[0] || null;
     const wood = getWoodTheme(storageConfig?.wood || storageDraftWood);
-    // Use the storage's user-defined order directly — last entry = front cover.
-    // Clicking a spine moves it to the end (front) so users browse the crate
-    // visually, just like flipping through real vinyls.
     const storageProjects = (storageConfig?.projects || []).filter(name => projectsMeta[name]);
     const focusedProject = hoveredProject || storageProjects[storageProjects.length - 1] || null;
     const focusedMeta = focusedProject ? projectsMeta[focusedProject] || {} : {};
@@ -2004,7 +2115,6 @@ export default function App() {
     }
 
     const totalRecords = storageProjects.length;
-    // All records are equal spines: each SPINE_W wide, seamlessly packed.
     const crateInnerWidth = Math.max(280, totalRecords * SPINE_W + 24);
     const crateWidth = crateInnerWidth + 88;
 
@@ -2074,7 +2184,6 @@ export default function App() {
                     </div>
                   </div>
 
-
                   <div style={S.focusActions}>
                     <button style={S.smallBtn} onClick={() => openProject(focusedProject)}>open player</button>
                     <label style={S.smallBtn}>
@@ -2093,7 +2202,6 @@ export default function App() {
               )}
             </div>
 
-            {/* THE CRATE */}
             <div style={S.crateStage}>
               <div
                 style={{
@@ -2104,19 +2212,16 @@ export default function App() {
                   "--storage-line": wood.line,
                 }}
               >
-                {/* wood walls */}
                 <div style={S.crateBack} />
                 <div style={S.crateFloor} />
                 <div style={S.crateLeftWall} />
                 <div style={S.crateRightWall} />
 
-                {/* metal legs */}
                 <div style={{ ...S.crateLeg, left: 18, transform: "rotate(18deg)" }} />
                 <div style={{ ...S.crateLeg, right: 18, transform: "rotate(-18deg)" }} />
 
-                {/* records — equal thin spines, hover lifts slightly */}
                 <div style={S.crateRecords}>
-                  {storageProjects.map((name) => {
+                  {storageProjects.map(name => {
                     const p = projectsMeta[name] || {};
                     const covers = normalizeSideCovers(p);
                     const cover = p.homeCover || p.cover || covers[0] || null;
@@ -2357,13 +2462,31 @@ export default function App() {
         ) : (
           <div style={S.designPanel}>
             <div style={S.section}>
+              <div style={S.sectionTitle}>Picture vinyl</div>
+              <div style={S.pictureRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={S.pictureCaption}>
+                    Use the side cover as a full disc image. The label is hidden.
+                  </div>
+                  {pictureVinyl && !currentVinylCover && (
+                    <div style={S.pictureHint}>Add a side cover to see the picture.</div>
+                  )}
+                </div>
+                <button
+                  style={{ ...S.toggleSwitch, ...(pictureVinyl ? S.toggleSwitchOn : {}) }}
+                  onClick={() => upd("pictureVinyl", !pictureVinyl, setPictureVinyl)}
+                  aria-pressed={pictureVinyl}
+                >
+                  <span style={{
+                    ...S.toggleKnob,
+                    transform: pictureVinyl ? "translateX(22px)" : "translateX(2px)",
+                  }} />
+                </button>
+              </div>
+            </div>
+
+            <div style={S.section}>
               <div style={S.sectionTitle}>Deck design</div>
-              <input
-                type="color"
-                value={deckColor}
-                onChange={e => upd("deckColor", e.target.value, setDeckColor)}
-                style={S.colorInput}
-              />
               <div style={S.optionGrid}>
                 {DECK_STYLES.map(style => (
                   <button
@@ -2377,16 +2500,19 @@ export default function App() {
               </div>
             </div>
 
-            <div style={S.section}>
+            <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
               <div style={S.sectionTitle}>Vinyl colors</div>
-              <div style={S.colorGrid}>
+              {pictureVinyl && (
+                <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>
+              )}
+              <div style={S.swatchGrid}>
                 {[0, 1, 2, 3].map(slot => (
-                  <input
+                  <ColorSwatch
                     key={slot}
-                    type="color"
                     value={vinylColors[slot] || DEFAULT_VINYL_COLORS[slot] || "#111111"}
-                    onChange={e => updateVinylColor(slot, e.target.value)}
-                    style={S.colorInput}
+                    onChange={v => updateVinylColor(slot, v)}
+                    label={`tone ${slot + 1}`}
+                    dark={dark}
                   />
                 ))}
               </div>
@@ -2415,17 +2541,20 @@ export default function App() {
               </label>
             </div>
 
-            <div style={S.section}>
+            <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
               <div style={S.sectionTitle}>Splatter</div>
+              {pictureVinyl && (
+                <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>
+              )}
               <div style={S.inlineControls}>
-                <input
-                  type="color"
+                <ColorSwatch
                   value={splatterColor}
-                  onChange={e => upd("splatterColor", e.target.value, setSplatterColor)}
-                  style={S.colorInput}
+                  onChange={v => upd("splatterColor", v, setSplatterColor)}
+                  label="color"
+                  dark={dark}
                 />
                 <button
-                  style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}) }}
+                  style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}), alignSelf: "flex-end" }}
                   onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}
                 >
                   {splatterOn ? "on" : "off"}
@@ -2472,6 +2601,7 @@ export default function App() {
               playing={playing}
               textColor={text}
               flipping={flipping}
+              pictureVinyl={pictureVinyl}
             />
           </div>
 
@@ -2576,370 +2706,54 @@ function makeStyles(dark, text) {
     focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 },
     focusActions: { display: "flex", flexWrap: "wrap", gap: 6 },
 
-    // ── wood crate (modelled after the reference photo) ─────────────
-    // The crate is viewed slightly from above, like looking into a real vinyl
-    // box on the floor. Records stand upright inside, packed tight.
-    crateStage: {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 18,
-      padding: "40px 0 50px",
-    },
-    crate: {
-      position: "relative",
-      height: SLEEVE_SIZE + HOVER_LIFT + 70,
-      maxWidth: "100%",
-      overflow: "visible",
-      filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))",
-    },
+    crateStage: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: "40px 0 50px" },
+    crate: { position: "relative", height: SLEEVE_SIZE + HOVER_LIFT + 70, maxWidth: "100%", overflow: "visible", filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))" },
     crateBack: {
-      position: "absolute",
-      left: 22,
-      right: 22,
-      top: HOVER_LIFT + 4,
-      bottom: 64,
-      background: "var(--storage-face)",
-      backgroundBlendMode: "multiply",
-      backgroundImage:
-        "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)",
-      borderRadius: "3px 3px 5px 5px",
-      border: "1px solid rgba(0,0,0,0.5)",
-      boxShadow:
-        "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)",
+      position: "absolute", left: 22, right: 22, top: HOVER_LIFT + 4, bottom: 64,
+      background: "var(--storage-face)", backgroundBlendMode: "multiply",
+      backgroundImage: "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)",
+      borderRadius: "3px 3px 5px 5px", border: "1px solid rgba(0,0,0,0.5)",
+      boxShadow: "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)",
     },
     crateLeftWall: {
-      position: "absolute",
-      left: 30,
-      top: HOVER_LIFT + 4,
-      bottom: 60,
-      width: 16,
-      background: "var(--storage-face)",
-      borderRight: "1px solid rgba(0,0,0,0.45)",
-      borderTopLeftRadius: 4,
-      borderBottomLeftRadius: 4,
-      boxShadow: "inset -4px 0 6px rgba(0,0,0,0.45)",
+      position: "absolute", left: 30, top: HOVER_LIFT + 4, bottom: 60, width: 16,
+      background: "var(--storage-face)", borderRight: "1px solid rgba(0,0,0,0.45)",
+      borderTopLeftRadius: 4, borderBottomLeftRadius: 4, boxShadow: "inset -4px 0 6px rgba(0,0,0,0.45)",
     },
     crateRightWall: {
-      position: "absolute",
-      right: 30,
-      top: HOVER_LIFT + 6,
-      bottom: 60,
-      width: 16,
-      background: "var(--storage-face)",
-      borderLeft: "1px solid rgba(0,0,0,0.45)",
-      borderTopRightRadius: 4,
-      borderBottomRightRadius: 4,
-      boxShadow: "inset 4px 0 6px rgba(0,0,0,0.45)",
+      position: "absolute", right: 30, top: HOVER_LIFT + 6, bottom: 60, width: 16,
+      background: "var(--storage-face)", borderLeft: "1px solid rgba(0,0,0,0.45)",
+      borderTopRightRadius: 4, borderBottomRightRadius: 4, boxShadow: "inset 4px 0 6px rgba(0,0,0,0.45)",
     },
     crateFloor: {
-      position: "absolute",
-      left: 30,
-      right: 30,
-      bottom: 56,
-      height: 12,
+      position: "absolute", left: 30, right: 30, bottom: 56, height: 12,
       background: "var(--storage-face)",
-      backgroundImage:
-        "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)",
-      borderTop: "1px solid rgba(0,0,0,0.5)",
-      borderBottom: "1px solid rgba(0,0,0,0.55)",
+      backgroundImage: "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)",
+      borderTop: "1px solid rgba(0,0,0,0.5)", borderBottom: "1px solid rgba(0,0,0,0.55)",
       boxShadow: "0 6px 10px rgba(0,0,0,0.35)",
     },
     crateLeg: {
-      position: "absolute",
-      bottom: 0,
-      width: 5,
-      height: 72,
-      borderRadius: 2,
+      position: "absolute", bottom: 0, width: 5, height: 72, borderRadius: 2,
       background: "linear-gradient(180deg, #1c1c1c 0%, #050505 100%)",
       boxShadow: "0 8px 12px rgba(0,0,0,0.55), inset 1px 0 0 rgba(255,255,255,0.20)",
       transformOrigin: "50% 0%",
     },
     crateRecords: {
-      position: "absolute",
-      left: 44,
-      right: 44,
-      top: HOVER_LIFT + 4,
-      bottom: 72,
-      overflow: "visible",
-      scrollbarColor: dark ? "rgba(255,255,255,0.15) transparent" : "rgba(0,0,0,0.15) transparent",
-      scrollbarWidth: "thin",
-      display: "flex",
-      flexDirection: "row",
-      alignItems: "flex-end",
-      paddingLeft: 8,
-      paddingRight: 8,
-      paddingTop: 4,
-      gap: 0,   // spines touch — no gap = seamless left-to-right hover
+      position: "absolute", left: 44, right: 44, top: HOVER_LIFT + 4, bottom: 72,
+      overflow: "visible", scrollbarWidth: "thin",
+      display: "flex", flexDirection: "row", alignItems: "flex-end",
+      paddingLeft: 8, paddingRight: 8, paddingTop: 4, gap: 0,
     },
     crateEmpty: {
-      position: "absolute",
-      left: 0,
-      right: 0,
-      top: "40%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: 12,
-      color: dark ? "#eee" : "#fff",
-      fontSize: 13,
-      textShadow: "0 2px 6px rgba(0,0,0,0.7)",
+      position: "absolute", left: 0, right: 0, top: "40%",
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+      color: dark ? "#eee" : "#fff", fontSize: 13, textShadow: "0 2px 6px rgba(0,0,0,0.7)",
     },
-    crateLabel: {
-      color: text,
-      opacity: 0.6,
-      fontSize: 11,
-      letterSpacing: 1,
-      textTransform: "uppercase",
-    },
+    crateLabel: { color: text, opacity: 0.6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" },
 
-    // ── records ───────────────────────────────────────────────────────────────
     storageRecord: {
-      position: "relative",
-      flexShrink: 0,
-      padding: 0,
-      cursor: "pointer",
-      outline: "none",
+      position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", outline: "none",
       WebkitTapHighlightColor: "transparent",
-    },
-    // Square vinyl sleeve — the actual rendered album jacket.
-    // For the FRONT cover button: used as `position: absolute` filling the button.
-    // For SPINE inner spans: used as `position: relative` with explicit dimensions.
-    // The selector style here is the FRONT-cover default (absolute).
-    vinylSleeveSquare: {
-      position: "absolute",
-      top: 0, left: 0,
-      width: "100%",
-      height: "100%",
-      borderRadius: 3,
-      overflow: "hidden",
-      border: "1px solid rgba(0,0,0,0.55)",
-      boxShadow:
-        "4px 0 0 rgba(0,0,0,0.28), 0 14px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.16)",
-      display: "block",
-    },
-    // Diagonal shrink-wrap gloss (the unmistakable vinyl-sleeve sheen).
-    vinylGlossWrap: {
-      position: "absolute", inset: 0,
-      background:
-        "linear-gradient(120deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0) 32%," +
-        "rgba(255,255,255,0.28) 48%,rgba(255,255,255,0) 64%,rgba(255,255,255,0) 100%)",
-      mixBlendMode: "screen", pointerEvents: "none",
-    },
-    // Right binding edge on the front cover.
-    vinylSpineEdge: {
-      position: "absolute", top: 0, bottom: 0, right: 0, width: 7,
-      background: "linear-gradient(270deg,rgba(0,0,0,0.75) 0%,rgba(0,0,0,0.25) 65%,transparent 100%)",
-      pointerEvents: "none",
-    },
-    // Off-white cardboard paper edge — left 4px of each spine (what you see in the crate).
-    vinylPaperEdge: {
-      position: "absolute", top: 0, bottom: 0, left: 0, width: 4,
-      background: "linear-gradient(90deg,rgba(238,226,206,0.92) 0%,rgba(200,186,162,0.44) 55%,transparent 100%)",
-      boxShadow: "inset 1px 0 0 rgba(255,255,255,0.55)",
-      pointerEvents: "none",
-    },
-    // Shadow from the record in front, on the RIGHT edge of each spine.
-    vinylSpineShadow: {
-      position: "absolute", top: 0, bottom: 0, right: 0, width: 14,
-      background: "linear-gradient(270deg,rgba(0,0,0,0.55) 0%,rgba(0,0,0,0.10) 70%,transparent 100%)",
-      pointerEvents: "none",
-    },
-    // The actual album sleeve — square, glossy, with the cover image filling it.
-    recordSleeve: {
-      position: "absolute",
-      inset: 0,
-      borderRadius: 4,
-      overflow: "hidden",
-      background: "#181614",
-      border: "1px solid rgba(0,0,0,0.6)",
-      boxShadow:
-        "0 18px 30px rgba(0,0,0,0.55), 0 6px 10px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20), inset 0 -2px 0 rgba(0,0,0,0.45)",
-      display: "block",
-    },
-    // Diagonal shrinkwrap sheen across the whole cover.
-    sleeveGloss: {
-      position: "absolute",
-      inset: 0,
-      background:
-        "linear-gradient(118deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 36%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0) 64%, rgba(255,255,255,0) 100%)",
-      mixBlendMode: "screen",
-      pointerEvents: "none",
-    },
-    // Top highlight + bottom darken — reads as a glossy vinyl jacket.
-    sleeveShine: {
-      position: "absolute",
-      inset: 0,
-      background:
-        "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 16%, rgba(255,255,255,0) 38%, rgba(0,0,0,0.18) 78%, rgba(0,0,0,0.30) 100%)",
-      pointerEvents: "none",
-    },
-    // Soft shadow on the LEFT edge of each cover — reads as the cover in front
-    // casting a shadow on the one behind it (stack effect).
-    sleeveLeftShadow: {
-      position: "absolute",
-      top: 0,
-      bottom: 0,
-      left: 0,
-      width: 12,
-      background:
-        "linear-gradient(90deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)",
-      pointerEvents: "none",
-    },
-    sleeveRightShadow: {
-      position: "absolute",
-      top: 0,
-      bottom: 0,
-      right: 0,
-      width: 12,
-      background:
-        "linear-gradient(270deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)",
-      pointerEvents: "none",
-    },
-    // The thin white paper edge visible at the LEFT of each stacked record —
-    // this is what you actually see when looking at packed vinyl from above.
-    sleevePaperEdge: {
-      position: "absolute",
-      top: 0,
-      bottom: 0,
-      left: 0,
-      width: 3,
-      background:
-        "linear-gradient(90deg, rgba(255,255,255,0.55) 0%, rgba(220,210,195,0.35) 70%, rgba(0,0,0,0.20) 100%)",
-      boxShadow: "inset 1px 0 0 rgba(255,255,255,0.55)",
-      pointerEvents: "none",
-    },
-    // Thin paper edge along the TOP of each sleeve — what you actually see
-    // when looking down at vinyls packed in a crate (off-white paper edge).
-    sleeveTopEdge: {
-      position: "absolute",
-      left: 0,
-      right: 0,
-      top: 0,
-      height: 3,
-      background:
-        "linear-gradient(180deg, rgba(245,238,225,0.95) 0%, rgba(190,180,160,0.55) 60%, rgba(0,0,0,0.30) 100%)",
-      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)",
-      pointerEvents: "none",
-    },
-    sleeveLabel: {
-      position: "absolute",
-      left: 10,
-      right: 10,
-      bottom: 10,
-      padding: "6px 10px",
-      borderRadius: 8,
-      background: "rgba(0,0,0,0.62)",
-      color: "#fff",
-      fontSize: 11,
-      fontFamily: baseFont,
-      letterSpacing: 0.6,
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-      backdropFilter: "blur(10px)",
-      pointerEvents: "none",
-    },
-    recordFrontSleeve: {
-      position: "absolute",
-      inset: 0,
-      borderRadius: 3,
-      overflow: "hidden",
-      background: "#181614",
-      border: "1px solid rgba(0,0,0,0.65)",
-      boxShadow:
-        "0 14px 28px rgba(0,0,0,0.6), inset -12px 0 22px rgba(0,0,0,0.45), inset 6px 0 0 rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.18)",
-      display: "block",
-    },
-    // Big diagonal sheen across the whole album cover (like real shrink-wrap).
-    frontSleeveGloss: {
-      position: "absolute",
-      inset: 0,
-      background:
-        "linear-gradient(115deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0) 62%, rgba(255,255,255,0) 100%)",
-      mixBlendMode: "screen",
-      pointerEvents: "none",
-    },
-    // Soft top highlight + bottom shadow that reads as a glossy jacket.
-    frontSleeveShine: {
-      position: "absolute",
-      inset: 0,
-      background:
-        "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 18%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.22) 100%)",
-      pointerEvents: "none",
-    },
-    frontSleeveLabel: {
-      position: "absolute",
-      left: 8,
-      right: 8,
-      bottom: 8,
-      padding: "5px 8px",
-      borderRadius: 6,
-      background: "rgba(0,0,0,0.6)",
-      color: "#fff",
-      fontSize: 11,
-      fontFamily: baseFont,
-      letterSpacing: 0.5,
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-      backdropFilter: "blur(10px)",
-    },
-    recordSpine: {
-      position: "absolute",
-      inset: 0,
-      borderRadius: 2,
-      overflow: "hidden",
-      borderLeft: "1px solid rgba(255,255,255,0.14)",
-      borderRight: "1px solid rgba(0,0,0,0.70)",
-      boxShadow: "0 6px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18)",
-      display: "block",
-    },
-    // Base gloss — left highlight, dark right shadow (paper sleeve under shrink-wrap).
-    spineGloss: {
-      position: "absolute",
-      inset: 0,
-      background:
-        "linear-gradient(90deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.10) 35%, rgba(0,0,0,0.45) 75%, rgba(0,0,0,0.65) 100%)",
-      mixBlendMode: "screen",
-      pointerEvents: "none",
-    },
-    // Bright vertical shine band — the signature "glossy vinyl jacket" reflection.
-    spineShine: {
-      position: "absolute",
-      inset: 0,
-      background:
-        "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 30%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0) 66%, rgba(255,255,255,0) 100%)",
-      mixBlendMode: "screen",
-      pointerEvents: "none",
-    },
-    spineHoverTip: {
-      position: "absolute",
-      bottom: "100%",
-      left: "50%",
-      transform: "translate(-50%, -6px)",
-      whiteSpace: "nowrap",
-      padding: "6px 10px",
-      borderRadius: 8,
-      background: dark ? "rgba(20,20,22,0.92)" : "rgba(255,255,255,0.94)",
-      color: text,
-      fontSize: 11,
-      fontFamily: baseFont,
-      boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
-      pointerEvents: "none",
-    },
-    recordBlank: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      color: "#eee",
-      fontSize: 42,
-      letterSpacing: 2,
-      background:
-        "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.40))",
     },
 
     loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
@@ -2964,7 +2778,7 @@ function makeStyles(dark, text) {
     sideCoverPreview: { width: 34, height: 34, borderRadius: "50%", flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.06)", color: text },
     sideCoverImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
     clearCoverBtn: { padding: "5px 8px", borderRadius: 9, border, background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 10 },
-    list: { flex: 1, minHeight: 0, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: `${scrollVars["--aurae-scroll-thumb"]} transparent`, display: "flex", flexDirection: "column", gap: 8, paddingRight: 6, color: text },
+    list: { flex: 1, minHeight: 0, overflowY: "auto", scrollbarWidth: "thin", display: "flex", flexDirection: "column", gap: 8, paddingRight: 6, color: text },
     track: { display: "flex", alignItems: "center", gap: 9, minHeight: 48, padding: "10px 11px", borderRadius: 14, background: dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.68)", border: dark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)", color: text, cursor: "pointer" },
     dragGrip: { color: text, opacity: 0.7, cursor: "grab", fontSize: 12, flexShrink: 0 },
     trackName: { flex: 1, minWidth: 0, color: text, fontFamily: baseFont, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -2975,11 +2789,32 @@ function makeStyles(dark, text) {
     sectionTitle: { color: text, fontSize: 12, opacity: 0.9, textTransform: "uppercase", letterSpacing: 1 },
     optionGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, color: text },
     optionActive: { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", color: text, borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
-    colorGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 },
-    inlineControls: { display: "flex", gap: 8, alignItems: "center", color: text },
-    colorInput: { width: "100%", minWidth: 42, height: 38, border: "none", borderRadius: 12, padding: 4, background: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.72)", color: text, cursor: "pointer" },
+    swatchGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, padding: "6px 2px" },
+    colorRow: { display: "grid", gridTemplateColumns: "minmax(0, 90px)", gap: 10, padding: "4px 2px" },
+    inlineControls: { display: "flex", gap: 12, alignItems: "stretch", color: text },
     sliderLabel: { display: "flex", flexDirection: "column", gap: 8, color: text, fontSize: 12, opacity: 0.9 },
     range: { width: "100%", accentColor: text },
+
+    pictureRow: { display: "flex", alignItems: "center", gap: 12 },
+    pictureCaption: { color: text, opacity: 0.78, fontSize: 11, lineHeight: 1.45 },
+    pictureHint: { color: text, opacity: 0.55, fontSize: 10, fontStyle: "italic" },
+    toggleSwitch: {
+      width: 46, height: 26, borderRadius: 999, border,
+      background: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+      position: "relative", cursor: "pointer", padding: 0, flexShrink: 0,
+      transition: "background 0.18s ease",
+    },
+    toggleSwitchOn: {
+      background: dark ? "rgba(120,200,140,0.55)" : "rgba(80,170,110,0.85)",
+      borderColor: dark ? "rgba(160,230,180,0.55)" : "rgba(60,140,90,0.55)",
+    },
+    toggleKnob: {
+      position: "absolute", top: 2, left: 0, width: 22, height: 22, borderRadius: "50%",
+      background: "#fff",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.6)",
+      transition: "transform 0.18s cubic-bezier(0.22,1,0.36,1)",
+    },
+
     stage: { flex: 1, minWidth: 0, height: "calc(100vh - 78px)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px 24px 34px", overflow: "hidden", color: text },
     turnBtn: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 10, padding: "14px 20px", borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)", color: text, fontFamily: baseFont, fontSize: 13, cursor: "pointer", backdropFilter: "blur(24px) saturate(1.25)", boxShadow: shadow },
     player: { position: "fixed", left: 360, right: 0, bottom: 0, height: 78, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 18px", background: dark ? "rgba(12,12,14,0.82)" : "rgba(255,255,255,0.82)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
@@ -3000,11 +2835,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
-    }
-
-    @keyframes coverPop {
-      from { opacity: 0; transform: translate(-50%, 0px) scale(0.88); }
-      to   { opacity: 1; transform: translate(-50%, -4px) scale(1); }
     }
 
     @keyframes vinylFlip {
@@ -3068,5 +2898,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
+
 
 
