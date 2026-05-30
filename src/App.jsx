@@ -1119,16 +1119,49 @@ const MOD = (dark, text) => ({
 
 // ──────────────────────────────────────────────────────────────────────────
 // Vinyl-crate record
-const SLEEVE_SIZE = 220;
-const SPINE_W     = 16;
-const HOVER_LIFT  = 28;
+//
+// Records stand vertically side-by-side, packed tightly like in the reference
+// photo. Each project is a thin sleeve "spine" with a hint of cover colour.
+// The very last one tilts forward so the full album cover is visible.
+// Hovering a spine smoothly lifts it slightly. Clicking opens the project
+// straight into the song menu.
+// ──────────────────────────────────────────────────────────────────────────
 
+// Full album-cover sleeves stacked BEHIND each other in the crate (like
+// flipping through records). Every project shows its real cover. The stack
+// spans the full inner width of the crate — with many projects only a thin
+// slice of each cover peeks out behind the next one; with few projects the
+// covers spread out to fill the whole crate. The view is tilted slightly
+// from above so every cover stays clickable.
+// Real vinyl crate: all records are equal thin spines standing upright.
+// Hovering lifts a record slightly out of the crate — no cover popup, no special front.
+const SLEEVE_SIZE = 220; // full sleeve height (records are square)
+const SPINE_W     = 16;  // visible spine width — real vinyl thin
+const HOVER_LIFT  = 28;  // px a hovered spine lifts up (subtle, not dramatic)
+
+// Deterministic pastel hue for each project name, used to colour the spine
+// when a record has no custom cover — so the stack always looks varied like
+// a real vinyl crate, never a row of identical black slabs.
 function nameHue(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return h % 360;
 }
 
+// StorageRecord — one vinyl spine in the crate. All records are equal.
+//
+// NON-FRONT records (all except the rightmost):
+//   • The <button> itself is always SLEEVE_SIZE wide but has a fixed negative
+//     marginRight so only SPINE_W px of it is "claimed" in the flex row.
+//   • The inner sleeve <span> is SLEEVE_SIZE × SLEEVE_SIZE but the button clips
+//     it to SPINE_W via overflow:hidden in the resting state.
+//   • On hover the sleeve translateY lifts above the crate edge; z-index brings
+//     it on top of all neighbours. The button footprint NEVER changes — so
+//     neighbours never jump when you hover left-to-right.
+//
+// FRONT record (rightmost, isFront=true):
+//   • Always shown at full SLEEVE_SIZE, cover fully visible, slightly elevated.
+//   • No hover-lift (it’s already the hero).
 const StorageRecord = React.memo(function StorageRecord({
   name, cover, spineColor, isHovered,
   onPointerEnter, onPointerLeave, onClick, S,
@@ -1255,11 +1288,14 @@ export default function App() {
   const needsTurn = awaitingFlip && !flipping;
 
   const handleRecordMouseEnter = useCallback((name) => {
+    // Cancel any pending clear so hovering left-to-right is instant and smooth
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoveredProject(name);
   }, []);
 
   const handleRecordMouseLeave = useCallback(() => {
+    // Small delay so the mouse can move between touching spine buttons
+    // without a flicker of "nothing hovered" between them.
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => setHoveredProject(null), 80);
   }, []);
@@ -1920,6 +1956,9 @@ export default function App() {
     const storageShelf = currentUser ? normalizeStorageShelf(storageConfigs[currentUser], allProjectNames) : { activeId: null, items: [] };
     const storageConfig = storageShelf.items.find(item => item.id === storageShelf.activeId) || storageShelf.items[0] || null;
     const wood = getWoodTheme(storageConfig?.wood || storageDraftWood);
+    // Use the storage's user-defined order directly — last entry = front cover.
+    // Clicking a spine moves it to the end (front) so users browse the crate
+    // visually, just like flipping through real vinyls.
     const storageProjects = (storageConfig?.projects || []).filter(name => projectsMeta[name]);
     const focusedProject = hoveredProject || storageProjects[storageProjects.length - 1] || null;
     const focusedMeta = focusedProject ? projectsMeta[focusedProject] || {} : {};
@@ -1965,6 +2004,7 @@ export default function App() {
     }
 
     const totalRecords = storageProjects.length;
+    // All records are equal spines: each SPINE_W wide, seamlessly packed.
     const crateInnerWidth = Math.max(280, totalRecords * SPINE_W + 24);
     const crateWidth = crateInnerWidth + 88;
 
@@ -2034,6 +2074,7 @@ export default function App() {
                     </div>
                   </div>
 
+
                   <div style={S.focusActions}>
                     <button style={S.smallBtn} onClick={() => openProject(focusedProject)}>open player</button>
                     <label style={S.smallBtn}>
@@ -2063,14 +2104,17 @@ export default function App() {
                   "--storage-line": wood.line,
                 }}
               >
+                {/* wood walls */}
                 <div style={S.crateBack} />
                 <div style={S.crateFloor} />
                 <div style={S.crateLeftWall} />
                 <div style={S.crateRightWall} />
 
+                {/* metal legs */}
                 <div style={{ ...S.crateLeg, left: 18, transform: "rotate(18deg)" }} />
                 <div style={{ ...S.crateLeg, right: 18, transform: "rotate(-18deg)" }} />
 
+                {/* records — equal thin spines, hover lifts slightly */}
                 <div style={S.crateRecords}>
                   {storageProjects.map((name) => {
                     const p = projectsMeta[name] || {};
@@ -2531,39 +2575,373 @@ function makeStyles(dark, text) {
     focusCover: { width: 88, height: 88, borderRadius: 12, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", flexShrink: 0 },
     focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 },
     focusActions: { display: "flex", flexWrap: "wrap", gap: 6 },
-    crateStage: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: "40px 0 50px" },
-    crate: { position: "relative", height: SLEEVE_SIZE + HOVER_LIFT + 70, maxWidth: "100%", overflow: "visible", filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))" },
-    crateBack: { position: "absolute", left: 22, right: 22, top: HOVER_LIFT + 4, bottom: 64, background: "var(--storage-face)", backgroundBlendMode: "multiply", backgroundImage: "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)", borderRadius: "3px 3px 5px 5px", border: "1px solid rgba(0,0,0,0.5)", boxShadow: "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)" },
-    crateLeftWall: { position: "absolute", left: 30, top: HOVER_LIFT + 4, bottom: 60, width: 16, background: "var(--storage-face)", borderRight: "1px solid rgba(0,0,0,0.45)", borderTopLeftRadius: 4, borderBottomLeftRadius: 4, boxShadow: "inset -4px 0 6px rgba(0,0,0,0.45)" },
-    crateRightWall: { position: "absolute", right: 30, top: HOVER_LIFT + 6, bottom: 60, width: 16, background: "var(--storage-face)", borderLeft: "1px solid rgba(0,0,0,0.45)", borderTopRightRadius: 4, borderBottomRightRadius: 4, boxShadow: "inset 4px 0 6px rgba(0,0,0,0.45)" },
-    crateFloor: { position: "absolute", left: 30, right: 30, bottom: 56, height: 12, background: "var(--storage-face)", backgroundImage: "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)", borderTop: "1px solid rgba(0,0,0,0.5)", borderBottom: "1px solid rgba(0,0,0,0.55)", boxShadow: "0 6px 10px rgba(0,0,0,0.35)" },
-    crateLeg: { position: "absolute", bottom: 0, width: 5, height: 72, borderRadius: 2, background: "linear-gradient(180deg, #1c1c1c 0%, #050505 100%)", boxShadow: "0 8px 12px rgba(0,0,0,0.55), inset 1px 0 0 rgba(255,255,255,0.20)", transformOrigin: "50% 0%" },
-    crateRecords: { position: "absolute", left: 44, right: 44, top: HOVER_LIFT + 4, bottom: 72, overflow: "visible", scrollbarColor: dark ? "rgba(255,255,255,0.15) transparent" : "rgba(0,0,0,0.15) transparent", scrollbarWidth: "thin", display: "flex", flexDirection: "row", alignItems: "flex-end", paddingLeft: 8, paddingRight: 8, paddingTop: 4, gap: 0 },
-    crateEmpty: { position: "absolute", left: 0, right: 0, top: "40%", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: dark ? "#eee" : "#fff", fontSize: 13, textShadow: "0 2px 6px rgba(0,0,0,0.7)" },
-    crateLabel: { color: text, opacity: 0.6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" },
-    storageRecord: { position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" },
-    vinylSleeveSquare: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", borderRadius: 3, overflow: "hidden", border: "1px solid rgba(0,0,0,0.55)", boxShadow: "4px 0 0 rgba(0,0,0,0.28), 0 14px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.16)", display: "block" },
-    vinylGlossWrap: { position: "absolute", inset: 0, background: "linear-gradient(120deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0) 32%,rgba(255,255,255,0.28) 48%,rgba(255,255,255,0) 64%,rgba(255,255,255,0) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
-    vinylSpineEdge: { position: "absolute", top: 0, bottom: 0, right: 0, width: 7, background: "linear-gradient(270deg,rgba(0,0,0,0.75) 0%,rgba(0,0,0,0.25) 65%,transparent 100%)", pointerEvents: "none" },
-    vinylPaperEdge: { position: "absolute", top: 0, bottom: 0, left: 0, width: 4, background: "linear-gradient(90deg,rgba(238,226,206,0.92) 0%,rgba(200,186,162,0.44) 55%,transparent 100%)", boxShadow: "inset 1px 0 0 rgba(255,255,255,0.55)", pointerEvents: "none" },
-    vinylSpineShadow: { position: "absolute", top: 0, bottom: 0, right: 0, width: 14, background: "linear-gradient(270deg,rgba(0,0,0,0.55) 0%,rgba(0,0,0,0.10) 70%,transparent 100%)", pointerEvents: "none" },
-    recordSleeve: { position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden", background: "#181614", border: "1px solid rgba(0,0,0,0.6)", boxShadow: "0 18px 30px rgba(0,0,0,0.55), 0 6px 10px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20), inset 0 -2px 0 rgba(0,0,0,0.45)", display: "block" },
-    sleeveGloss: { position: "absolute", inset: 0, background: "linear-gradient(118deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 36%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0) 64%, rgba(255,255,255,0) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
-    sleeveShine: { position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 16%, rgba(255,255,255,0) 38%, rgba(0,0,0,0.18) 78%, rgba(0,0,0,0.30) 100%)", pointerEvents: "none" },
-    sleeveLeftShadow: { position: "absolute", top: 0, bottom: 0, left: 0, width: 12, background: "linear-gradient(90deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)", pointerEvents: "none" },
-    sleeveRightShadow: { position: "absolute", top: 0, bottom: 0, right: 0, width: 12, background: "linear-gradient(270deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)", pointerEvents: "none" },
-    sleevePaperEdge: { position: "absolute", top: 0, bottom: 0, left: 0, width: 3, background: "linear-gradient(90deg, rgba(255,255,255,0.55) 0%, rgba(220,210,195,0.35) 70%, rgba(0,0,0,0.20) 100%)", boxShadow: "inset 1px 0 0 rgba(255,255,255,0.55)", pointerEvents: "none" },
-    sleeveTopEdge: { position: "absolute", left: 0, right: 0, top: 0, height: 3, background: "linear-gradient(180deg, rgba(245,238,225,0.95) 0%, rgba(190,180,160,0.55) 60%, rgba(0,0,0,0.30) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)", pointerEvents: "none" },
-    sleeveLabel: { position: "absolute", left: 10, right: 10, bottom: 10, padding: "6px 10px", borderRadius: 8, background: "rgba(0,0,0,0.62)", color: "#fff", fontSize: 11, fontFamily: baseFont, letterSpacing: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", backdropFilter: "blur(10px)", pointerEvents: "none" },
-    recordFrontSleeve: { position: "absolute", inset: 0, borderRadius: 3, overflow: "hidden", background: "#181614", border: "1px solid rgba(0,0,0,0.65)", boxShadow: "0 14px 28px rgba(0,0,0,0.6), inset -12px 0 22px rgba(0,0,0,0.45), inset 6px 0 0 rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.18)", display: "block" },
-    frontSleeveGloss: { position: "absolute", inset: 0, background: "linear-gradient(115deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0) 62%, rgba(255,255,255,0) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
-    frontSleeveShine: { position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 18%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.22) 100%)", pointerEvents: "none" },
-    frontSleeveLabel: { position: "absolute", left: 8, right: 8, bottom: 8, padding: "5px 8px", borderRadius: 6, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, fontFamily: baseFont, letterSpacing: 0.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", backdropFilter: "blur(10px)" },
-    recordSpine: { position: "absolute", inset: 0, borderRadius: 2, overflow: "hidden", borderLeft: "1px solid rgba(255,255,255,0.14)", borderRight: "1px solid rgba(0,0,0,0.70)", boxShadow: "0 6px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18)", display: "block" },
-    spineGloss: { position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.10) 35%, rgba(0,0,0,0.45) 75%, rgba(0,0,0,0.65) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
-    spineShine: { position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 30%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0) 66%, rgba(255,255,255,0) 100%)", mixBlendMode: "screen", pointerEvents: "none" },
-    spineHoverTip: { position: "absolute", bottom: "100%", left: "50%", transform: "translate(-50%, -6px)", whiteSpace: "nowrap", padding: "6px 10px", borderRadius: 8, background: dark ? "rgba(20,20,22,0.92)" : "rgba(255,255,255,0.94)", color: text, fontSize: 11, fontFamily: baseFont, boxShadow: "0 8px 20px rgba(0,0,0,0.35)", pointerEvents: "none" },
-    recordBlank: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#eee", fontSize: 42, letterSpacing: 2, background: "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.40))" },
+
+    // ── wood crate (modelled after the reference photo) ─────────────
+    // The crate is viewed slightly from above, like looking into a real vinyl
+    // box on the floor. Records stand upright inside, packed tight.
+    crateStage: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 18,
+      padding: "40px 0 50px",
+    },
+    crate: {
+      position: "relative",
+      height: SLEEVE_SIZE + HOVER_LIFT + 70,
+      maxWidth: "100%",
+      overflow: "visible",
+      filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))",
+    },
+    crateBack: {
+      position: "absolute",
+      left: 22,
+      right: 22,
+      top: HOVER_LIFT + 4,
+      bottom: 64,
+      background: "var(--storage-face)",
+      backgroundBlendMode: "multiply",
+      backgroundImage:
+        "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)",
+      borderRadius: "3px 3px 5px 5px",
+      border: "1px solid rgba(0,0,0,0.5)",
+      boxShadow:
+        "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)",
+    },
+    crateLeftWall: {
+      position: "absolute",
+      left: 30,
+      top: HOVER_LIFT + 4,
+      bottom: 60,
+      width: 16,
+      background: "var(--storage-face)",
+      borderRight: "1px solid rgba(0,0,0,0.45)",
+      borderTopLeftRadius: 4,
+      borderBottomLeftRadius: 4,
+      boxShadow: "inset -4px 0 6px rgba(0,0,0,0.45)",
+    },
+    crateRightWall: {
+      position: "absolute",
+      right: 30,
+      top: HOVER_LIFT + 6,
+      bottom: 60,
+      width: 16,
+      background: "var(--storage-face)",
+      borderLeft: "1px solid rgba(0,0,0,0.45)",
+      borderTopRightRadius: 4,
+      borderBottomRightRadius: 4,
+      boxShadow: "inset 4px 0 6px rgba(0,0,0,0.45)",
+    },
+    crateFloor: {
+      position: "absolute",
+      left: 30,
+      right: 30,
+      bottom: 56,
+      height: 12,
+      background: "var(--storage-face)",
+      backgroundImage:
+        "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)",
+      borderTop: "1px solid rgba(0,0,0,0.5)",
+      borderBottom: "1px solid rgba(0,0,0,0.55)",
+      boxShadow: "0 6px 10px rgba(0,0,0,0.35)",
+    },
+    crateLeg: {
+      position: "absolute",
+      bottom: 0,
+      width: 5,
+      height: 72,
+      borderRadius: 2,
+      background: "linear-gradient(180deg, #1c1c1c 0%, #050505 100%)",
+      boxShadow: "0 8px 12px rgba(0,0,0,0.55), inset 1px 0 0 rgba(255,255,255,0.20)",
+      transformOrigin: "50% 0%",
+    },
+    crateRecords: {
+      position: "absolute",
+      left: 44,
+      right: 44,
+      top: HOVER_LIFT + 4,
+      bottom: 72,
+      overflow: "visible",
+      scrollbarColor: dark ? "rgba(255,255,255,0.15) transparent" : "rgba(0,0,0,0.15) transparent",
+      scrollbarWidth: "thin",
+      display: "flex",
+      flexDirection: "row",
+      alignItems: "flex-end",
+      paddingLeft: 8,
+      paddingRight: 8,
+      paddingTop: 4,
+      gap: 0,   // spines touch — no gap = seamless left-to-right hover
+    },
+    crateEmpty: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      top: "40%",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 12,
+      color: dark ? "#eee" : "#fff",
+      fontSize: 13,
+      textShadow: "0 2px 6px rgba(0,0,0,0.7)",
+    },
+    crateLabel: {
+      color: text,
+      opacity: 0.6,
+      fontSize: 11,
+      letterSpacing: 1,
+      textTransform: "uppercase",
+    },
+
+    // ── records ───────────────────────────────────────────────────────────────
+    storageRecord: {
+      position: "relative",
+      flexShrink: 0,
+      padding: 0,
+      cursor: "pointer",
+      outline: "none",
+      WebkitTapHighlightColor: "transparent",
+    },
+    // Square vinyl sleeve — the actual rendered album jacket.
+    // For the FRONT cover button: used as `position: absolute` filling the button.
+    // For SPINE inner spans: used as `position: relative` with explicit dimensions.
+    // The selector style here is the FRONT-cover default (absolute).
+    vinylSleeveSquare: {
+      position: "absolute",
+      top: 0, left: 0,
+      width: "100%",
+      height: "100%",
+      borderRadius: 3,
+      overflow: "hidden",
+      border: "1px solid rgba(0,0,0,0.55)",
+      boxShadow:
+        "4px 0 0 rgba(0,0,0,0.28), 0 14px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.16)",
+      display: "block",
+    },
+    // Diagonal shrink-wrap gloss (the unmistakable vinyl-sleeve sheen).
+    vinylGlossWrap: {
+      position: "absolute", inset: 0,
+      background:
+        "linear-gradient(120deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0) 32%," +
+        "rgba(255,255,255,0.28) 48%,rgba(255,255,255,0) 64%,rgba(255,255,255,0) 100%)",
+      mixBlendMode: "screen", pointerEvents: "none",
+    },
+    // Right binding edge on the front cover.
+    vinylSpineEdge: {
+      position: "absolute", top: 0, bottom: 0, right: 0, width: 7,
+      background: "linear-gradient(270deg,rgba(0,0,0,0.75) 0%,rgba(0,0,0,0.25) 65%,transparent 100%)",
+      pointerEvents: "none",
+    },
+    // Off-white cardboard paper edge — left 4px of each spine (what you see in the crate).
+    vinylPaperEdge: {
+      position: "absolute", top: 0, bottom: 0, left: 0, width: 4,
+      background: "linear-gradient(90deg,rgba(238,226,206,0.92) 0%,rgba(200,186,162,0.44) 55%,transparent 100%)",
+      boxShadow: "inset 1px 0 0 rgba(255,255,255,0.55)",
+      pointerEvents: "none",
+    },
+    // Shadow from the record in front, on the RIGHT edge of each spine.
+    vinylSpineShadow: {
+      position: "absolute", top: 0, bottom: 0, right: 0, width: 14,
+      background: "linear-gradient(270deg,rgba(0,0,0,0.55) 0%,rgba(0,0,0,0.10) 70%,transparent 100%)",
+      pointerEvents: "none",
+    },
+    // The actual album sleeve — square, glossy, with the cover image filling it.
+    recordSleeve: {
+      position: "absolute",
+      inset: 0,
+      borderRadius: 4,
+      overflow: "hidden",
+      background: "#181614",
+      border: "1px solid rgba(0,0,0,0.6)",
+      boxShadow:
+        "0 18px 30px rgba(0,0,0,0.55), 0 6px 10px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20), inset 0 -2px 0 rgba(0,0,0,0.45)",
+      display: "block",
+    },
+    // Diagonal shrinkwrap sheen across the whole cover.
+    sleeveGloss: {
+      position: "absolute",
+      inset: 0,
+      background:
+        "linear-gradient(118deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 36%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0) 64%, rgba(255,255,255,0) 100%)",
+      mixBlendMode: "screen",
+      pointerEvents: "none",
+    },
+    // Top highlight + bottom darken — reads as a glossy vinyl jacket.
+    sleeveShine: {
+      position: "absolute",
+      inset: 0,
+      background:
+        "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 16%, rgba(255,255,255,0) 38%, rgba(0,0,0,0.18) 78%, rgba(0,0,0,0.30) 100%)",
+      pointerEvents: "none",
+    },
+    // Soft shadow on the LEFT edge of each cover — reads as the cover in front
+    // casting a shadow on the one behind it (stack effect).
+    sleeveLeftShadow: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: 0,
+      width: 12,
+      background:
+        "linear-gradient(90deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)",
+      pointerEvents: "none",
+    },
+    sleeveRightShadow: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      right: 0,
+      width: 12,
+      background:
+        "linear-gradient(270deg, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)",
+      pointerEvents: "none",
+    },
+    // The thin white paper edge visible at the LEFT of each stacked record —
+    // this is what you actually see when looking at packed vinyl from above.
+    sleevePaperEdge: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: 0,
+      width: 3,
+      background:
+        "linear-gradient(90deg, rgba(255,255,255,0.55) 0%, rgba(220,210,195,0.35) 70%, rgba(0,0,0,0.20) 100%)",
+      boxShadow: "inset 1px 0 0 rgba(255,255,255,0.55)",
+      pointerEvents: "none",
+    },
+    // Thin paper edge along the TOP of each sleeve — what you actually see
+    // when looking down at vinyls packed in a crate (off-white paper edge).
+    sleeveTopEdge: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      top: 0,
+      height: 3,
+      background:
+        "linear-gradient(180deg, rgba(245,238,225,0.95) 0%, rgba(190,180,160,0.55) 60%, rgba(0,0,0,0.30) 100%)",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)",
+      pointerEvents: "none",
+    },
+    sleeveLabel: {
+      position: "absolute",
+      left: 10,
+      right: 10,
+      bottom: 10,
+      padding: "6px 10px",
+      borderRadius: 8,
+      background: "rgba(0,0,0,0.62)",
+      color: "#fff",
+      fontSize: 11,
+      fontFamily: baseFont,
+      letterSpacing: 0.6,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      backdropFilter: "blur(10px)",
+      pointerEvents: "none",
+    },
+    recordFrontSleeve: {
+      position: "absolute",
+      inset: 0,
+      borderRadius: 3,
+      overflow: "hidden",
+      background: "#181614",
+      border: "1px solid rgba(0,0,0,0.65)",
+      boxShadow:
+        "0 14px 28px rgba(0,0,0,0.6), inset -12px 0 22px rgba(0,0,0,0.45), inset 6px 0 0 rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.18)",
+      display: "block",
+    },
+    // Big diagonal sheen across the whole album cover (like real shrink-wrap).
+    frontSleeveGloss: {
+      position: "absolute",
+      inset: 0,
+      background:
+        "linear-gradient(115deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0) 62%, rgba(255,255,255,0) 100%)",
+      mixBlendMode: "screen",
+      pointerEvents: "none",
+    },
+    // Soft top highlight + bottom shadow that reads as a glossy jacket.
+    frontSleeveShine: {
+      position: "absolute",
+      inset: 0,
+      background:
+        "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 18%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.22) 100%)",
+      pointerEvents: "none",
+    },
+    frontSleeveLabel: {
+      position: "absolute",
+      left: 8,
+      right: 8,
+      bottom: 8,
+      padding: "5px 8px",
+      borderRadius: 6,
+      background: "rgba(0,0,0,0.6)",
+      color: "#fff",
+      fontSize: 11,
+      fontFamily: baseFont,
+      letterSpacing: 0.5,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      backdropFilter: "blur(10px)",
+    },
+    recordSpine: {
+      position: "absolute",
+      inset: 0,
+      borderRadius: 2,
+      overflow: "hidden",
+      borderLeft: "1px solid rgba(255,255,255,0.14)",
+      borderRight: "1px solid rgba(0,0,0,0.70)",
+      boxShadow: "0 6px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18)",
+      display: "block",
+    },
+    // Base gloss — left highlight, dark right shadow (paper sleeve under shrink-wrap).
+    spineGloss: {
+      position: "absolute",
+      inset: 0,
+      background:
+        "linear-gradient(90deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.10) 35%, rgba(0,0,0,0.45) 75%, rgba(0,0,0,0.65) 100%)",
+      mixBlendMode: "screen",
+      pointerEvents: "none",
+    },
+    // Bright vertical shine band — the signature "glossy vinyl jacket" reflection.
+    spineShine: {
+      position: "absolute",
+      inset: 0,
+      background:
+        "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 30%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0) 66%, rgba(255,255,255,0) 100%)",
+      mixBlendMode: "screen",
+      pointerEvents: "none",
+    },
+    spineHoverTip: {
+      position: "absolute",
+      bottom: "100%",
+      left: "50%",
+      transform: "translate(-50%, -6px)",
+      whiteSpace: "nowrap",
+      padding: "6px 10px",
+      borderRadius: 8,
+      background: dark ? "rgba(20,20,22,0.92)" : "rgba(255,255,255,0.94)",
+      color: text,
+      fontSize: 11,
+      fontFamily: baseFont,
+      boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+      pointerEvents: "none",
+    },
+    recordBlank: {
+      width: "100%",
+      height: "100%",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#eee",
+      fontSize: 42,
+      letterSpacing: 2,
+      background:
+        "radial-gradient(circle at 35% 25%, rgba(255,255,255,0.24), rgba(120,160,255,0.18), rgba(0,0,0,0.40))",
+    },
+
     loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
     cover: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
     blankCover: { width: "100%", height: "100%", background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))", display: "block" },
@@ -2597,7 +2975,19 @@ function makeStyles(dark, text) {
     sectionTitle: { color: text, fontSize: 12, opacity: 0.9, textTransform: "uppercase", letterSpacing: 1 },
     optionGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, color: text },
     optionActive: { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", color: text, borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
-    colorGrid: { display: "grid", gridTemplateColumns: "repeat
+    colorGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 },
+    inlineControls: { display: "flex", gap: 8, alignItems: "center", color: text },
+    colorInput: { width: "100%", minWidth: 42, height: 38, border: "none", borderRadius: 12, padding: 4, background: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.72)", color: text, cursor: "pointer" },
+    sliderLabel: { display: "flex", flexDirection: "column", gap: 8, color: text, fontSize: 12, opacity: 0.9 },
+    range: { width: "100%", accentColor: text },
+    stage: { flex: 1, minWidth: 0, height: "calc(100vh - 78px)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px 24px 34px", overflow: "hidden", color: text },
+    turnBtn: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 10, padding: "14px 20px", borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)", color: text, fontFamily: baseFont, fontSize: 13, cursor: "pointer", backdropFilter: "blur(24px) saturate(1.25)", boxShadow: shadow },
+    player: { position: "fixed", left: 360, right: 0, bottom: 0, height: 78, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 18px", background: dark ? "rgba(12,12,14,0.82)" : "rgba(255,255,255,0.82)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
+    transportBtn: { padding: "10px 13px", minWidth: 58, borderRadius: 14, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 12 },
+    now: { width: 230, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: text, fontFamily: baseFont, fontSize: 12 },
+    time: { minWidth: 92, color: text, fontFamily: baseFont, fontSize: 12, opacity: 0.86 },
+    playerRange: { width: 240, accentColor: text },
+    menu: { position: "fixed", zIndex: 999, background: dark ? "rgba(20,20,22,0.94)" : "rgba(255,255,255,0.94)", color: text, border, borderRadius: 14, padding: 8, display: "flex", flexDirection: "column", gap: 6, boxShadow: shadow, backdropFilter: "blur(20px)" },
     menuBtn: { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont },
   };
 }
@@ -2678,6 +3068,5 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
-
 
 
