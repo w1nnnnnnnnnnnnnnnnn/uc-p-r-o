@@ -3469,6 +3469,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
+export default Aurae;
 
 
 
