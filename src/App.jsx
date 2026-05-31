@@ -1,98 +1,100 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 
-// ──────────────────────────────────────────────────────────────────────
 // IndexedDB helpers
-// ──────────────────────────────────────────────────────────────────────
 
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open("aurae_audio", 2);
     req.onupgradeneeded = e => {
-      const db = e.target.result;
+      const db = (e.target as any).result;
       if (!db.objectStoreNames.contains("blobs")) db.createObjectStore("blobs");
       if (!db.objectStoreNames.contains("projects")) db.createObjectStore("projects");
     };
-    req.onsuccess = e => res(e.target.result);
+    req.onsuccess = e => res((e.target as any).result);
     req.onerror = () => rej(req.error);
   });
 }
 
-async function idb(store, mode, fn) {
-  const db = await openDB();
+async function idb(store: string, mode: IDBTransactionMode, fn: (store: any, res: any, rej: any, tx: any) => void) {
+  const db: any = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(store, mode);
     fn(tx.objectStore(store), res, rej, tx);
   });
 }
 
-const saveBlob = (id, blob) =>
+const saveBlob = (id: string, blob: Blob) =>
   idb("blobs", "readwrite", (store, res, rej, tx) => {
     store.put(blob, id);
     tx.oncomplete = res;
     tx.onerror = () => rej(tx.error);
   });
 
-const loadBlob = id =>
+const loadBlob = (id: string) =>
   idb("blobs", "readonly", (store, res) => {
     const req = store.get(id);
     req.onsuccess = () => res(req.result || null);
     req.onerror = () => res(null);
   });
 
-const deleteBlob = id =>
+const deleteBlob = (id: string) =>
   idb("blobs", "readwrite", (store, res) => {
     store.delete(id);
-    res();
+    res(undefined);
   });
 
-const saveProjectToDB = (name, data) =>
+const saveProjectToDB = (name: string, data: any) =>
   idb("projects", "readwrite", (store, res, rej, tx) => {
     store.put(data, name);
     tx.oncomplete = res;
     tx.onerror = () => rej(tx.error);
   });
 
-const loadProjectFromDB = name =>
+const loadProjectFromDB = (name: string) =>
   idb("projects", "readonly", (store, res) => {
     const req = store.get(name);
     req.onsuccess = () => res(req.result || null);
     req.onerror = () => res(null);
   });
 
-const deleteProjectFromDB = name =>
+const deleteProjectFromDB = (name: string) =>
   idb("projects", "readwrite", (store, res) => {
     store.delete(name);
-    res();
+    res(undefined);
   });
 
-const loadAllProjectNames = () =>
+const loadAllProjectNames = (): Promise<string[]> =>
   idb("projects", "readonly", (store, res) => {
     const req = store.getAllKeys();
     req.onsuccess = () => res(req.result || []);
     req.onerror = () => res([]);
-  });
+  }) as Promise<string[]>;
 
-// ──────────────────────────────────────────────────────────────────────
 // Utilities
-// ──────────────────────────────────────────────────────────────────────
 
-function safeJSON(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
-  catch { return fallback; }
+function safeJSON(key: string, fallback: any) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch {
+    return fallback;
+  }
 }
 
-function normalizeEmail(value) { return String(value || "").trim().toLowerCase(); }
+function normalizeEmail(value: any) {
+  return String(value || "").trim().toLowerCase();
+}
 
-function normalizeUsers(users) {
-  return Object.entries(users || {}).reduce((acc, [email, data]) => {
+function normalizeUsers(users: any) {
+  return Object.entries(users || {}).reduce((acc: any, [email, data]) => {
     const clean = normalizeEmail(email);
     if (clean) acc[clean] = data;
     return acc;
   }, {});
 }
 
-function isEmailSyntaxValid(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalizeEmail(value));
+function isEmailSyntaxValid(value: any) {
+  const email = normalizeEmail(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
 }
 
 function getInitialSessionUser() {
@@ -106,68 +108,97 @@ function getInitialSessionUser() {
   return "";
 }
 
-async function emailDomainHasMailExchange(email) {
+async function emailDomainHasMailExchange(email: string) {
   const domain = normalizeEmail(email).split("@")[1];
   if (!domain || domain.includes("..")) return false;
+
   const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`, {
     headers: { accept: "application/dns-json" },
   });
   if (!res.ok) return false;
+
   const data = await res.json();
-  return data.Status === 0 && Array.isArray(data.Answer) && data.Answer.some(a => a.type === 15);
+  return data.Status === 0 && Array.isArray(data.Answer) && data.Answer.some((answer: any) => answer.type === 15);
 }
 
-async function verifyWorkingEmailAddress(email) {
+async function verifyWorkingEmailAddress(email: string) {
   const clean = normalizeEmail(email);
-  if (!isEmailSyntaxValid(clean)) return { ok: false, email: clean, error: "Enter a valid email address." };
+  if (!isEmailSyntaxValid(clean)) {
+    return { ok: false, email: clean, error: "Enter a valid email address." };
+  }
+
   try {
     const hasMx = await emailDomainHasMailExchange(clean);
-    if (!hasMx) return { ok: false, email: clean, error: "This email domain does not accept mail." };
+    if (!hasMx) {
+      return { ok: false, email: clean, error: "This email domain does not accept mail." };
+    }
     return { ok: true, email: clean, error: "" };
   } catch {
     return { ok: false, email: clean, error: "Email could not be verified. Check your connection and try again." };
   }
 }
 
-function clamp(v, min = 0, max = 255) { return Math.max(min, Math.min(max, v)); }
+function clamp(v: number, min = 0, max = 255) {
+  return Math.max(min, Math.min(max, v));
+}
 
-function normalizeHex(hex) {
+function normalizeHex(hex: string) {
   const clean = String(hex || "#000000").trim();
-  if (/^#[0-9a-f]{3}$/i.test(clean))
+  if (/^#[0-9a-f]{3}$/i.test(clean)) {
     return `#${clean[1]}${clean[1]}${clean[2]}${clean[2]}${clean[3]}${clean[3]}`;
+  }
   if (/^#[0-9a-f]{6}$/i.test(clean)) return clean;
   return "#000000";
 }
 
-function hexToRgb(hex) {
+function hexToRgb(hex: string) {
   const safe = normalizeHex(hex);
-  return { r: parseInt(safe.slice(1, 3), 16), g: parseInt(safe.slice(3, 5), 16), b: parseInt(safe.slice(5, 7), 16) };
+  return {
+    r: parseInt(safe.slice(1, 3), 16),
+    g: parseInt(safe.slice(3, 5), 16),
+    b: parseInt(safe.slice(5, 7), 16),
+  };
 }
 
-function lighten(hex, amt) { const { r, g, b } = hexToRgb(hex); return `rgb(${clamp(r + amt)}, ${clamp(g + amt)}, ${clamp(b + amt)})`; }
-function darken(hex, amt)  { const { r, g, b } = hexToRgb(hex); return `rgb(${clamp(r - amt)}, ${clamp(g - amt)}, ${clamp(b - amt)})`; }
-function rgba(hex, alpha)  { const { r, g, b } = hexToRgb(hex); return `rgba(${r}, ${g}, ${b}, ${alpha})`; }
+function lighten(hex: string, amt: number) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgb(${clamp(r + amt)}, ${clamp(g + amt)}, ${clamp(b + amt)})`;
+}
 
-function seededRand(seed) {
+function darken(hex: string, amt: number) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgb(${clamp(r - amt)}, ${clamp(g - amt)}, ${clamp(b - amt)})`;
+}
+
+function rgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function seededRand(seed: number) {
   let s = seed;
-  return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
 }
 
-// ──────────────────────────────────────────────────────────────────────
 // Side splitting logic
-// ──────────────────────────────────────────────────────────────────────
 
 const SIDE_TARGET = 25 * 60;
 const FLIP_DURATION = 1400;
 const FLIP_COVER_SWAP = 700;
 
-function computeSideBoundaries(tracks) {
+function computeSideBoundaries(tracks: any[]) {
   if (!tracks.length) return [0];
+
   const boundaries = [0];
   let pos = 0;
+
   while (pos < tracks.length) {
     let elapsed = 0;
     let i = pos;
+
     while (i < tracks.length) {
       const dur = tracks[i].duration || 0;
       if (elapsed + dur > SIDE_TARGET && i > pos) {
@@ -179,14 +210,17 @@ function computeSideBoundaries(tracks) {
       elapsed += dur;
       i++;
     }
+
     if (i === pos) i = pos + 1;
+
     pos = i;
     if (pos < tracks.length) boundaries.push(pos);
   }
+
   return boundaries;
 }
 
-function getSideForTrack(boundaries, trackIndex) {
+function getSideForTrack(boundaries: number[], trackIndex: number) {
   let side = 1;
   for (let i = 1; i < boundaries.length; i++) {
     if (trackIndex >= boundaries[i]) side = i + 1;
@@ -195,22 +229,22 @@ function getSideForTrack(boundaries, trackIndex) {
   return side;
 }
 
-function getLastTrackOfSide(boundaries, side, totalTracks) {
+function getLastTrackOfSide(boundaries: number[], side: number, totalTracks: number) {
   return (boundaries[side] ?? totalTracks) - 1;
 }
 
-function getSideDuration(tracks, boundaries, side) {
+function getSideDuration(tracks: any[], boundaries: number[], side: number) {
   const start = boundaries[side - 1] ?? 0;
   const end = boundaries[side] ?? tracks.length;
   return tracks.slice(start, end).reduce((s, t) => s + (t.duration || 0), 0);
 }
 
-function normalizeSideCovers(project) {
+function normalizeSideCovers(project: any) {
   if (Array.isArray(project.sideCovers)) return project.sideCovers;
   return [project.side1Cover || project.cover || null, project.side2Cover || null];
 }
 
-function sideCoverFor(side, covers, repeatFirstPair, fallback) {
+function sideCoverFor(side: number, covers: any[], repeatFirstPair: boolean, fallback: any) {
   const direct = covers[side - 1];
   if (direct) return direct;
   if (repeatFirstPair && side > 2) {
@@ -220,121 +254,169 @@ function sideCoverFor(side, covers, repeatFirstPair, fallback) {
   return fallback || null;
 }
 
-// ──────────────────────────────────────────────────────────────────────
 // Constants
-// ──────────────────────────────────────────────────────────────────────
 
 const DEFAULT_VINYL_COLORS = ["#111111", "#111111", "#111111", "#111111"];
 
-const DECK_STYLES = ["classic", "dark", "chrome", "wood", "minimal", "realistic1", "realistic2", "realistic3"];
+const DECK_STYLES = [
+  "classic", "dark", "chrome", "wood", "minimal",
+  "realistic1", "realistic2", "realistic3",
+];
 
 const VINYL_GRADIENTS = [
   { id: "radial", label: "radial" },
-  { id: "split",  label: "split"  },
+  { id: "split", label: "split" },
   { id: "aurora", label: "aurora" },
-  { id: "rings",  label: "rings"  },
-  { id: "solid",  label: "solid"  },
+  { id: "rings", label: "rings" },
+  { id: "solid", label: "solid" },
 ];
 
 const SPLATTER_STYLES = [
   { id: "burst", label: "burst" },
-  { id: "mist",  label: "mist"  },
-  { id: "ring",  label: "ring"  },
-  { id: "drip",  label: "drip"  },
+  { id: "mist", label: "mist" },
+  { id: "ring", label: "ring" },
+  { id: "drip", label: "drip" },
 ];
 
+// ──────────────────────────────────────────────────────────────────────
+// Equalizer config
+// ──────────────────────────────────────────────────────────────────────
 const EQ_SHAPES = [
   { id: "bars",     label: "bars"     },
-  { id: "mirror",   label: "mirror"   },
-  { id: "wave",     label: "wave"     },
-  { id: "circular", label: "circular" },
-  { id: "dots",     label: "dots"     },
+  { id: "mirror",  label: "mirror"   },
+  { id: "wave",    label: "wave"     },
+  { id: "circular",label: "circular" },
+  { id: "dots",    label: "dots"     },
 ];
 
 const STORAGE_WOODS = [
-  { id: "oak",    label: "oak",       face: "linear-gradient(180deg, #6b3f1f 0%, #4a2912 60%, #2e1808 100%)", edge: "#2a1608", line: "rgba(20,10,4,0.45)" },
-  { id: "walnut", label: "walnut",    face: "linear-gradient(180deg, #4a2a17 0%, #2e1709 60%, #1a0d05 100%)", edge: "#140a05", line: "rgba(20,10,4,0.55)" },
-  { id: "ash",    label: "ash",       face: "linear-gradient(180deg, #a08866 0%, #7b6346 60%, #574532 100%)", edge: "#3a2c1f", line: "rgba(30,20,12,0.40)" },
-  { id: "cherry", label: "cherry",    face: "linear-gradient(180deg, #7a3a22 0%, #4a1e10 60%, #2c1208 100%)", edge: "#26100a", line: "rgba(40,18,10,0.45)" },
-  { id: "black",  label: "black oak", face: "linear-gradient(180deg, #1f1c19 0%, #110f0d 60%, #050403 100%)", edge: "#020202", line: "rgba(255,255,255,0.05)" },
+  {
+    id: "oak",
+    label: "oak",
+    face: "linear-gradient(180deg, #6b3f1f 0%, #4a2912 60%, #2e1808 100%)",
+    edge: "#2a1608",
+    line: "rgba(20,10,4,0.45)",
+  },
+  {
+    id: "walnut",
+    label: "walnut",
+    face: "linear-gradient(180deg, #4a2a17 0%, #2e1709 60%, #1a0d05 100%)",
+    edge: "#140a05",
+    line: "rgba(20,10,4,0.55)",
+  },
+  {
+    id: "ash",
+    label: "ash",
+    face: "linear-gradient(180deg, #a08866 0%, #7b6346 60%, #574532 100%)",
+    edge: "#3a2c1f",
+    line: "rgba(30,20,12,0.40)",
+  },
+  {
+    id: "cherry",
+    label: "cherry",
+    face: "linear-gradient(180deg, #7a3a22 0%, #4a1e10 60%, #2c1208 100%)",
+    edge: "#26100a",
+    line: "rgba(40,18,10,0.45)",
+  },
+  {
+    id: "black",
+    label: "black oak",
+    face: "linear-gradient(180deg, #1f1c19 0%, #110f0d 60%, #050403 100%)",
+    edge: "#020202",
+    line: "rgba(255,255,255,0.05)",
+  },
 ];
 
-function getWoodTheme(id) { return STORAGE_WOODS.find(w => w.id === id) || STORAGE_WOODS[0]; }
-function makeStorageId() { return `storage-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
+function getWoodTheme(id: string) {
+  return STORAGE_WOODS.find(wood => wood.id === id) || STORAGE_WOODS[0];
+}
 
-function normalizeStorageShelf(raw, projectNames = []) {
+function makeStorageId() {
+  return `storage-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeStorageShelf(raw: any, projectNames: string[] = []) {
   if (raw?.items?.length) {
-    const items = raw.items.map((item, i) => ({
+    const items = raw.items.map((item: any, i: number) => ({
       id: item.id || `storage-${i + 1}`,
       name: item.name || `Storage ${i + 1}`,
       wood: item.wood || "oak",
-      projects: Array.isArray(item.projects) ? item.projects.filter(n => projectNames.includes(n)) : [],
+      projects: Array.isArray(item.projects) ? item.projects.filter((name: string) => projectNames.includes(name)) : [],
       createdAt: item.createdAt || Date.now() + i,
     }));
-    const assigned = new Set(items.flatMap(i => i.projects));
-    const unassigned = projectNames.filter(n => !assigned.has(n));
+    const assigned = new Set(items.flatMap((item: any) => item.projects));
+    const unassigned = projectNames.filter(name => !assigned.has(name));
     if (items[0] && unassigned.length) items[0].projects = [...items[0].projects, ...unassigned];
     return {
-      activeId: items.some(i => i.id === raw.activeId) ? raw.activeId : items[0]?.id || null,
+      activeId: items.some((item: any) => item.id === raw.activeId) ? raw.activeId : items[0]?.id || null,
       items,
     };
   }
+
   if (raw?.name || raw?.wood) {
     const id = raw.id || "main-storage";
     return {
       activeId: id,
-      items: [{ id, name: raw.name || "My Vinyl Storage", wood: raw.wood || "oak", projects: projectNames, createdAt: raw.createdAt || Date.now() }],
+      items: [{
+        id,
+        name: raw.name || "My Vinyl Storage",
+        wood: raw.wood || "oak",
+        projects: projectNames,
+        createdAt: raw.createdAt || Date.now(),
+      }],
     };
   }
+
   return { activeId: null, items: [] };
 }
 
-// ──────────────────────────────────────────────────────────────────────
 // Deck helpers
-// ──────────────────────────────────────────────────────────────────────
 
-function normalizeDeckStyle(style) {
+function normalizeDeckStyle(style: string) {
   if (style === "realistic") return "realistic1";
   if (DECK_STYLES.includes(style)) return style;
   return "classic";
 }
 
-function deckGeometry(style) {
+function deckGeometry(style: string) {
   const s = normalizeDeckStyle(style);
-  if (s === "realistic3") return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 472, pivotY: 112 };
-  if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s))
+  if (s === "realistic3") {
+    return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 472, pivotY: 112 };
+  }
+  if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) {
     return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 508, pivotY: 126 };
+  }
   return { width: 560, height: 560, cx: 280, cy: 280, pivotX: 520, pivotY: 120 };
 }
 
-function holePath(cx, cy, r) {
+function holePath(cx: number, cy: number, r: number) {
   return `M ${cx} ${cy - r} A ${r} ${r} 0 1 0 ${cx + 0.001} ${cy - r} Z`;
 }
 
-function boardPath(style) {
+function boardPath(style: string) {
   const s = normalizeDeckStyle(style);
-  if (s === "chrome")     return "M58 20 L502 20 L540 58 L540 500 L502 540 L20 540 L20 58 Z";
-  if (s === "dark")       return "M20 20 L540 20 L540 540 L20 540 Z";
+  if (s === "chrome") return "M58 20 L502 20 L540 58 L540 500 L502 540 L20 540 L20 58 Z";
+  if (s === "dark") return "M20 20 L540 20 L540 540 L20 540 Z";
   if (s === "realistic1") return "M28 20 Q20 20 20 28 L20 532 Q20 540 28 540 L532 540 Q540 540 540 532 L540 28 Q540 20 532 20 Z";
   if (s === "realistic2") return "M52 20 Q20 20 20 52 L20 508 Q20 540 52 540 L508 540 Q540 540 540 508 L540 52 Q540 20 508 20 Z";
-  if (s === "wood")       return "M42 20 Q20 20 20 42 L20 518 Q20 540 42 540 L518 540 Q540 540 540 518 L540 42 Q540 20 518 20 Z";
-  if (s === "minimal")    return "M20 20 L540 20 L540 540 L20 540 Z";
+  if (s === "wood") return "M42 20 Q20 20 20 42 L20 518 Q20 540 42 540 L518 540 Q540 540 540 518 L540 42 Q540 20 518 20 Z";
+  if (s === "minimal") return "M20 20 L540 20 L540 540 L20 540 Z";
   return "M48 20 Q20 20 20 48 L20 512 Q20 540 48 540 L512 540 Q540 540 540 512 L540 48 Q540 20 512 20 Z";
 }
 
-function deckBase(style, color) {
+function deckBase(style: string, color: string) {
   const s = normalizeDeckStyle(style);
-  if (s === "classic")    return "#e5e1d8";
-  if (s === "dark")       return "#151515";
-  if (s === "chrome")     return "#b8bec4";
-  if (s === "wood")       return "#8b5a32";
-  if (s === "minimal")    return "#ffffff";
+  if (s === "classic") return "#e5e1d8";
+  if (s === "dark") return "#151515";
+  if (s === "chrome") return "#b8bec4";
+  if (s === "wood") return "#8b5a32";
+  if (s === "minimal") return "#ffffff";
   if (s === "realistic1") return color || "#25272b";
   if (s === "realistic2") return color || "#d8d2c7";
   return color || "#1a1a1a";
 }
 
-function groovePoint(g, radius, progress) {
+function groovePoint(g: any, radius: number, progress: number) {
   const p = Math.max(0, Math.min(1, progress || 0));
   const outerR = radius * 0.98;
   const innerR = radius * 0.44;
@@ -343,81 +425,101 @@ function groovePoint(g, radius, progress) {
   return { x: g.cx + Math.cos(angle) * r, y: g.cy + Math.sin(angle) * r };
 }
 
-function vinylBackground(colors, gradient) {
+function vinylBackground(colors: string[], gradient: string) {
   const clean = (colors || []).filter(Boolean);
   const c1 = clean[0] || "#111111";
   const c2 = clean[1] || c1;
   const c3 = clean[2] || c2;
   const c4 = clean[3] || c3;
 
-  if (gradient === "solid")
+  if (gradient === "solid") {
     return `radial-gradient(circle at 42% 36%, ${lighten(c1, 28)} 0%, ${c1} 44%, ${darken(c1, 38)} 100%)`;
-  if (gradient === "split")
+  }
+  if (gradient === "split") {
     return `conic-gradient(from 210deg, ${c1} 0deg, ${c1} 95deg, ${c2} 100deg, ${c3} 190deg, ${c4} 260deg, ${c1} 360deg)`;
-  if (gradient === "aurora")
+  }
+  if (gradient === "aurora") {
     return `
       radial-gradient(circle at 28% 26%, ${rgba(c2, 0.85)} 0 18%, transparent 34%),
       radial-gradient(circle at 72% 68%, ${rgba(c3, 0.75)} 0 20%, transparent 38%),
       conic-gradient(from 160deg, ${c1}, ${c2}, ${c3}, ${c4}, ${c1})
     `;
-  if (gradient === "rings")
+  }
+  if (gradient === "rings") {
     return `
       repeating-radial-gradient(circle, ${rgba(c2, 0.42)} 0 3px, transparent 4px 11px),
       radial-gradient(circle at 45% 40%, ${lighten(c1, 30)} 0%, ${c1} 38%, ${darken(c4, 38)} 100%)
     `;
+  }
   return `radial-gradient(circle at 38% 34%, ${lighten(c1, 42)} 0%, ${c1} 24%, ${c2} 48%, ${darken(c3, 28)} 72%, ${darken(c4, 46)} 100%)`;
 }
 
-function SplatterOverlay({ color, style }) {
-  const cx = 195, cy = 195;
+function SplatterOverlay({ color, style }: { color: string; style: string }) {
+  const cx = 195;
+  const cy = 195;
   const rand = seededRand(42);
-  const paths = [];
-  const dots = [];
+  const paths: React.ReactNode[] = [];
+  const dots: React.ReactNode[] = [];
   const sel = style === "comet" ? "burst" : style || "burst";
 
   if (sel === "mist") {
     for (let i = 0; i < 130; i++) {
       const a = rand() * Math.PI * 2;
       const r = 35 + rand() * 150;
-      dots.push(<circle key={`m${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-        r={0.7 + rand() * 3.5} fill={color} opacity={0.12 + rand() * 0.42} />);
+      dots.push(
+        <circle key={`m${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={0.7 + rand() * 3.5} fill={color} opacity={0.12 + rand() * 0.42} />
+      );
     }
   } else if (sel === "ring") {
     for (let i = 0; i < 70; i++) {
       const a = (i / 70) * Math.PI * 2 + (rand() - 0.5) * 0.16;
       const r = 105 + rand() * 54;
-      dots.push(<circle key={`r${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-        r={1.5 + rand() * 6} fill={color} opacity={0.25 + rand() * 0.62} />);
+      dots.push(
+        <circle key={`r${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={1.5 + rand() * 6} fill={color} opacity={0.25 + rand() * 0.62} />
+      );
     }
   } else if (sel === "drip") {
     for (let i = 0; i < 46; i++) {
       const a = (i / 46) * Math.PI * 2 + (rand() - 0.5) * 0.45;
       const inn = 65 + rand() * 28;
       const out = 118 + rand() * 90;
-      const x1 = cx + Math.cos(a) * inn, y1 = cy + Math.sin(a) * inn;
-      const x2 = cx + Math.cos(a) * out, y2 = cy + Math.sin(a) * out;
-      paths.push(<path key={`d${i}`}
-        d={`M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 + rand() * 28} ${x2} ${y2}`}
-        stroke={color} strokeWidth={3 + rand() * 7} strokeLinecap="round" fill="none"
-        opacity={0.32 + rand() * 0.48} />);
+      const x1 = cx + Math.cos(a) * inn;
+      const y1 = cy + Math.sin(a) * inn;
+      const x2 = cx + Math.cos(a) * out;
+      const y2 = cy + Math.sin(a) * out;
+      paths.push(
+        <path key={`d${i}`}
+          d={`M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 + rand() * 28} ${x2} ${y2}`}
+          stroke={color} strokeWidth={3 + rand() * 7} strokeLinecap="round" fill="none"
+          opacity={0.32 + rand() * 0.48} />
+      );
     }
   } else {
     for (let i = 0; i < 54; i++) {
       const a = (i / 54) * Math.PI * 2 + (rand() - 0.5) * 0.42;
-      const inn = 62 + rand() * 24, out = 132 + rand() * 58;
+      const inn = 62 + rand() * 24;
+      const out = 132 + rand() * 58;
       const bend = (rand() - 0.5) * 0.22;
-      const x1 = cx + Math.cos(a) * inn, y1 = cy + Math.sin(a) * inn;
-      const x2 = cx + Math.cos(a + bend) * out, y2 = cy + Math.sin(a + bend) * out;
-      paths.push(<path key={`b${i}`}
-        d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 20} ${(y1 + y2) / 2 + (rand() - 0.5) * 20} ${x2} ${y2}`}
-        stroke={color} strokeWidth={2.5 + rand() * 9} strokeLinecap="round" fill="none"
-        opacity={0.34 + rand() * 0.56} />);
+      const x1 = cx + Math.cos(a) * inn;
+      const y1 = cy + Math.sin(a) * inn;
+      const x2 = cx + Math.cos(a + bend) * out;
+      const y2 = cy + Math.sin(a + bend) * out;
+      paths.push(
+        <path key={`b${i}`}
+          d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 20} ${(y1 + y2) / 2 + (rand() - 0.5) * 20} ${x2} ${y2}`}
+          stroke={color} strokeWidth={2.5 + rand() * 9} strokeLinecap="round" fill="none"
+          opacity={0.34 + rand() * 0.56} />
+      );
     }
     for (let i = 0; i < 45; i++) {
       const a = rand() * Math.PI * 2;
       const r = 68 + rand() * 120;
-      dots.push(<circle key={`bd${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-        r={1.2 + rand() * 5.4} fill={color} opacity={0.34 + rand() * 0.56} />);
+      dots.push(
+        <circle key={`bd${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={1.2 + rand() * 5.4} fill={color} opacity={0.34 + rand() * 0.56} />
+      );
     }
   }
 
@@ -427,11 +529,16 @@ function SplatterOverlay({ color, style }) {
       borderRadius: "50%", overflow: "hidden", pointerEvents: "none",
     }}>
       <defs>
-        <clipPath id="aurae-splatter-clip"><circle cx="195" cy="195" r="195" /></clipPath>
-        <filter id="aurae-splatter-soft"><feGaussianBlur stdDeviation="0.65" /></filter>
+        <clipPath id="aurae-splatter-clip">
+          <circle cx="195" cy="195" r="195" />
+        </clipPath>
+        <filter id="aurae-splatter-soft">
+          <feGaussianBlur stdDeviation="0.65" />
+        </filter>
       </defs>
       <g clipPath="url(#aurae-splatter-clip)" filter="url(#aurae-splatter-soft)">
-        {paths}{dots}
+        {paths}
+        {dots}
       </g>
     </svg>
   );
@@ -440,104 +547,192 @@ function SplatterOverlay({ color, style }) {
 function VinylDisc({
   radius, colors, gradient, opacity, splatterOn, splatterColor, splatterStyle,
   cover, isSingle, playing, textColor, flipping, pictureVinyl,
-}) {
+}: any) {
   const labelSize = Math.round(radius * (isSingle ? 0.68 : 0.75));
   const isPicture = Boolean(pictureVinyl && cover);
 
   return (
-    <div style={{
-      position: "absolute", width: radius * 2, height: radius * 2, borderRadius: "50%",
-      background: isPicture ? "#000" : vinylBackground(colors, gradient),
-      opacity, overflow: "hidden",
-      boxShadow: "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
-      animation: flipping
-        ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
-        : playing ? "spin 1.8s linear infinite" : "none",
-      transformOrigin: "50% 50%",
-    }}>
+    <div
+      style={{
+        position: "absolute",
+        width: radius * 2,
+        height: radius * 2,
+        borderRadius: "50%",
+        background: isPicture ? "#000" : vinylBackground(colors, gradient),
+        opacity,
+        overflow: "hidden",
+        boxShadow:
+          "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
+        animation: flipping
+          ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
+          : playing
+            ? "spin 1.8s linear infinite"
+            : "none",
+        transformOrigin: "50% 50%",
+      }}
+    >
+      {/* Full-disc image for picture vinyl */}
       {isPicture && (
-        <img src={cover} alt="" style={{
-          position: "absolute", inset: 0, width: "100%", height: "100%",
-          borderRadius: "50%", objectFit: "cover", display: "block",
-        }} />
+        <img
+          src={cover}
+          alt=""
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            borderRadius: "50%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
       )}
-      <div style={{
-        position: "absolute", inset: 0, borderRadius: "50%",
-        background: "repeating-radial-gradient(circle, rgba(255,255,255,0.13) 0 1px, rgba(0,0,0,0.17) 2px, transparent 4px, transparent 8px)",
-        mixBlendMode: "screen", opacity: isPicture ? 0.18 : 0.34, pointerEvents: "none",
-      }} />
-      <div style={{
-        position: "absolute", inset: Math.round(radius * 0.08), borderRadius: "50%",
-        border: "1px solid rgba(255,255,255,0.12)",
-        boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)", pointerEvents: "none",
-      }} />
+
+      {/* Groove sheen — softer on picture vinyls so the artwork stays visible */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "50%",
+          background:
+            "repeating-radial-gradient(circle, rgba(255,255,255,0.13) 0 1px, rgba(0,0,0,0.17) 2px, transparent 4px, transparent 8px)",
+          mixBlendMode: "screen",
+          opacity: isPicture ? 0.18 : 0.34,
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Inner outline ring */}
+      <div
+        style={{
+          position: "absolute",
+          inset: Math.round(radius * 0.08),
+          borderRadius: "50%",
+          border: "1px solid rgba(255,255,255,0.12)",
+          boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Splatter only on regular vinyls */}
       {!isPicture && splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
+
+      {/* Label — hidden on picture vinyl */}
       {!isPicture && (cover ? (
-        <img src={cover} alt="" style={{
-          position: "absolute", width: labelSize, height: labelSize, borderRadius: "50%",
-          objectFit: "cover", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-          boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)",
-        }} />
+        <img
+          src={cover}
+          alt=""
+          style={{
+            position: "absolute",
+            width: labelSize,
+            height: labelSize,
+            borderRadius: "50%",
+            objectFit: "cover",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)",
+          }}
+        />
       ) : (
-        <div style={{
-          position: "absolute", width: labelSize, height: labelSize, borderRadius: "50%",
-          top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-          background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
-          color: textColor, display: "flex", alignItems: "center", justifyContent: "center",
-          fontFamily: "Courier New, monospace", fontSize: isSingle ? 10 : 14, letterSpacing: 1,
-          boxShadow: "0 0 0 7px rgba(0,0,0,0.32)",
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            width: labelSize,
+            height: labelSize,
+            borderRadius: "50%",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background:
+              "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
+            color: textColor,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "Courier New, monospace",
+            fontSize: isSingle ? 10 : 14,
+            letterSpacing: 1,
+            boxShadow: "0 0 0 7px rgba(0,0,0,0.32)",
+          }}
+        >
           {isSingle ? "7 IN" : "AURAE"}
         </div>
       ))}
-      <div style={{
-        position: "absolute", width: Math.round(radius * 0.12), height: Math.round(radius * 0.12),
-        borderRadius: "50%", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        background: "rgba(8,8,8,0.78)", boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12)",
-      }} />
+
+      {/* Center hole — always visible (real picture vinyls still have the spindle hole) */}
+      <div
+        style={{
+          position: "absolute",
+          width: Math.round(radius * 0.12),
+          height: Math.round(radius * 0.12),
+          borderRadius: "50%",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: "rgba(8,8,8,0.78)",
+          boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12)",
+        }}
+      />
     </div>
   );
 }
 
-function DeckDefs({ id, style, color }) {
+function DeckDefs({ id, style, color }: any) {
   const s = normalizeDeckStyle(style);
   const base = deckBase(s, color);
+
   return (
     <defs>
       <linearGradient id={`${id}-base`} x1="0" y1="0" x2="1" y2="1">
-        {s === "chrome" ? (<>
-          <stop offset="0%" stopColor="#f1f4f6" />
-          <stop offset="28%" stopColor="#9fa8b0" />
-          <stop offset="56%" stopColor="#dce1e5" />
-          <stop offset="100%" stopColor="#737b82" />
-        </>) : s === "wood" ? (<>
-          <stop offset="0%" stopColor="#a87543" />
-          <stop offset="28%" stopColor="#6f421e" />
-          <stop offset="56%" stopColor="#9b6537" />
-          <stop offset="100%" stopColor="#b47b47" />
-        </>) : (<>
-          <stop offset="0%" stopColor={lighten(base, 44)} />
-          <stop offset="48%" stopColor={base} />
-          <stop offset="100%" stopColor={darken(base, 36)} />
-        </>)}
+        {s === "chrome" ? (
+          <>
+            <stop offset="0%" stopColor="#f1f4f6" />
+            <stop offset="28%" stopColor="#9fa8b0" />
+            <stop offset="56%" stopColor="#dce1e5" />
+            <stop offset="100%" stopColor="#737b82" />
+          </>
+        ) : s === "wood" ? (
+          <>
+            <stop offset="0%" stopColor="#a87543" />
+            <stop offset="28%" stopColor="#6f421e" />
+            <stop offset="56%" stopColor="#9b6537" />
+            <stop offset="100%" stopColor="#b47b47" />
+          </>
+        ) : (
+          <>
+            <stop offset="0%" stopColor={lighten(base, 44)} />
+            <stop offset="48%" stopColor={base} />
+            <stop offset="100%" stopColor={darken(base, 36)} />
+          </>
+        )}
       </linearGradient>
+
       <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor="#f5f5f5" />
         <stop offset="45%" stopColor="#b9b9b9" />
         <stop offset="100%" stopColor="#6d6d6d" />
       </linearGradient>
+
       <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stopColor="#e9c96a" />
         <stop offset="44%" stopColor="#b88b2b" />
         <stop offset="100%" stopColor="#f4d984" />
       </linearGradient>
+
       <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
         <stop offset="0%" stopColor="#f0f0f0" />
         <stop offset="54%" stopColor="#888" />
         <stop offset="100%" stopColor="#333" />
       </radialGradient>
-      <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" /></filter>
-      <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
+
+      <filter id={`${id}-shadow`}>
+        <feDropShadow dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" />
+      </filter>
+      <filter id={`${id}-soft`}>
+        <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
+      </filter>
+
       <pattern id={`${id}-woodgrain`} x="0" y="0" width="560" height="12" patternUnits="userSpaceOnUse">
         <line x1="0" y1="2" x2="560" y2="2" stroke="rgba(0,0,0,0.09)" strokeWidth="1" />
         <line x1="0" y1="8" x2="560" y2="8" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
@@ -549,16 +744,19 @@ function DeckDefs({ id, style, color }) {
   );
 }
 
-function Tonearm({ id, geometry, stylus, textColor }) {
+function Tonearm({ id, geometry, stylus, textColor }: any) {
   const angle = Math.atan2(stylus.y - geometry.pivotY, stylus.x - geometry.pivotX) * 180 / Math.PI;
-  const dx = stylus.x - geometry.pivotX, dy = stylus.y - geometry.pivotY;
+  const dx = stylus.x - geometry.pivotX;
+  const dy = stylus.y - geometry.pivotY;
   const len = Math.max(1, Math.hypot(dx, dy));
-  const ux = dx / len, uy = dy / len;
-  const px = -uy, py = ux;
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
   const armStart = { x: geometry.pivotX + ux * 18, y: geometry.pivotY + uy * 18 };
-  const armEnd   = { x: stylus.x - ux * 24, y: stylus.y - uy * 24 };
+  const armEnd = { x: stylus.x - ux * 24, y: stylus.y - uy * 24 };
   const shineStart = { x: armStart.x + px * 2.2, y: armStart.y + py * 2.2 };
-  const shineEnd   = { x: armEnd.x + px * 2.2,   y: armEnd.y + py * 2.2 };
+  const shineEnd = { x: armEnd.x + px * 2.2, y: armEnd.y + py * 2.2 };
   const counter = { x: geometry.pivotX - ux * 24, y: geometry.pivotY - uy * 24 };
 
   return (
@@ -567,10 +765,12 @@ function Tonearm({ id, geometry, stylus, textColor }) {
         fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.34)" strokeWidth="1.4" filter={`url(#${id}-soft)`} />
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="10" fill="rgba(0,0,0,0.36)" />
       <circle cx={geometry.pivotX - 3} cy={geometry.pivotY - 3} r="2.2" fill="rgba(255,255,255,0.75)" />
+
       <line x1={armStart.x} y1={armStart.y} x2={armEnd.x} y2={armEnd.y}
         stroke={`url(#${id}-arm)`} strokeWidth="7" strokeLinecap="round" />
       <line x1={shineStart.x} y1={shineStart.y} x2={shineEnd.x} y2={shineEnd.y}
         stroke="rgba(255,255,255,0.42)" strokeWidth="2" strokeLinecap="round" />
+
       <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
         <rect x="-30" y="-8" width="34" height="17" rx="3"
           fill="#b9b9b9" stroke="rgba(0,0,0,0.35)" strokeWidth="0.9" filter={`url(#${id}-soft)`} />
@@ -578,19 +778,23 @@ function Tonearm({ id, geometry, stylus, textColor }) {
         <path d="M -4 7 L 5 13 L 2 17 L -8 10 Z" fill="#181818" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5" />
         <line x1="3" y1="15" x2="8" y2="21" stroke="#111" strokeWidth="1.8" strokeLinecap="round" />
       </g>
+
       <circle cx={stylus.x} cy={stylus.y} r="2.3" fill="#111" />
       <ellipse cx={counter.x} cy={counter.y} rx="16" ry="10"
         transform={`rotate(${angle} ${counter.x} ${counter.y})`}
         fill="#8a8a8a" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
       <text x={geometry.pivotX} y={geometry.pivotY + 44} fill={textColor} opacity="0.82"
-        fontSize="8" fontFamily="monospace" textAnchor="middle">TONE</text>
+        fontSize="8" fontFamily="monospace" textAnchor="middle">
+        TONE
+      </text>
     </g>
   );
 }
 
-function StandardControls({ id, style, textColor }) {
+function StandardControls({ id, style, textColor }: any) {
   const s = normalizeDeckStyle(style);
   const compact = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s);
+
   if (!compact && s !== "minimal") {
     return (
       <g>
@@ -599,21 +803,27 @@ function StandardControls({ id, style, textColor }) {
           <g key={label}>
             <rect x={62 + i * 58} y="486" width="42" height="18" rx="5"
               fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" strokeWidth="0.8" />
-            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">{label}</text>
+            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
+              {label}
+            </text>
           </g>
         ))}
       </g>
     );
   }
+
   if (s === "minimal") {
     return (
       <g>
         <line x1="520" y1="82" x2="520" y2="232" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
         <circle cx="520" cy="152" r="5" fill={textColor} opacity="0.75" />
-        <text x="520" y="256" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">VOL</text>
+        <text x="520" y="256" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">
+          VOL
+        </text>
       </g>
     );
   }
+
   return (
     <g>
       <rect x="430" y="58" width="96" height="150" rx={s === "dark" ? 3 : 9}
@@ -634,7 +844,7 @@ function StandardControls({ id, style, textColor }) {
   );
 }
 
-function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
+function StandardDeck({ style, color, vinylRadius, textColor, progress }: any) {
   const s = normalizeDeckStyle(style);
   const id = `deck-${s}`;
   const g = deckGeometry(s);
@@ -644,38 +854,55 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }) {
   const board = boardPath(s);
 
   return (
-    <svg viewBox="0 0 560 560" style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
+    <svg viewBox="0 0 560 560"
+      style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
       <DeckDefs id={id} style={s} color={color} />
       <path d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
-      {s === "wood"   && <path d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
+
+      {s === "wood" && <path d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
       {s === "chrome" && <path d={`${board} ${hole}`} fill={`url(#${id}-brushed)`} fillRule="evenodd" opacity="0.7" />}
-      {s === "chrome" && (<>
-        <path d="M20 70 L70 20 L132 20 L20 132 Z" fill="rgba(80,180,220,0.42)" />
-        <path d="M500 540 L540 500 L540 540 Z" fill="rgba(80,180,220,0.35)" />
-      </>)}
-      {s === "dark" && (<>
-        <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="3" />
-        <rect x="20" y="20" width="520" height="6" fill="rgba(255,255,255,0.18)" />
-        <rect x="20" y="534" width="520" height="6" fill="rgba(255,255,255,0.18)" />
-      </>)}
-      {s === "wood" && (<>
-        <rect x="30" y="30" width="500" height="500" rx="15" fill="none" stroke={`url(#${id}-brass)`} strokeWidth="3" />
-        <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
-      </>)}
-      {s === "realistic1" && (<text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>)}
-      {s === "realistic2" && (<text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">BELT DRIVE</text>)}
+
+      {s === "chrome" && (
+        <>
+          <path d="M20 70 L70 20 L132 20 L20 132 Z" fill="rgba(80,180,220,0.42)" />
+          <path d="M500 540 L540 500 L540 540 Z" fill="rgba(80,180,220,0.35)" />
+        </>
+      )}
+      {s === "dark" && (
+        <>
+          <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="3" />
+          <rect x="20" y="20" width="520" height="6" fill="rgba(255,255,255,0.18)" />
+          <rect x="20" y="534" width="520" height="6" fill="rgba(255,255,255,0.18)" />
+        </>
+      )}
+      {s === "wood" && (
+        <>
+          <rect x="30" y="30" width="500" height="500" rx="15" fill="none" stroke={`url(#${id}-brass)`} strokeWidth="3" />
+          <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
+        </>
+      )}
+
+      {s === "realistic1" && (
+        <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>
+      )}
+      {s === "realistic2" && (
+        <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">BELT DRIVE</text>
+      )}
+
       <circle cx={g.cx} cy={g.cy} r={holeR + 13} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="7" />
-      <circle cx={g.cx} cy={g.cy} r={holeR + 8}  fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
-      <circle cx={g.cx} cy={g.cy} r={holeR + 2}  fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="2" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="2" />
+
       <StandardControls id={id} style={s} textColor={textColor} />
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
+
       <circle cx={g.cx} cy={g.cy} r="5.5" fill="rgba(255,255,255,0.72)" stroke="rgba(0,0,0,0.4)" />
       <circle cx={g.cx} cy={g.cy} r="2.2" fill="rgba(0,0,0,0.55)" />
     </svg>
   );
 }
 
-function Realistic3Deck({ vinylRadius, textColor, progress }) {
+function Realistic3Deck({ vinylRadius, textColor, progress }: any) {
   const id = "deck-realistic3";
   const g = deckGeometry("realistic3");
   const stylus = groovePoint(g, vinylRadius, progress);
@@ -683,7 +910,8 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
   const hole = holePath(g.cx, g.cy, holeR);
 
   return (
-    <svg viewBox="0 0 760 560" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
+    <svg viewBox="0 0 760 560"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
       <defs>
         <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" /></filter>
         <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
@@ -708,16 +936,22 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
           <stop offset="100%" stopColor="#565656" />
         </radialGradient>
       </defs>
+
       <path d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`} fill="#1a1612" fillRule="evenodd" stroke="#090806" strokeWidth="2" />
       <path d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+
       <rect x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
       <rect x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
+
       <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="8" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 10} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
+
       <rect x="502" y="20" width="108" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
       <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">POWER</text>
+
       <rect x="620" y="20" width="120" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
       <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">SELECTOR</text>
+
       {["BASS", "TREBLE", "VOL L", "VOL R"].map((label, i) => (
         <g key={label}>
           <rect x={502 + i * 60} y="104" width="52" height="312" rx="5" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)" />
@@ -726,32 +960,36 @@ function Realistic3Deck({ vinylRadius, textColor, progress }) {
           <rect x={508 + i * 60} y={230 + i * 8} width="16" height="21" rx="3" fill="#d0d0d0" />
         </g>
       ))}
+
       <rect x="326" y="462" width="72" height="52" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
       <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">LIFT</text>
+
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
+
       <circle cx={g.cx} cy={g.cy} r="5.5" fill="#d0c9bd" stroke="rgba(0,0,0,0.42)" />
       <circle cx={g.cx} cy={g.cy} r="2.5" fill="#f2eee7" />
     </svg>
   );
 }
 
-function TurntableDeck({ style, color, vinylRadius, textColor, progress }) {
+function TurntableDeck({ style, color, vinylRadius, textColor, progress }: any) {
   const s = normalizeDeckStyle(style);
-  if (s === "realistic3")
+  if (s === "realistic3") {
     return <Realistic3Deck vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
+  }
   return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
 }
 
 // ──────────────────────────────────────────────────────────────────────
 // EqualizerVisualizer — reads frequency data from the shared AnalyserNode
-// and renders one of several shapes on a canvas. Falls back to a calm
-// idle wave when no analyser is available yet.
+// and renders one of several shapes on a canvas. Falls back to a calm idle
+// animation when no analyser is available yet (before first playback).
 // ──────────────────────────────────────────────────────────────────────
 function EqualizerVisualizer({
   analyserRef, shape, color, color2, bars, glow, bgColor, playing, width, height,
-}) {
-  const canvasRef = useRef(null);
-  const rafRef = useRef(null);
+}: any) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rafRef = useRef<number | null>(null);
   const idleTimeRef = useRef(0);
 
   useEffect(() => {
@@ -769,20 +1007,28 @@ function EqualizerVisualizer({
 
     const draw = () => {
       const analyser = analyserRef.current;
-      const w = width, h = height;
+      const w = width;
+      const h = height;
+
+      // background
       ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, w, h);
 
+      // build a normalised value array (length = bars)
       const values = new Array(bars).fill(0);
       if (analyser) {
         analyser.getByteFrequencyData(freqData);
+        // sample logarithmically from the lower 3/4 of the spectrum (the
+        // perceptually interesting range)
         const usable = Math.floor(dataLen * 0.75);
         for (let i = 0; i < bars; i++) {
           const t = i / Math.max(1, bars - 1);
+          // log scale: more buckets in lows
           const idx = Math.floor(Math.pow(t, 1.6) * (usable - 1));
           values[i] = (freqData[idx] || 0) / 255;
         }
       } else {
+        // idle wave so the UI doesn't look dead before audio starts
         idleTimeRef.current += 0.04;
         for (let i = 0; i < bars; i++) {
           const t = i / Math.max(1, bars - 1);
@@ -790,13 +1036,16 @@ function EqualizerVisualizer({
         }
       }
 
+      // gradient stroke/fill colour
       const grad = ctx.createLinearGradient(0, h, 0, 0);
       grad.addColorStop(0, color);
       grad.addColorStop(1, color2);
+
       ctx.shadowBlur = glow * 26;
       ctx.shadowColor = color;
 
       if (shape === "mirror") {
+        const cx = w / 2;
         const colW = w / bars * 0.85;
         const gap = w / bars - colW;
         const maxH = h * 0.42;
@@ -805,7 +1054,7 @@ function EqualizerVisualizer({
           const bh = Math.max(2, v * maxH);
           const x = i * (colW + gap) + gap / 2;
           ctx.fillStyle = grad;
-          ctx.fillRect(x, h / 2 - bh, colW, bh);
+          ctx.fillRect(x, cx === 0 ? 0 : h / 2 - bh, colW, bh);
           ctx.fillRect(x, h / 2, colW, bh);
         }
       } else if (shape === "wave") {
@@ -825,7 +1074,8 @@ function EqualizerVisualizer({
         }
         ctx.stroke();
       } else if (shape === "circular") {
-        const cx = w / 2, cy = h / 2;
+        const cx = w / 2;
+        const cy = h / 2;
         const radius = Math.min(w, h) * 0.22;
         const maxBar = Math.min(w, h) * 0.28;
         ctx.strokeStyle = grad;
@@ -834,12 +1084,14 @@ function EqualizerVisualizer({
         for (let i = 0; i < bars; i++) {
           const a = (i / bars) * Math.PI * 2 - Math.PI / 2;
           const v = values[i];
-          const r1 = radius, r2 = radius + v * maxBar;
+          const r1 = radius;
+          const r2 = radius + v * maxBar;
           ctx.beginPath();
           ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
           ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2);
           ctx.stroke();
         }
+        // inner ring
         ctx.beginPath();
         ctx.arc(cx, cy, radius - 6, 0, Math.PI * 2);
         ctx.strokeStyle = color2;
@@ -860,17 +1112,20 @@ function EqualizerVisualizer({
             ctx.beginPath();
             ctx.arc(i * colW + colW / 2, y, Math.max(1.5, colW * 0.18), 0, Math.PI * 2);
             if (isOn) {
-              ctx.fillStyle = d / maxDots < 0.5 ? color : color2;
+              const tCol = d / maxDots;
+              const fillCol = tCol < 0.5 ? color : color2;
+              ctx.fillStyle = fillCol;
               ctx.globalAlpha = 1;
             } else {
               ctx.fillStyle = color;
-              ctx.globalAlpha = 0.1;
+              ctx.globalAlpha = 0.10;
             }
             ctx.fill();
           }
         }
         ctx.globalAlpha = 1;
       } else {
+        // bars (default)
         const colW = w / bars * 0.82;
         const gap = w / bars - colW;
         const maxH = h * 0.86;
@@ -880,6 +1135,7 @@ function EqualizerVisualizer({
           const x = i * (colW + gap) + gap / 2;
           const y = h - bh;
           ctx.fillStyle = grad;
+          // rounded top via path
           const r = Math.min(colW / 2, 4);
           ctx.beginPath();
           ctx.moveTo(x, h);
@@ -898,15 +1154,20 @@ function EqualizerVisualizer({
     };
 
     rafRef.current = requestAnimationFrame(draw);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   }, [shape, color, color2, bars, glow, bgColor, width, height, playing, analyserRef]);
 
   return (
     <canvas
       ref={canvasRef}
       style={{
-        width, height, borderRadius: 22, display: "block",
-        boxShadow: "0 30px 80px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.06)",
+        width, height,
+        borderRadius: 22,
+        display: "block",
+        boxShadow:
+          "0 30px 80px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.06)",
         background: bgColor,
       }}
     />
@@ -914,14 +1175,20 @@ function EqualizerVisualizer({
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Modern in-app color picker
+// Modern in-app color picker. Replaces the native <input type="color">
+// (which opens the OS color dialog — ugly Windows grid on most systems).
+//
+// • ColorSwatch  — the chip + hex label shown in the panel.
+// • ColorPicker  — popover with hue strip + saturation/lightness pad + hex.
+//
+// Pure HSV math, no extra libs. Click outside or press Escape to close.
 // ──────────────────────────────────────────────────────────────────────
 
-function rgbToHex(r, g, b) {
-  const h = n => clamp(Math.round(n)).toString(16).padStart(2, "0");
+function rgbToHex(r: number, g: number, b: number) {
+  const h = (n: number) => clamp(Math.round(n)).toString(16).padStart(2, "0");
   return `#${h(r)}${h(g)}${h(b)}`;
 }
-function hexToHsv(hex) {
+function hexToHsv(hex: string) {
   const { r, g, b } = hexToRgb(hex);
   const rn = r / 255, gn = g / 255, bn = b / 255;
   const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
@@ -937,7 +1204,7 @@ function hexToHsv(hex) {
   const s = max === 0 ? 0 : d / max;
   return { h, s, v: max };
 }
-function hsvToHex(h, s, v) {
+function hsvToHex(h: number, s: number, v: number) {
   const c = v * s;
   const hh = (h % 360) / 60;
   const x = c * (1 - Math.abs((hh % 2) - 1));
@@ -952,20 +1219,31 @@ function hsvToHex(h, s, v) {
   return rgbToHex((r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255);
 }
 
-function ColorPicker({ value, onChange, onClose, dark, anchorRect }) {
+function ColorPicker({
+  value, onChange, onClose, dark, anchorRect,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+  dark: boolean;
+  anchorRect: { top: number; left: number; width: number; height: number } | null;
+}) {
   const text = dark ? "#fff" : "#111";
   const panelBg = dark ? "rgba(22,22,24,0.96)" : "rgba(255,255,255,0.98)";
   const border = dark ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(0,0,0,0.10)";
 
   const [hsv, setHsv] = useState(() => hexToHsv(value));
   const [hexInput, setHexInput] = useState(normalizeHex(value).toUpperCase());
-  const padRef = useRef(null);
-  const hueRef = useRef(null);
-  const panelRef = useRef(null);
+  const padRef = useRef<HTMLDivElement | null>(null);
+  const hueRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
+  // close on outside click / esc
   useEffect(() => {
-    const onDown = e => { if (panelRef.current && !panelRef.current.contains(e.target)) onClose(); };
-    const onKey = e => { if (e.key === "Escape") onClose(); };
+    const onDown = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -974,31 +1252,33 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect }) {
     };
   }, [onClose]);
 
-  const commit = next => {
+  const commit = (next: { h: number; s: number; v: number }) => {
     setHsv(next);
     const hex = hsvToHex(next.h, next.s, next.v);
     setHexInput(hex.toUpperCase());
     onChange(hex);
   };
 
+  // SV pad drag
   const padDragging = useRef(false);
-  const handlePadEvent = e => {
+  const handlePadEvent = (e: React.PointerEvent | PointerEvent) => {
     const rect = padRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const x = Math.max(0, Math.min(1, ((e as any).clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, ((e as any).clientY - rect.top) / rect.height));
     commit({ h: hsv.h, s: x, v: 1 - y });
   };
+  // Hue strip drag
   const hueDragging = useRef(false);
-  const handleHueEvent = e => {
+  const handleHueEvent = (e: React.PointerEvent | PointerEvent) => {
     const rect = hueRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const y = Math.max(0, Math.min(1, ((e as any).clientY - rect.top) / rect.height));
     commit({ h: y * 360, s: hsv.s, v: hsv.v });
   };
 
   useEffect(() => {
-    const move = e => {
+    const move = (e: PointerEvent) => {
       if (padDragging.current) handlePadEvent(e);
       if (hueDragging.current) handleHueEvent(e);
     };
@@ -1012,7 +1292,9 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hsv]);
 
-  const PANEL_W = 240, PANEL_H = 260, pad = 8;
+  // anchored positioning — appear below the swatch, flip up if it would clip
+  const PANEL_W = 240, PANEL_H = 260;
+  const pad = 8;
   let top = (anchorRect?.top ?? 0) + (anchorRect?.height ?? 0) + pad;
   let left = (anchorRect?.left ?? 0) + (anchorRect?.width ?? 0) / 2 - PANEL_W / 2;
   if (typeof window !== "undefined") {
@@ -1023,51 +1305,66 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect }) {
   const hueColor = hsvToHex(hsv.h, 1, 1);
 
   return (
-    <div ref={panelRef} style={{
-      position: "fixed", top, left, width: PANEL_W, zIndex: 2000,
-      padding: 12, borderRadius: 16, border, background: panelBg, color: text,
-      boxShadow: "0 20px 50px rgba(0,0,0,0.40)",
-      backdropFilter: "blur(22px) saturate(1.25)",
-      display: "flex", flexDirection: "column", gap: 10,
-      fontFamily: "Courier New, monospace",
-    }} onMouseDown={e => e.stopPropagation()}>
+    <div
+      ref={panelRef}
+      style={{
+        position: "fixed", top, left, width: PANEL_W, zIndex: 2000,
+        padding: 12, borderRadius: 16, border, background: panelBg, color: text,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.40)",
+        backdropFilter: "blur(22px) saturate(1.25)",
+        display: "flex", flexDirection: "column", gap: 10,
+        fontFamily: "Courier New, monospace",
+      }}
+      onMouseDown={e => e.stopPropagation()}
+    >
       <div style={{ display: "flex", gap: 10 }}>
+        {/* SV pad */}
         <div
           ref={padRef}
           onPointerDown={e => { padDragging.current = true; handlePadEvent(e); }}
           style={{
             position: "relative", flex: 1, height: 160, borderRadius: 10, cursor: "crosshair",
-            background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueColor})`,
-            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)", touchAction: "none",
+            background:
+              `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueColor})`,
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)",
+            touchAction: "none",
           }}
         >
           <div style={{
-            position: "absolute", left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`,
+            position: "absolute",
+            left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`,
             width: 14, height: 14, borderRadius: "50%",
-            transform: "translate(-50%, -50%)", border: "2px solid #fff",
+            transform: "translate(-50%, -50%)",
+            border: "2px solid #fff",
             boxShadow: "0 0 0 1px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35)",
             pointerEvents: "none",
           }} />
         </div>
+        {/* Hue strip */}
         <div
           ref={hueRef}
           onPointerDown={e => { hueDragging.current = true; handleHueEvent(e); }}
           style={{
             position: "relative", width: 18, height: 160, borderRadius: 10, cursor: "ns-resize",
-            background: "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
-            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)", touchAction: "none",
+            background:
+              "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)",
+            touchAction: "none",
           }}
         >
           <div style={{
-            position: "absolute", left: "50%", top: `${(hsv.h / 360) * 100}%`,
+            position: "absolute",
+            left: "50%", top: `${(hsv.h / 360) * 100}%`,
             width: 22, height: 8, borderRadius: 3,
-            transform: "translate(-50%, -50%)", background: "#fff",
+            transform: "translate(-50%, -50%)",
+            background: "#fff",
             boxShadow: "0 0 0 1px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.30)",
             pointerEvents: "none",
           }} />
         </div>
       </div>
 
+      {/* preview + hex input */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{
           width: 36, height: 30, borderRadius: 8, background: hsvToHex(hsv.h, hsv.s, hsv.v),
@@ -1081,7 +1378,8 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect }) {
             const v = e.target.value.replace(/[^0-9a-f]/gi, "").slice(0, 6).toUpperCase();
             setHexInput(`#${v}`);
             if (v.length === 6) {
-              setHsv(hexToHsv(`#${v}`));
+              const next = hexToHsv(`#${v}`);
+              setHsv(next);
               onChange(`#${v.toLowerCase()}`);
             }
           }}
@@ -1094,23 +1392,30 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect }) {
             outline: "none", letterSpacing: 1, textTransform: "uppercase",
           }}
         />
-        <button onClick={onClose} style={{
-          padding: "6px 10px", borderRadius: 8,
-          border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
-          background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
-          color: text, cursor: "pointer", fontFamily: "Courier New, monospace", fontSize: 11,
-        }}>done</button>
+        <button
+          onClick={onClose}
+          style={{
+            padding: "6px 10px", borderRadius: 8,
+            border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
+            background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+            color: text, cursor: "pointer", fontFamily: "Courier New, monospace", fontSize: 11,
+          }}
+        >
+          done
+        </button>
       </div>
     </div>
   );
 }
 
-function ColorSwatch({ value, onChange, label, dark }) {
+function ColorSwatch({
+  value, onChange, label, dark,
+}: { value: string; onChange: (v: string) => void; label?: string; dark: boolean }) {
   const text = dark ? "#fff" : "#111";
   const hex = normalizeHex(value).toUpperCase();
   const [open, setOpen] = useState(false);
-  const swatchRef = useRef(null);
-  const [rect, setRect] = useState(null);
+  const swatchRef = useRef<HTMLButtonElement | null>(null);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   const handleOpen = () => {
     const r = swatchRef.current?.getBoundingClientRect();
@@ -1119,20 +1424,33 @@ function ColorSwatch({ value, onChange, label, dark }) {
   };
 
   return (
-    <div style={{
-      position: "relative", display: "flex", flexDirection: "column",
-      alignItems: "center", gap: 6, userSelect: "none",
-    }}>
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 6,
+        userSelect: "none",
+      }}
+    >
       <button
         ref={swatchRef}
         onClick={handleOpen}
         aria-label={label || "pick color"}
         style={{
-          position: "relative", width: "100%", aspectRatio: "1 / 1",
-          minWidth: 40, borderRadius: 14, background: value,
-          boxShadow: "0 4px 10px rgba(0,0,0,0.18), 0 0 0 1px " + (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
+          position: "relative",
+          width: "100%",
+          aspectRatio: "1 / 1",
+          minWidth: 40,
+          borderRadius: 14,
+          background: value,
+          boxShadow:
+            "0 4px 10px rgba(0,0,0,0.18), 0 0 0 1px " + (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
           transition: "transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease",
-          cursor: "pointer", padding: 0, border: "none",
+          cursor: "pointer",
+          padding: 0,
+          border: "none",
         }}
       />
       {label && (
@@ -1141,69 +1459,99 @@ function ColorSwatch({ value, onChange, label, dark }) {
         </span>
       )}
       <span style={{
-        fontSize: 10, fontFamily: "Courier New, monospace",
-        color: text, opacity: 0.85, letterSpacing: 0.5,
-      }}>{hex}</span>
+        fontSize: 10, fontFamily: "Courier New, monospace", color: text, opacity: 0.85, letterSpacing: 0.5,
+      }}>
+        {hex}
+      </span>
       {open && (
-        <ColorPicker value={value} onChange={onChange} onClose={() => setOpen(false)} dark={dark} anchorRect={rect} />
+        <ColorPicker
+          value={value}
+          onChange={onChange}
+          onClose={() => setOpen(false)}
+          dark={dark}
+          anchorRect={rect}
+        />
       )}
     </div>
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────
 // Modal helpers
-// ──────────────────────────────────────────────────────────────────────
 
-const OVL = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.58)",
-  display: "flex", justifyContent: "center", alignItems: "center",
-  zIndex: 1000, backdropFilter: "blur(22px)",
+const OVL: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.58)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  zIndex: 1000,
+  backdropFilter: "blur(22px)",
 };
 
-const MOD = (dark, text) => ({
-  width: 340, padding: 20, borderRadius: 22,
+const MOD = (dark: boolean, text: string): React.CSSProperties => ({
+  width: 340,
+  padding: 20,
+  borderRadius: 22,
   background: dark ? "rgba(18,18,18,0.82)" : "rgba(255,255,255,0.82)",
   color: text,
   border: dark ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(0,0,0,0.08)",
   boxShadow: "0 26px 80px rgba(0,0,0,0.34)",
-  display: "flex", flexDirection: "column", gap: 12,
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
 });
 
-// ──────────────────────────────────────────────────────────────────────
-// Vinyl-crate spine
-// ──────────────────────────────────────────────────────────────────────
+// Vinyl-crate constants
 const SLEEVE_SIZE = 220;
-const SPINE_W = 16;
-const HOVER_LIFT = 28;
+const SPINE_W     = 16;
+const HOVER_LIFT  = 28;
 
-function nameHue(name) {
+function nameHue(name: string) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return h % 360;
 }
 
 const StorageRecord = React.memo(function StorageRecord({
-  name, cover, spineColor, isHovered,
-  onPointerEnter, onPointerLeave, onClick, onContextMenu, S,
-}) {
+  name, cover, spineColor, isHovered, isFocused, isDragging, isDropTarget,
+  onPointerEnter, onPointerLeave, onClick, onContextMenu,
+  onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, S,
+}: any) {
   const hue = nameHue(name);
   const spineBg = spineColor
     ? spineColor
     : cover ? "#111"
-    : `linear-gradient(175deg,hsl(${hue} 52% 28%) 0%,hsl(${(hue + 48) % 360} 42% 14%) 100%)`;
+    : `linear-gradient(175deg,hsl(${hue} 52% 28%) 0%,hsl(${(hue+48)%360} 42% 14%) 100%)`;
+
+  const lifted = isHovered || isFocused;
 
   return (
     <button
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       style={{
         ...S.storageRecord,
-        width: SPINE_W, height: SLEEVE_SIZE,
-        background: spineBg, borderRadius: 2, overflow: "hidden",
-        border: "none", borderRight: "1px solid rgba(0,0,0,0.48)",
-        transform: isHovered ? `translateY(-${HOVER_LIFT}px)` : "translateY(0)",
-        transition: "transform 0.20s cubic-bezier(0.22,1,0.36,1), filter 0.14s ease",
-        filter: isHovered ? "brightness(1.35) saturate(1.15)" : "brightness(1)",
-        zIndex: isHovered ? 50 : "auto",
+        width: SPINE_W,
+        height: SLEEVE_SIZE,
+        background: spineBg,
+        borderRadius: 2,
+        overflow: "hidden",
+        border: "none",
+        borderRight: "1px solid rgba(0,0,0,0.48)",
+        transform: lifted ? `translateY(-${HOVER_LIFT}px)` : "translateY(0)",
+        transition: "transform 0.20s cubic-bezier(0.22,1,0.36,1), filter 0.14s ease, opacity 0.14s ease",
+        filter: lifted ? "brightness(1.35) saturate(1.15)" : "brightness(1)",
+        zIndex: lifted ? 50 : "auto",
+        opacity: isDragging ? 0.35 : 1,
+        boxShadow: isDropTarget
+          ? "inset 3px 0 0 rgba(120,200,255,0.95), inset -3px 0 0 rgba(120,200,255,0.95)"
+          : undefined,
+        cursor: isDragging ? "grabbing" : "grab",
       }}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
@@ -1214,36 +1562,33 @@ const StorageRecord = React.memo(function StorageRecord({
       {cover && (
         <img src={cover} alt="" style={{ ...S.cover, objectPosition: "left center", opacity: 0.82 }} />
       )}
-      <span style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 4,
-        background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.52))", pointerEvents: "none" }} />
-      <span style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 2,
-        background: "rgba(255,255,255,0.16)", pointerEvents: "none" }} />
+      <span style={{ position:"absolute", top:0, bottom:0, right:0, width:4,
+        background:"linear-gradient(90deg,transparent,rgba(0,0,0,0.52))",
+        pointerEvents:"none" }} />
+      <span style={{ position:"absolute", top:0, bottom:0, left:0, width:2,
+        background:"rgba(255,255,255,0.16)", pointerEvents:"none" }} />
     </button>
   );
 });
 
-// ──────────────────────────────────────────────────────────────────────
-// App
-// ──────────────────────────────────────────────────────────────────────
-
-export default function App() {
+export function Aurae() {
   const initialUser = getInitialSessionUser();
-  const [view, setView] = useState(() => initialUser ? "home" : "auth");
+  const [view, setView] = useState<"auth" | "home" | "studio">(() => initialUser ? "home" : "auth");
   const [theme, setTheme] = useState(() => localStorage.getItem("aurae_theme") || "dark");
-  const [users, setUsers] = useState(() => normalizeUsers(safeJSON("aurae_users", {})));
+  const [users, setUsers] = useState<any>(() => normalizeUsers(safeJSON("aurae_users", {})));
   const [currentUser, setCurrentUser] = useState(initialUser);
-  const [projectsMeta, setProjectsMeta] = useState({});
+  const [projectsMeta, setProjectsMeta] = useState<any>({});
   const [projectsLoaded, setProjectsLoaded] = useState(false);
-  const [folders, setFolders] = useState(() => safeJSON("aurae_folders", []));
-  const [projectOrder, setProjectOrder] = useState(() => safeJSON("aurae_project_order", []));
-  const [storageConfigs, setStorageConfigs] = useState(() => safeJSON("aurae_storage_configs", {}));
+  const [folders, setFolders] = useState<any[]>(() => safeJSON("aurae_folders", []));
+  const [projectOrder, setProjectOrder] = useState<string[]>(() => safeJSON("aurae_project_order", []));
+  const [storageConfigs, setStorageConfigs] = useState<any>(() => safeJSON("aurae_storage_configs", {}));
   const [storageDraftName, setStorageDraftName] = useState("My Vinyl Storage");
   const [storageDraftWood, setStorageDraftWood] = useState("oak");
   const [showStorageCreate, setShowStorageCreate] = useState(false);
   const [newStorageName, setNewStorageName] = useState("New Storage");
   const [newStorageWood, setNewStorageWood] = useState("walnut");
-  const [hoveredProject, setHoveredProject] = useState(null);
-  const [dragOverTrack, setDragOverTrack] = useState(null);
+  const [hoveredProject, setHoveredProject] = useState<string | null>(null);
+  const [dragOverTrack, setDragOverTrack] = useState<number | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1253,25 +1598,36 @@ export default function App() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
-  const [renameModal, setRenameModal] = useState(null);
-  const [songMenu, setSongMenu] = useState(null);
-  const [projectMenu, setProjectMenu] = useState(null);
+  const [renameModal, setRenameModal] = useState<any>(null);
+  const [songMenu, setSongMenu] = useState<any>(null);
+  // NEW — right-click menu for project records in the home crate
+  const [projectMenu, setProjectMenu] = useState<any>(null);
+  // Sticky "focused" project for the side panel (last hovered). Separate from
+  // `hoveredProject` so the lift visual still drops back down when the cursor
+  // leaves the spine, but the options panel keeps showing the last project.
+  const [focusedProjectName, setFocusedProjectName] = useState<string | null>(null);
+  // Drag-and-drop reorder state for spines in the crate
+  const [draggingProject, setDraggingProject] = useState<string | null>(null);
+  const [dropTargetProject, setDropTargetProject] = useState<string | null>(null);
+  // hidden file input ref used by the project menu to upload a side cover
+  const sideCoverInputRef = useRef<HTMLInputElement | null>(null);
+  const sideCoverTargetRef = useRef<{ name: string; side: number } | null>(null);
 
-  const [activeProject, setActiveProject] = useState(null);
-  const [tracks, setTracks] = useState([]);
+  const [activeProject, setActiveProject] = useState<string | null>(null);
+  const [tracks, setTracks] = useState<any[]>([]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const [sidebarMode, setSidebarMode] = useState("songs");
-  const [albumCover, setAlbumCover] = useState(null);
-  const [sideCovers, setSideCovers] = useState([]);
+  const [sidebarMode, setSidebarMode] = useState<"songs" | "design">("songs");
+  const [albumCover, setAlbumCover] = useState<string | null>(null);
+  const [sideCovers, setSideCovers] = useState<any[]>([]);
   const [repeatSideCovers, setRepeatSideCovers] = useState(false);
-  const [homeCover, setHomeCover] = useState(null);
+  const [homeCover, setHomeCover] = useState<string | null>(null);
 
   const [vinylColor, setVinylColor] = useState("#111111");
-  const [vinylColors, setVinylColors] = useState(DEFAULT_VINYL_COLORS);
+  const [vinylColors, setVinylColors] = useState<string[]>(DEFAULT_VINYL_COLORS);
   const [vinylGradient, setVinylGradient] = useState("radial");
   const [vinylOpacity, setVinylOpacity] = useState(1);
   const [splatterColor, setSplatterColor] = useState("#3a7bd5");
@@ -1282,10 +1638,11 @@ export default function App() {
   const [vinylSide, setVinylSide] = useState(1);
   const [flipping, setFlipping] = useState(false);
   const [awaitingFlip, setAwaitingFlip] = useState(false);
+  // NEW — picture vinyl: full-cover image disc, no label
   const [pictureVinyl, setPictureVinyl] = useState(false);
 
-  // Stage mode + equalizer settings
-  const [stageMode, setStageMode] = useState("vinyl");
+  // NEW — stage mode + equalizer settings
+  const [stageMode, setStageMode] = useState<"vinyl" | "equalizer">("vinyl");
   const [eqShape, setEqShape] = useState("bars");
   const [eqColor, setEqColor] = useState("#7afcff");
   const [eqColor2, setEqColor2] = useState("#ff5edf");
@@ -1294,15 +1651,16 @@ export default function App() {
   const [eqGlow, setEqGlow] = useState(0.7);
   const [eqBgColor, setEqBgColor] = useState("#070708");
 
-  const audioRef = useRef(null);
-  const audioCtxRef = useRef(null);
-  const analyserRef = useRef(null);
-  const audioSrcRef = useRef(null);
-  const hoverTimeoutRef = useRef(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Web Audio graph — created lazily once (MediaElementSource cannot be recreated)
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const hoverTimeoutRef = useRef<any>(null);
 
   const dark = theme === "dark";
   const text = dark ? "#ffffff" : "#000000";
-  const S = useMemo(() => makeStyles(dark, text), [dark, text]);
+  const S: any = useMemo(() => makeStyles(dark, text), [dark, text]);
 
   const sideBoundaries = useMemo(() => computeSideBoundaries(tracks), [tracks]);
   const totalSides = sideBoundaries.length;
@@ -1323,15 +1681,46 @@ export default function App() {
 
   const needsTurn = awaitingFlip && !flipping;
 
-  const handleRecordMouseEnter = useCallback(name => {
+  const handleRecordMouseEnter = useCallback((name: string) => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoveredProject(name);
+    // Make the side panel options stick to the last project the user hovered over,
+    // even after the mouse leaves the spine. This way the option buttons under
+    // "Storages" reliably reflect the third project when only the third is
+    // hovered, instead of jumping to whatever is geometrically closest.
+    setFocusedProjectName(name);
   }, []);
 
   const handleRecordMouseLeave = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => setHoveredProject(null), 80);
+    // Keep focusedProjectName — the panel stays on the last hovered project
+    // until the user hovers a different one.
   }, []);
+
+  // Reorder projects inside the currently active storage by moving `fromName`
+  // to the position of `toName`. No-op when called with the same project or
+  // when either name does not exist in the active shelf.
+  const reorderProjectInStorage = useCallback((fromName: string, toName: string) => {
+    if (!currentUser || !fromName || !toName || fromName === toName) return;
+    setStorageConfigs((prev: any) => {
+      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
+      const items = shelf.items.map((item: any) => {
+        if (item.id !== shelf.activeId) return item;
+        const arr = [...item.projects];
+        const fromIdx = arr.indexOf(fromName);
+        const toIdx = arr.indexOf(toName);
+        if (fromIdx === -1 || toIdx === -1) return item;
+        arr.splice(fromIdx, 1);
+        // Insert before the target's current index (after removal indices shift)
+        const insertAt = arr.indexOf(toName);
+        const finalIdx = fromIdx < toIdx ? insertAt + 1 : insertAt;
+        arr.splice(finalIdx, 0, fromName);
+        return { ...item, projects: arr };
+      });
+      return { ...prev, [currentUser]: { ...shelf, items } };
+    });
+  }, [currentUser, projectsMeta]);
 
   useEffect(() => () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -1349,9 +1738,9 @@ export default function App() {
   useEffect(() => {
     async function loadAll() {
       const names = await loadAllProjectNames();
-      const meta = {};
+      const meta: any = {};
       for (const name of names) {
-        const data = await loadProjectFromDB(name);
+        const data: any = await loadProjectFromDB(name);
         if (data) {
           const migratedSideCovers = normalizeSideCovers(data);
           meta[name] = {
@@ -1363,13 +1752,14 @@ export default function App() {
             deckStyle: normalizeDeckStyle(data.deckStyle || "classic"),
             splatterStyle: data.splatterStyle === "comet" ? "burst" : data.splatterStyle || "burst",
             pictureVinyl: Boolean(data.pictureVinyl),
-            tracks: (data.tracks || []).map(({ url, ...rest }) => rest),
+            tracks: (data.tracks || []).map(({ url, ...rest }: any) => rest),
           };
         }
       }
+
       try {
         const legacy = JSON.parse(localStorage.getItem("aurae_projects") || "{}");
-        for (const [name, p] of Object.entries(legacy)) {
+        for (const [name, p] of Object.entries<any>(legacy)) {
           if (!meta[name]) {
             const migratedSideCovers = normalizeSideCovers(p);
             meta[name] = {
@@ -1387,6 +1777,7 @@ export default function App() {
         }
         localStorage.removeItem("aurae_projects");
       } catch {}
+
       setProjectsMeta(meta);
       setProjectsLoaded(true);
     }
@@ -1401,12 +1792,15 @@ export default function App() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+
     const update = () => {
       setCurrentTime(audio.currentTime || 0);
       setDuration(audio.duration || 0);
     };
+
     const end = () => {
       const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
+
       if (index === lastOfSide && vinylSide < totalSides) {
         setPlaying(false);
         setAwaitingFlip(true);
@@ -1416,6 +1810,7 @@ export default function App() {
         setPlaying(false);
       }
     };
+
     audio.addEventListener("timeupdate", update);
     audio.addEventListener("loadedmetadata", update);
     audio.addEventListener("ended", end);
@@ -1431,9 +1826,10 @@ export default function App() {
     const safe = Number.isFinite(s) ? s : 0;
     return `${Math.floor(safe / 60)}:${Math.floor(safe % 60).toString().padStart(2, "0")}`;
   };
-  const totalDur = list => fmt(list.reduce((sum, t) => sum + (t.duration || 0), 0));
 
-  function finishAuth(cleanEmail) {
+  const totalDur = (list: any[]) => fmt(list.reduce((sum, t) => sum + (t.duration || 0), 0));
+
+  function finishAuth(cleanEmail: string) {
     sessionStorage.setItem("aurae_session", cleanEmail);
     if (rememberMe) localStorage.setItem("aurae_remember", cleanEmail);
     else localStorage.removeItem("aurae_remember");
@@ -1444,23 +1840,48 @@ export default function App() {
 
   async function login() {
     if (authLoading) return;
-    setAuthLoading(true); setAuthError("");
+    setAuthLoading(true);
+    setAuthError("");
+
     const verified = await verifyWorkingEmailAddress(email);
-    if (!verified.ok) { setAuthError(verified.error); setAuthLoading(false); return; }
-    if (!users[verified.email] || users[verified.email].password !== password) {
-      setAuthError("Email or password is wrong."); setAuthLoading(false); return;
+    if (!verified.ok) {
+      setAuthError(verified.error);
+      setAuthLoading(false);
+      return;
     }
+
+    if (!users[verified.email] || users[verified.email].password !== password) {
+      setAuthError("Email or password is wrong.");
+      setAuthLoading(false);
+      return;
+    }
+
     finishAuth(verified.email);
     setAuthLoading(false);
   }
 
   async function signup() {
     if (authLoading) return;
-    setAuthLoading(true); setAuthError("");
+    setAuthLoading(true);
+    setAuthError("");
+
     const verified = await verifyWorkingEmailAddress(email);
-    if (!verified.ok) { setAuthError(verified.error); setAuthLoading(false); return; }
-    if (!password.trim()) { setAuthError("Enter a password."); setAuthLoading(false); return; }
-    if (users[verified.email]) { setAuthError("This account already exists."); setAuthLoading(false); return; }
+    if (!verified.ok) {
+      setAuthError(verified.error);
+      setAuthLoading(false);
+      return;
+    }
+    if (!password.trim()) {
+      setAuthError("Enter a password.");
+      setAuthLoading(false);
+      return;
+    }
+    if (users[verified.email]) {
+      setAuthError("This account already exists.");
+      setAuthLoading(false);
+      return;
+    }
+
     const next = { ...users, [verified.email]: { password } };
     setUsers(next);
     localStorage.setItem("aurae_users", JSON.stringify(next));
@@ -1472,33 +1893,44 @@ export default function App() {
     if (!currentUser) return;
     const cleanName = storageDraftName.trim() || "My Vinyl Storage";
     const id = makeStorageId();
-    setStorageConfigs(prev => ({
+    setStorageConfigs((prev: any) => ({
       ...prev,
       [currentUser]: {
         activeId: id,
-        items: [{ id, name: cleanName, wood: storageDraftWood, projects: Object.keys(projectsMeta), createdAt: Date.now() }],
+        items: [{
+          id,
+          name: cleanName,
+          wood: storageDraftWood,
+          projects: Object.keys(projectsMeta),
+          createdAt: Date.now(),
+        }],
       },
     }));
   }
 
-  function setActiveStorage(storageId) {
+  function setActiveStorage(storageId: string) {
     if (!currentUser) return;
-    setStorageConfigs(prev => ({
+    setStorageConfigs((prev: any) => ({
       ...prev,
-      [currentUser]: { ...normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta)), activeId: storageId },
+      [currentUser]: {
+        ...normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta)),
+        activeId: storageId,
+      },
     }));
     setHoveredProject(null);
   }
 
-  function updateActiveStorage(key, value) {
+  function updateActiveStorage(key: string, value: any) {
     if (!currentUser) return;
-    setStorageConfigs(prev => {
+    setStorageConfigs((prev: any) => {
       const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
       return {
         ...prev,
         [currentUser]: {
           ...shelf,
-          items: shelf.items.map(item => item.id === shelf.activeId ? { ...item, [key]: value } : item),
+          items: shelf.items.map((item: any) =>
+            item.id === shelf.activeId ? { ...item, [key]: value } : item
+          ),
         },
       };
     });
@@ -1508,13 +1940,16 @@ export default function App() {
     if (!currentUser) return;
     const cleanName = newStorageName.trim() || `Storage ${Date.now().toString().slice(-4)}`;
     const id = makeStorageId();
-    setStorageConfigs(prev => {
+    setStorageConfigs((prev: any) => {
       const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
       return {
         ...prev,
         [currentUser]: {
           activeId: id,
-          items: [...shelf.items, { id, name: cleanName, wood: newStorageWood, projects: [], createdAt: Date.now() }],
+          items: [
+            ...shelf.items,
+            { id, name: cleanName, wood: newStorageWood, projects: [], createdAt: Date.now() },
+          ],
         },
       };
     });
@@ -1527,28 +1962,38 @@ export default function App() {
     const clean = name.trim();
     if (!clean || projectsMeta[clean]) return;
     const p = {
-      createdAt: Date.now(), updatedAt: Date.now(),
-      tracks: [], cover: null,
-      sideCovers: [], side1Cover: null, side2Cover: null,
-      repeatSideCovers: false, homeCover: null,
-      vinylColor: "#111111", vinylColors: DEFAULT_VINYL_COLORS,
-      vinylGradient: "solid", vinylOpacity: 1,
-      splatterColor: "#3a7bd5", splatterOn: false, splatterStyle: "burst",
-      deckStyle: "classic", deckColor: "#1a1a1a",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      tracks: [],
+      cover: null,
+      sideCovers: [],
+      side1Cover: null,
+      side2Cover: null,
+      repeatSideCovers: false,
+      homeCover: null,
+      vinylColor: "#111111",
+      vinylColors: DEFAULT_VINYL_COLORS,
+      vinylGradient: "solid",
+      vinylOpacity: 1,
+      splatterColor: "#3a7bd5",
+      splatterOn: false,
+      splatterStyle: "burst",
+      deckStyle: "classic",
+      deckColor: "#1a1a1a",
       pictureVinyl: false,
     };
-    setProjectsMeta(prev => ({ ...prev, [clean]: p }));
+    setProjectsMeta((prev: any) => ({ ...prev, [clean]: p }));
     if (currentUser) {
-      setStorageConfigs(prev => {
+      setStorageConfigs((prev: any) => {
         const shelf = normalizeStorageShelf(prev[currentUser], [...Object.keys(projectsMeta), clean]);
         return {
           ...prev,
           [currentUser]: {
             ...shelf,
-            items: shelf.items.map(item =>
+            items: shelf.items.map((item: any) =>
               item.id === shelf.activeId
-                ? { ...item, projects: [clean, ...item.projects.filter(pr => pr !== clean)] }
-                : { ...item, projects: item.projects.filter(pr => pr !== clean) }
+                ? { ...item, projects: [clean, ...item.projects.filter((project: string) => project !== clean)] }
+                : { ...item, projects: item.projects.filter((project: string) => project !== clean) }
             ),
           },
         };
@@ -1559,14 +2004,15 @@ export default function App() {
     setShowCreate(false);
   }
 
-  function projectPayload(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
-    const existing = projectsMeta[activeProject] || {};
+  function projectPayload(nextTracks = tracks, nextCover = albumCover, overrides: any = {}) {
+    const existing = projectsMeta[activeProject!] || {};
     const nextColors = overrides.vinylColors || vinylColors;
     const nextSideCovers = overrides.sideCovers ?? sideCovers;
     const nextVinylColor = overrides.vinylColor || nextColors[0] || vinylColor;
     const nextSplatStyle = overrides.splatterStyle === "comet" ? "burst" : overrides.splatterStyle ?? splatterStyle;
     return {
-      createdAt: existing.createdAt || Date.now(), updatedAt: Date.now(),
+      createdAt: existing.createdAt || Date.now(),
+      updatedAt: Date.now(),
       tracks: nextTracks.map(({ url, ...m }) => m),
       cover: nextCover,
       sideCovers: nextSideCovers,
@@ -1587,37 +2033,40 @@ export default function App() {
     };
   }
 
-  async function saveCurrentProject(nextTracks = tracks, nextCover = albumCover, overrides = {}) {
+  async function saveCurrentProject(nextTracks = tracks, nextCover = albumCover, overrides: any = {}) {
     if (!activeProject) return;
     const payload = projectPayload(nextTracks, nextCover, overrides);
-    setProjectsMeta(prev => ({ ...prev, [activeProject]: payload }));
+    setProjectsMeta((prev: any) => ({ ...prev, [activeProject]: payload }));
     setTracks(nextTracks);
     setAlbumCover(nextCover);
     await saveProjectToDB(activeProject, payload);
   }
 
-  function upd(key, value, setter) {
+  function upd(key: string, value: any, setter: (v: any) => void) {
     setter(value);
     if (!activeProject) return;
     saveCurrentProject(tracks, albumCover, { [key]: value });
   }
 
-  function updateVinylColor(slot, value) {
+  function updateVinylColor(slot: number, value: string) {
     const next = [...vinylColors];
     next[slot] = value;
     setVinylColors(next);
     if (slot === 0) setVinylColor(value);
-    if (activeProject) saveCurrentProject(tracks, albumCover, { vinylColors: next, vinylColor: next[0] });
+    if (activeProject) {
+      saveCurrentProject(tracks, albumCover, { vinylColors: next, vinylColor: next[0] });
+    }
   }
 
-  function setRepeatCovers(value) {
+  function setRepeatCovers(value: boolean) {
     setRepeatSideCovers(value);
     if (activeProject) saveCurrentProject(tracks, albumCover, { repeatSideCovers: value });
   }
 
-  async function openProject(name) {
-    const p = await loadProjectFromDB(name);
+  async function openProject(name: string) {
+    const p: any = await loadProjectFromDB(name);
     if (!p) return;
+
     const style = normalizeDeckStyle(p.deckStyle || "classic");
     const restoredColors = Array.isArray(p.vinylColors) && p.vinylColors.length
       ? p.vinylColors
@@ -1639,15 +2088,19 @@ export default function App() {
     setDeckStyle(style);
     setDeckColor(p.deckColor || "#1a1a1a");
     setPictureVinyl(Boolean(p.pictureVinyl));
-    setVinylSide(1); setFlipping(false); setAwaitingFlip(false);
-    setIndex(0); setPlaying(false);
-    setCurrentTime(0); setDuration(0);
+    setVinylSide(1);
+    setFlipping(false);
+    setAwaitingFlip(false);
+    setIndex(0);
+    setPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
     setSidebarMode("songs");
 
     const restored = await Promise.all(
-      (p.tracks || []).map(async track => {
+      (p.tracks || []).map(async (track: any) => {
         if (!track.id) return track;
-        const blob = await loadBlob(track.id);
+        const blob: any = await loadBlob(track.id);
         return blob ? { ...track, url: URL.createObjectURL(blob) } : track;
       })
     );
@@ -1655,23 +2108,37 @@ export default function App() {
     setView("studio");
   }
 
-  async function applyRenameProject(oldName, nextName) {
+  async function applyRenameProject(oldName: string, nextName: string) {
     const clean = nextName.trim();
-    if (!clean || clean === oldName) { setRenameModal(null); return; }
-    const data = await loadProjectFromDB(oldName);
+    if (!clean || clean === oldName) {
+      setRenameModal(null);
+      return;
+    }
+    const data: any = await loadProjectFromDB(oldName);
     await saveProjectToDB(clean, data || {});
     await deleteProjectFromDB(oldName);
-    setProjectsMeta(prev => { const c = { ...prev }; c[clean] = c[oldName]; delete c[oldName]; return c; });
-    setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.map(p => p === oldName ? clean : p) })));
+    setProjectsMeta((prev: any) => {
+      const c = { ...prev };
+      c[clean] = c[oldName];
+      delete c[oldName];
+      return c;
+    });
+    setFolders(prev => prev.map(f => ({
+      ...f,
+      projects: f.projects.map((p: string) => p === oldName ? clean : p),
+    })));
     setProjectOrder(prev => prev.map(p => p === oldName ? clean : p));
-    setStorageConfigs(prev => {
+    setStorageConfigs((prev: any) => {
       if (!currentUser) return prev;
-      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta).map(n => n === oldName ? clean : n));
+      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta).map(name => name === oldName ? clean : name));
       return {
         ...prev,
         [currentUser]: {
           ...shelf,
-          items: shelf.items.map(item => ({ ...item, projects: item.projects.map(pr => pr === oldName ? clean : pr) })),
+          items: shelf.items.map((item: any) => ({
+            ...item,
+            projects: item.projects.map((project: string) => project === oldName ? clean : project),
+          })),
         },
       };
     });
@@ -1680,20 +2147,27 @@ export default function App() {
     setRenameModal(null);
   }
 
-  async function deleteProject(name) {
+  async function deleteProject(name: string) {
     await deleteProjectFromDB(name);
-    setProjectsMeta(prev => { const c = { ...prev }; delete c[name]; return c; });
-    setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.filter(p => p !== name) })));
+    setProjectsMeta((prev: any) => {
+      const c = { ...prev };
+      delete c[name];
+      return c;
+    });
+    setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.filter((p: string) => p !== name) })));
     setProjectOrder(prev => prev.filter(p => p !== name));
-    setStorageConfigs(prev => {
+    setStorageConfigs((prev: any) => {
       if (!currentUser) return prev;
-      const remaining = Object.keys(projectsMeta).filter(p => p !== name);
+      const remaining = Object.keys(projectsMeta).filter(project => project !== name);
       const shelf = normalizeStorageShelf(prev[currentUser], remaining);
       return {
         ...prev,
         [currentUser]: {
           ...shelf,
-          items: shelf.items.map(item => ({ ...item, projects: item.projects.filter(p => p !== name) })),
+          items: shelf.items.map((item: any) => ({
+            ...item,
+            projects: item.projects.filter((project: string) => project !== name),
+          })),
         },
       };
     });
@@ -1701,37 +2175,44 @@ export default function App() {
     if (activeProject === name) setView("home");
   }
 
-  async function addTracks(e) {
+  async function addTracks(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
+
     const loaded = await Promise.all(
-      files.map(file => new Promise(resolve => {
+      files.map(file => new Promise<any>(resolve => {
         const probeUrl = URL.createObjectURL(file);
         const probe = new Audio(probeUrl);
-        const finish = async dur => {
+        const finish = async (dur: number) => {
           const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
           await saveBlob(id, file);
           URL.revokeObjectURL(probeUrl);
-          resolve({ id, name: file.name.replace(/\.[^/.]+$/, ""), url: URL.createObjectURL(file), duration: dur || 0 });
+          resolve({
+            id,
+            name: file.name.replace(/\.[^/.]+$/, ""),
+            url: URL.createObjectURL(file),
+            duration: dur || 0,
+          });
         };
         probe.onloadedmetadata = () => finish(probe.duration || 0);
         probe.onerror = () => finish(0);
       }))
     );
+
     saveCurrentProject([...tracks, ...loaded]);
     e.target.value = "";
   }
 
-  function readImageFile(e, cb) {
+  function readImageFile(e: React.ChangeEvent<HTMLInputElement>, cb: (data: string) => void) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => cb(reader.result);
+    reader.onload = () => cb(reader.result as string);
     reader.readAsDataURL(file);
     e.target.value = "";
   }
 
-  function addSideCover(side, e) {
+  function addSideCover(side: number, e: React.ChangeEvent<HTMLInputElement>) {
     readImageFile(e, result => {
       const next = [...sideCovers];
       next[side - 1] = result;
@@ -1740,15 +2221,18 @@ export default function App() {
     });
   }
 
-  function clearSideCover(side) {
+  function clearSideCover(side: number) {
     const next = [...sideCovers];
     next[side - 1] = null;
     setSideCovers(next);
     saveCurrentProject(tracks, albumCover, { sideCovers: next });
   }
 
-  // Set a side cover for an arbitrary project from the home crate's right-click menu
-  async function addSideCoverFor(projectNameForCover, side, dataUrl) {
+  // Add a cover for a specific side (1..N) of an arbitrary project from the
+  // home crate's right-click menu. Re-uses the same sideCovers array shape
+  // the project player uses, so opening the project shows the new cover
+  // immediately.
+  async function addSideCoverFor(projectNameForCover: string, side: number, dataUrl: string) {
     const existing = (await loadProjectFromDB(projectNameForCover)) || projectsMeta[projectNameForCover] || {};
     const currentCovers = normalizeSideCovers(existing);
     const nextCovers = [...currentCovers];
@@ -1761,22 +2245,22 @@ export default function App() {
       side2Cover: nextCovers[1] || null,
     };
     await saveProjectToDB(projectNameForCover, next);
-    setProjectsMeta(prev => ({ ...prev, [projectNameForCover]: next }));
+    setProjectsMeta((prev: any) => ({ ...prev, [projectNameForCover]: next }));
     if (activeProject === projectNameForCover) setSideCovers(nextCovers);
   }
 
-  function addHomeCover(e, projectNameForCover) {
+  function addHomeCover(e: React.ChangeEvent<HTMLInputElement>, projectNameForCover: string) {
     e.stopPropagation();
     readImageFile(e, async result => {
       const existing = (await loadProjectFromDB(projectNameForCover)) || projectsMeta[projectNameForCover] || {};
       const next = { ...existing, homeCover: result };
       await saveProjectToDB(projectNameForCover, next);
-      setProjectsMeta(prev => ({ ...prev, [projectNameForCover]: next }));
+      setProjectsMeta((prev: any) => ({ ...prev, [projectNameForCover]: next }));
       if (activeProject === projectNameForCover) setHomeCover(result);
     });
   }
 
-  function deleteTrack(trackIndex) {
+  function deleteTrack(trackIndex: number) {
     const track = tracks[trackIndex];
     if (track?.id) deleteBlob(track.id);
     const next = tracks.filter((_, i) => i !== trackIndex);
@@ -1785,13 +2269,15 @@ export default function App() {
     setSongMenu(null);
   }
 
-  // Web Audio graph (lazy, one-time)
+  // Connect the <audio> element to a shared analyser node — created lazily on
+  // first playback because MediaElementAudioSourceNode can only be created
+  // ONCE per element and requires a user gesture in some browsers.
   function ensureAudioGraph() {
     const audio = audioRef.current;
     if (!audio) return null;
     if (!audioCtxRef.current) {
       try {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
+        const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
         const ctx = new Ctx();
         const src = ctx.createMediaElementSource(audio);
         const analyser = ctx.createAnalyser();
@@ -1801,25 +2287,32 @@ export default function App() {
         audioCtxRef.current = ctx;
         analyserRef.current = analyser;
         audioSrcRef.current = src;
-      } catch {}
+      } catch {
+        // Fail silently — EQ just won't react.
+      }
     }
+    // Resume on user gesture
     audioCtxRef.current?.resume?.().catch(() => {});
     if (analyserRef.current) analyserRef.current.smoothingTimeConstant = eqSmoothing;
     return analyserRef.current;
   }
 
+  // Keep analyser smoothing in sync with the slider
   useEffect(() => {
     if (analyserRef.current) analyserRef.current.smoothingTimeConstant = eqSmoothing;
   }, [eqSmoothing]);
 
-  function playTrack(trackIndex) {
+  function playTrack(trackIndex: number) {
     const track = tracks[trackIndex];
     if (!track?.url) return;
+
     const trackSide = getSideForTrack(sideBoundaries, trackIndex);
     if (trackSide !== vinylSide) setVinylSide(trackSide);
+
     setAwaitingFlip(false);
     setIndex(trackIndex);
     setPlaying(true);
+
     setTimeout(() => {
       const audio = audioRef.current;
       if (!audio) return;
@@ -1833,27 +2326,51 @@ export default function App() {
     if (flipping || !awaitingFlip || vinylSide >= totalSides) return;
     const audio = audioRef.current;
     if (audio) audio.pause();
+
     const nextSide = vinylSide + 1;
     const firstOfNextSide = sideBoundaries[nextSide - 1] ?? 0;
+
     setPlaying(false);
     setAwaitingFlip(false);
     setFlipping(true);
+
     setTimeout(() => setVinylSide(nextSide), FLIP_COVER_SWAP);
-    setTimeout(() => { setFlipping(false); setTimeout(() => playTrack(firstOfNextSide), 80); }, FLIP_DURATION);
+
+    setTimeout(() => {
+      setFlipping(false);
+      setTimeout(() => playTrack(firstOfNextSide), 80);
+    }, FLIP_DURATION);
   }
 
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (awaitingFlip) { flipVinyl(); return; }
-    if (!audio.src && tracks[0]) { playTrack(0); return; }
-    if (playing) { audio.pause(); setPlaying(false); }
-    else { ensureAudioGraph(); audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
+    if (awaitingFlip) {
+      flipVinyl();
+      return;
+    }
+    if (!audio.src && tracks[0]) {
+      playTrack(0);
+      return;
+    }
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+    } else {
+      ensureAudioGraph();
+      audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    }
   }
 
-  function prevTrack() { if (index > 0) playTrack(index - 1); }
-  function nextTrack() { if (index < tracks.length - 1) playTrack(index + 1); }
-  function seek(e) {
+  function prevTrack() {
+    if (index > 0) playTrack(index - 1);
+  }
+
+  function nextTrack() {
+    if (index < tracks.length - 1) playTrack(index + 1);
+  }
+
+  function seek(e: React.ChangeEvent<HTMLInputElement>) {
     const value = Number(e.target.value);
     const audio = audioRef.current;
     if (!audio) return;
@@ -1868,23 +2385,33 @@ export default function App() {
   const vinylRadius = isSingle ? 106 : normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
   const current = tracks[index];
 
-  // ──────────────────────────────────────────────────────────────────
-  // VIEW: AUTH
-  // ──────────────────────────────────────────────────────────────────
   if (view === "auth") {
     return (
       <div style={S.auth}>
         <div style={S.panel}>
           <div style={S.logo}>AURAE</div>
-          <input style={S.input} placeholder="email" value={email}
+          <input
+            style={S.input}
+            placeholder="email"
+            value={email}
             onChange={e => { setEmail(e.target.value); setAuthError(""); }}
-            onKeyDown={e => { if (e.key === "Enter") login(); }} />
-          <input style={S.input} placeholder="password" type="password" value={password}
+            onKeyDown={e => { if (e.key === "Enter") login(); }}
+          />
+          <input
+            style={S.input}
+            placeholder="password"
+            type="password"
+            value={password}
             onChange={e => { setPassword(e.target.value); setAuthError(""); }}
-            onKeyDown={e => { if (e.key === "Enter") login(); }} />
+            onKeyDown={e => { if (e.key === "Enter") login(); }}
+          />
           <label style={S.rememberRow}>
-            <input type="checkbox" checked={rememberMe}
-              onChange={e => setRememberMe(e.target.checked)} style={S.checkbox} />
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={e => setRememberMe(e.target.checked)}
+              style={S.checkbox}
+            />
             remember me
           </label>
           {authError && <div style={S.authError}>{authError}</div>}
@@ -1899,16 +2426,23 @@ export default function App() {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // VIEW: HOME
-  // ──────────────────────────────────────────────────────────────────
   if (view === "home") {
     const allProjectNames = Object.keys(projectsMeta);
     const storageShelf = currentUser ? normalizeStorageShelf(storageConfigs[currentUser], allProjectNames) : { activeId: null, items: [] };
-    const storageConfig = storageShelf.items.find(item => item.id === storageShelf.activeId) || storageShelf.items[0] || null;
+    const storageConfig = storageShelf.items.find((item: any) => item.id === storageShelf.activeId) || storageShelf.items[0] || null;
     const wood = getWoodTheme(storageConfig?.wood || storageDraftWood);
-    const storageProjects = (storageConfig?.projects || []).filter(name => projectsMeta[name]);
-    const focusedProject = hoveredProject || storageProjects[storageProjects.length - 1] || null;
+    const storageProjects = (storageConfig?.projects || []).filter((name: string) => projectsMeta[name]);
+    // Prefer the spine the cursor is currently over; otherwise fall back to the
+    // sticky "last hovered" focus (still inside the active storage), and only as
+    // a last resort to the first project. This guarantees that hovering over the
+    // third project shows options for the third project — not for something else.
+    const stickyFocus = focusedProjectName && storageProjects.includes(focusedProjectName)
+      ? focusedProjectName : null;
+    const focusedProject =
+      (hoveredProject && storageProjects.includes(hoveredProject) ? hoveredProject : null)
+      || stickyFocus
+      || storageProjects[0]
+      || null;
     const focusedMeta = focusedProject ? projectsMeta[focusedProject] || {} : {};
     const focusedCovers = focusedProject ? normalizeSideCovers(focusedMeta) : [];
     const focusedCover = focusedMeta.homeCover || focusedMeta.cover || focusedCovers[0] || null;
@@ -1923,13 +2457,22 @@ export default function App() {
               <div style={S.storageSetupCopy}>
                 Choose a cabinet style first. Your projects will live here as records.
               </div>
-              <input style={S.input} value={storageDraftName}
-                onChange={e => setStorageDraftName(e.target.value)} placeholder="storage name" />
+              <input
+                style={S.input}
+                value={storageDraftName}
+                onChange={e => setStorageDraftName(e.target.value)}
+                placeholder="storage name"
+              />
               <div style={S.woodGrid}>
                 {STORAGE_WOODS.map(item => (
-                  <button key={item.id}
-                    style={{ ...S.woodChoice, ...(storageDraftWood === item.id ? S.woodChoiceActive : {}) }}
-                    onClick={() => setStorageDraftWood(item.id)}>
+                  <button
+                    key={item.id}
+                    style={{
+                      ...S.woodChoice,
+                      ...(storageDraftWood === item.id ? S.woodChoiceActive : {}),
+                    }}
+                    onClick={() => setStorageDraftWood(item.id)}
+                  >
                     <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
                     {item.label}
                   </button>
@@ -1966,23 +2509,34 @@ export default function App() {
             <div style={S.storageControls}>
               <div style={S.sectionTitle}>Storages</div>
               <div style={S.storageTabs}>
-                {storageShelf.items.map(item => (
-                  <button key={item.id}
+                {storageShelf.items.map((item: any) => (
+                  <button
+                    key={item.id}
                     style={{ ...S.storageTab, ...(item.id === storageConfig.id ? S.storageTabActive : {}) }}
-                    onClick={() => setActiveStorage(item.id)}>
+                    onClick={() => setActiveStorage(item.id)}
+                  >
                     <span>{item.name}</span>
-                    <small>{item.projects.filter(n => projectsMeta[n]).length}</small>
+                    <small>{item.projects.filter((name: string) => projectsMeta[name]).length}</small>
                   </button>
                 ))}
               </div>
-              <input style={S.input} value={storageConfig.name}
-                onChange={e => updateActiveStorage("name", e.target.value)} placeholder="storage name" />
+              <input
+                style={S.input}
+                value={storageConfig.name}
+                onChange={e => updateActiveStorage("name", e.target.value)}
+                placeholder="storage name"
+              />
               <div style={S.sectionTitle}>Wood</div>
               <div style={S.woodGridCompact}>
                 {STORAGE_WOODS.map(item => (
-                  <button key={item.id}
-                    style={{ ...S.woodChoice, ...(storageConfig.wood === item.id ? S.woodChoiceActive : {}) }}
-                    onClick={() => updateActiveStorage("wood", item.id)}>
+                  <button
+                    key={item.id}
+                    style={{
+                      ...S.woodChoice,
+                      ...(storageConfig.wood === item.id ? S.woodChoiceActive : {}),
+                    }}
+                    onClick={() => updateActiveStorage("wood", item.id)}
+                  >
                     <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
                     {item.label}
                   </button>
@@ -1993,24 +2547,24 @@ export default function App() {
                 <div style={S.focusPanel}>
                   <div style={S.focusCoverRow}>
                     <div style={S.focusCover}>
-                      {focusedCover
-                        ? <img src={focusedCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : <div style={S.blankCover} />}
+                      {focusedCover ? <img src={focusedCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={S.blankCover} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.focusTitle}>{focusedProject}</div>
                       <div style={S.cardSub}>{focusedMeta.tracks?.length || 0} tracks</div>
                     </div>
                   </div>
+
                   <div style={S.focusActions}>
                     <button style={S.smallBtn} onClick={() => openProject(focusedProject)}>open player</button>
                     <label style={S.smallBtn}>
                       cover art
-                      <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
-                        onChange={e => addHomeCover(e, focusedProject)} />
+                      <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addHomeCover(e, focusedProject)} />
                     </label>
-                    <button style={S.smallBtn}
-                      onClick={() => setRenameModal({ type: "project", id: focusedProject, value: focusedProject })}>
+                    <button
+                      style={S.smallBtn}
+                      onClick={() => setRenameModal({ type: "project", id: focusedProject, value: focusedProject })}
+                    >
                       rename
                     </button>
                     <button style={S.smallBtn} onClick={() => deleteProject(focusedProject)}>delete</button>
@@ -2020,22 +2574,25 @@ export default function App() {
             </div>
 
             <div style={S.crateStage}>
-              <div style={{
-                ...S.crate,
-                width: crateWidth,
-                "--storage-face": wood.face,
-                "--storage-edge": wood.edge,
-                "--storage-line": wood.line,
-              }}>
+              <div
+                style={{
+                  ...S.crate,
+                  width: crateWidth,
+                  ["--storage-face" as any]: wood.face,
+                  ["--storage-edge" as any]: wood.edge,
+                  ["--storage-line" as any]: wood.line,
+                }}
+              >
                 <div style={S.crateBack} />
                 <div style={S.crateFloor} />
                 <div style={S.crateLeftWall} />
                 <div style={S.crateRightWall} />
+
                 <div style={{ ...S.crateLeg, left: 18, transform: "rotate(18deg)" }} />
                 <div style={{ ...S.crateLeg, right: 18, transform: "rotate(-18deg)" }} />
 
                 <div style={S.crateRecords}>
-                  {storageProjects.map(name => {
+                  {storageProjects.map((name: string) => {
                     const p = projectsMeta[name] || {};
                     const covers = normalizeSideCovers(p);
                     const cover = p.homeCover || p.cover || covers[0] || null;
@@ -2046,15 +2603,49 @@ export default function App() {
                         cover={cover}
                         spineColor={p.spineColor || null}
                         isHovered={hoveredProject === name}
+                        isFocused={focusedProject === name}
+                        isDragging={draggingProject === name}
+                        isDropTarget={dropTargetProject === name && draggingProject !== name}
                         onPointerEnter={() => handleRecordMouseEnter(name)}
                         onPointerLeave={handleRecordMouseLeave}
-                        onClick={() => openProject(name)}
-                        onContextMenu={e => {
+                        onClick={() => {
+                          // Suppress click that fires after a drag
+                          if (draggingProject) return;
+                          openProject(name);
+                        }}
+                        onContextMenu={(e: any) => {
                           e.preventDefault();
                           const meta = projectsMeta[name] || {};
                           const trackList = meta.tracks || [];
                           const sides = computeSideBoundaries(trackList).length || 1;
+                          setFocusedProjectName(name);
                           setProjectMenu({ x: e.clientX, y: e.clientY, name, sides });
+                        }}
+                        onDragStart={(e: any) => {
+                          setDraggingProject(name);
+                          // Required for Firefox to actually start the drag
+                          try { e.dataTransfer.setData("text/plain", name); } catch {}
+                          if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(e: any) => {
+                          if (!draggingProject || draggingProject === name) return;
+                          e.preventDefault();
+                          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+                          setDropTargetProject(name);
+                        }}
+                        onDragLeave={() => {
+                          setDropTargetProject(prev => prev === name ? null : prev);
+                        }}
+                        onDrop={(e: any) => {
+                          e.preventDefault();
+                          if (draggingProject && draggingProject !== name) {
+                            reorderProjectInStorage(draggingProject, name);
+                          }
+                          setDropTargetProject(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingProject(null);
+                          setDropTargetProject(null);
                         }}
                         S={S}
                       />
@@ -2076,9 +2667,14 @@ export default function App() {
         {showCreate && (
           <div style={OVL} onClick={() => setShowCreate(false)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
-              <input autoFocus style={S.input} placeholder="project name"
-                value={projectName} onChange={e => setProjectName(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }} />
+              <input
+                autoFocus
+                style={S.input}
+                placeholder="project name"
+                value={projectName}
+                onChange={e => setProjectName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }}
+              />
               <button style={S.btn} onClick={() => createProject()}>create</button>
             </div>
           </div>
@@ -2088,14 +2684,21 @@ export default function App() {
           <div style={OVL} onClick={() => setShowStorageCreate(false)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
               <div style={S.modalTitle}>Create storage</div>
-              <input autoFocus style={S.input} placeholder="storage name"
-                value={newStorageName} onChange={e => setNewStorageName(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") createAdditionalStorage(); if (e.key === "Escape") setShowStorageCreate(false); }} />
+              <input
+                autoFocus
+                style={S.input}
+                placeholder="storage name"
+                value={newStorageName}
+                onChange={e => setNewStorageName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") createAdditionalStorage(); if (e.key === "Escape") setShowStorageCreate(false); }}
+              />
               <div style={S.woodGrid}>
                 {STORAGE_WOODS.map(item => (
-                  <button key={item.id}
+                  <button
+                    key={item.id}
                     style={{ ...S.woodChoice, ...(newStorageWood === item.id ? S.woodChoiceActive : {}) }}
-                    onClick={() => setNewStorageWood(item.id)}>
+                    onClick={() => setNewStorageWood(item.id)}
+                  >
                     <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
                     {item.label}
                   </button>
@@ -2112,21 +2715,33 @@ export default function App() {
               <div style={S.modalTitle}>
                 Rename {renameModal.type === "project" ? "project" : "folder"}
               </div>
-              <input autoFocus style={S.input} value={renameModal.value}
+              <input
+                autoFocus
+                style={S.input}
+                value={renameModal.value}
                 onChange={e => setRenameModal({ ...renameModal, value: e.target.value })}
                 onKeyDown={e => {
-                  if (e.key === "Enter") applyRenameProject(renameModal.id, renameModal.value);
+                  if (e.key === "Enter") {
+                    applyRenameProject(renameModal.id, renameModal.value);
+                  }
                   if (e.key === "Escape") setRenameModal(null);
-                }} />
+                }}
+              />
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={S.btn} onClick={() => applyRenameProject(renameModal.id, renameModal.value)}>save</button>
+                <button
+                  style={S.btn}
+                  onClick={() => applyRenameProject(renameModal.id, renameModal.value)}
+                >
+                  save
+                </button>
                 <button style={S.btn} onClick={() => setRenameModal(null)}>cancel</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Right-click context menu on a vinyl spine in the crate */}
+        {/* Right-click menu on a vinyl spine — minimal: open, cover art per side,
+            delete, close. */}
         {projectMenu && (
           <>
             <div
@@ -2137,7 +2752,7 @@ export default function App() {
             <div style={{
               ...S.menu,
               left: Math.min(projectMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 220),
-              top:  Math.min(projectMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 280),
+              top:  Math.min(projectMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 260),
               minWidth: 200,
             }}>
               <div style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>
@@ -2147,33 +2762,18 @@ export default function App() {
                 open player
               </button>
               <label style={S.menuBtn}>
-                add cover art
+                add spine cover
                 <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
-                  onChange={e => { addHomeCover(e, projectMenu.name); setProjectMenu(null); }} />
+                  onChange={e => {
+                    const target = projectMenu.name;
+                    setProjectMenu(null);
+                    addHomeCover(e, target);
+                  }} />
               </label>
-              <div style={{ height: 1, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", margin: "4px 0" }} />
-              {Array.from({ length: Math.max(2, projectMenu.sides || 1) }).map((_, i) => (
-                <label key={i} style={S.menuBtn}>
-                  add side {i + 1} cover
-                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
-                    onChange={e => {
-                      const target = projectMenu.name;
-                      const side = i + 1;
-                      setProjectMenu(null);
-                      readImageFile(e, result => addSideCoverFor(target, side, result));
-                    }} />
-                </label>
-              ))}
-              <div style={{ height: 1, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", margin: "4px 0" }} />
-              <button style={S.menuBtn}
-                onClick={() => {
-                  setRenameModal({ type: "project", id: projectMenu.name, value: projectMenu.name });
-                  setProjectMenu(null);
-                }}>
-                rename
-              </button>
-              <button style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
-                onClick={() => { deleteProject(projectMenu.name); setProjectMenu(null); }}>
+              <button
+                style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
+                onClick={() => { deleteProject(projectMenu.name); setProjectMenu(null); }}
+              >
                 delete
               </button>
               <button style={S.menuBtn} onClick={() => setProjectMenu(null)}>close</button>
@@ -2184,9 +2784,6 @@ export default function App() {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  // VIEW: STUDIO
-  // ──────────────────────────────────────────────────────────────────
   return (
     <div style={S.app}>
       <div style={S.sidebar}>
@@ -2204,10 +2801,18 @@ export default function App() {
         </div>
 
         <div style={S.segment}>
-          <button style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }}
-            onClick={() => setSidebarMode("songs")}>songs</button>
-          <button style={{ ...S.segmentBtn, ...(sidebarMode === "design" ? S.segmentActive : {}) }}
-            onClick={() => setSidebarMode("design")}>design</button>
+          <button
+            style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }}
+            onClick={() => setSidebarMode("songs")}
+          >
+            songs
+          </button>
+          <button
+            style={{ ...S.segmentBtn, ...(sidebarMode === "design" ? S.segmentActive : {}) }}
+            onClick={() => setSidebarMode("design")}
+          >
+            design
+          </button>
         </div>
 
         {sidebarMode === "songs" ? (
@@ -2223,12 +2828,15 @@ export default function App() {
               <div style={S.coverToolsHeader}>
                 <span>side covers</span>
                 {sideCoverButtonCount > 2 && (
-                  <button style={{ ...S.smallBtn, ...(repeatSideCovers ? S.optionActive : {}) }}
-                    onClick={() => setRepeatCovers(!repeatSideCovers)}>
+                  <button
+                    style={{ ...S.smallBtn, ...(repeatSideCovers ? S.optionActive : {}) }}
+                    onClick={() => setRepeatCovers(!repeatSideCovers)}
+                  >
                     repeat 1/2 {repeatSideCovers ? "on" : "off"}
                   </button>
                 )}
               </div>
+
               <div style={S.sideCoverGrid}>
                 {Array.from({ length: sideCoverButtonCount }).map((_, i) => {
                   const side = i + 1;
@@ -2244,7 +2852,9 @@ export default function App() {
                         <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(side, e)} />
                       </label>
                       {directCover && (
-                        <button style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>clear</button>
+                        <button style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>
+                          clear
+                        </button>
                       )}
                     </div>
                   );
@@ -2294,8 +2904,11 @@ export default function App() {
                   </React.Fragment>
                 );
               })}
+
               {!tracks.length && (
-                <div style={S.emptyState}>Add songs and the needle will move across the record.</div>
+                <div style={S.emptyState}>
+                  Add songs and the needle will move across the record.
+                </div>
               )}
             </div>
           </>
@@ -2305,46 +2918,61 @@ export default function App() {
               <div style={S.sectionTitle}>Equalizer shape</div>
               <div style={S.optionGrid}>
                 {EQ_SHAPES.map(item => (
-                  <button key={item.id}
+                  <button
+                    key={item.id}
                     style={{ ...S.smallBtn, ...(eqShape === item.id ? S.optionActive : {}) }}
-                    onClick={() => setEqShape(item.id)}>{item.label}</button>
+                    onClick={() => setEqShape(item.id)}
+                  >
+                    {item.label}
+                  </button>
                 ))}
               </div>
             </div>
+
             <div style={S.section}>
               <div style={S.sectionTitle}>Colors</div>
               <div style={S.swatchGrid}>
-                <ColorSwatch value={eqColor}   onChange={setEqColor}   label="low"  dark={dark} />
-                <ColorSwatch value={eqColor2}  onChange={setEqColor2}  label="high" dark={dark} />
-                <ColorSwatch value={eqBgColor} onChange={setEqBgColor} label="bg"   dark={dark} />
+                <ColorSwatch value={eqColor}   onChange={setEqColor}   label="low"   dark={dark} />
+                <ColorSwatch value={eqColor2}  onChange={setEqColor2}  label="high"  dark={dark} />
+                <ColorSwatch value={eqBgColor} onChange={setEqBgColor} label="bg"    dark={dark} />
               </div>
             </div>
+
             <div style={S.section}>
               <div style={S.sectionTitle}>Motion</div>
               <label style={S.sliderLabel}>
                 bars ({eqBars})
-                <input type="range" min="16" max="128" step="2" value={eqBars}
-                  onChange={e => setEqBars(Number(e.target.value))} style={S.range} />
+                <input type="range" min="16" max="128" step="2"
+                  value={eqBars}
+                  onChange={e => setEqBars(Number(e.target.value))}
+                  style={S.range} />
               </label>
               <label style={S.sliderLabel}>
                 smoothing ({eqSmoothing.toFixed(2)})
-                <input type="range" min="0" max="0.95" step="0.01" value={eqSmoothing}
-                  onChange={e => setEqSmoothing(Number(e.target.value))} style={S.range} />
+                <input type="range" min="0" max="0.95" step="0.01"
+                  value={eqSmoothing}
+                  onChange={e => setEqSmoothing(Number(e.target.value))}
+                  style={S.range} />
               </label>
               <label style={S.sliderLabel}>
                 glow ({eqGlow.toFixed(2)})
-                <input type="range" min="0" max="1" step="0.01" value={eqGlow}
-                  onChange={e => setEqGlow(Number(e.target.value))} style={S.range} />
+                <input type="range" min="0" max="1" step="0.01"
+                  value={eqGlow}
+                  onChange={e => setEqGlow(Number(e.target.value))}
+                  style={S.range} />
               </label>
             </div>
           </div>
         ) : (
           <div style={S.designPanel}>
+            {/* NEW — Picture vinyl toggle */}
             <div style={S.section}>
               <div style={S.sectionTitle}>Picture vinyl</div>
               <div style={S.pictureRow}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={S.pictureCaption}>Use the side cover as a full disc image. The label is hidden.</div>
+                  <div style={S.pictureCaption}>
+                    Use the side cover as a full disc image. The label is hidden.
+                  </div>
                   {pictureVinyl && !currentVinylCover && (
                     <div style={S.pictureHint}>Add a side cover to see the picture.</div>
                   )}
@@ -2354,7 +2982,10 @@ export default function App() {
                   onClick={() => upd("pictureVinyl", !pictureVinyl, setPictureVinyl)}
                   aria-pressed={pictureVinyl}
                 >
-                  <span style={{ ...S.toggleKnob, transform: pictureVinyl ? "translateX(22px)" : "translateX(2px)" }} />
+                  <span style={{
+                    ...S.toggleKnob,
+                    transform: pictureVinyl ? "translateX(22px)" : "translateX(2px)",
+                  }} />
                 </button>
               </div>
             </div>
@@ -2363,54 +2994,86 @@ export default function App() {
               <div style={S.sectionTitle}>Deck design</div>
               <div style={S.optionGrid}>
                 {DECK_STYLES.map(style => (
-                  <button key={style}
+                  <button
+                    key={style}
                     style={{ ...S.smallBtn, ...(normalizeDeckStyle(deckStyle) === style ? S.optionActive : {}) }}
-                    onClick={() => upd("deckStyle", style, setDeckStyle)}>{style}</button>
+                    onClick={() => upd("deckStyle", style, setDeckStyle)}
+                  >
+                    {style}
+                  </button>
                 ))}
               </div>
             </div>
 
             <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
               <div style={S.sectionTitle}>Vinyl colors</div>
-              {pictureVinyl && <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
+              {pictureVinyl && (
+                <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>
+              )}
               <div style={S.swatchGrid}>
                 {[0, 1, 2, 3].map(slot => (
-                  <ColorSwatch key={slot}
+                  <ColorSwatch
+                    key={slot}
                     value={vinylColors[slot] || DEFAULT_VINYL_COLORS[slot] || "#111111"}
                     onChange={v => updateVinylColor(slot, v)}
-                    label={`tone ${slot + 1}`} dark={dark} />
+                    label={`tone ${slot + 1}`}
+                    dark={dark}
+                  />
                 ))}
               </div>
               <div style={S.optionGrid}>
                 {VINYL_GRADIENTS.map(item => (
-                  <button key={item.id}
+                  <button
+                    key={item.id}
                     style={{ ...S.smallBtn, ...(vinylGradient === item.id ? S.optionActive : {}) }}
-                    onClick={() => upd("vinylGradient", item.id, setVinylGradient)}>{item.label}</button>
+                    onClick={() => upd("vinylGradient", item.id, setVinylGradient)}
+                  >
+                    {item.label}
+                  </button>
                 ))}
               </div>
               <label style={S.sliderLabel}>
                 opacity
-                <input type="range" min="0.25" max="1" step="0.01" value={vinylOpacity}
-                  onChange={e => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)} style={S.range} />
+                <input
+                  type="range"
+                  min="0.25"
+                  max="1"
+                  step="0.01"
+                  value={vinylOpacity}
+                  onChange={e => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)}
+                  style={S.range}
+                />
               </label>
             </div>
 
             <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
               <div style={S.sectionTitle}>Splatter</div>
-              {pictureVinyl && <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
+              {pictureVinyl && (
+                <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>
+              )}
               <div style={S.inlineControls}>
-                <ColorSwatch value={splatterColor}
-                  onChange={v => upd("splatterColor", v, setSplatterColor)} label="color" dark={dark} />
-                <button style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}), alignSelf: "flex-end" }}
-                  onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}>
+                <ColorSwatch
+                  value={splatterColor}
+                  onChange={v => upd("splatterColor", v, setSplatterColor)}
+                  label="color"
+                  dark={dark}
+                />
+                <button
+                  style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}), alignSelf: "flex-end" }}
+                  onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}
+                >
                   {splatterOn ? "on" : "off"}
                 </button>
               </div>
               <div style={S.optionGrid}>
                 {SPLATTER_STYLES.map(item => (
-                  <button key={item.id}
+                  <button
+                    key={item.id}
                     style={{ ...S.smallBtn, ...(splatterStyle === item.id ? S.optionActive : {}) }}
-                    onClick={() => upd("splatterStyle", item.id, setSplatterStyle)}>{item.label}</button>
+                    onClick={() => upd("splatterStyle", item.id, setSplatterStyle)}
+                  >
+                    {item.label}
+                  </button>
                 ))}
               </div>
             </div>
@@ -2421,11 +3084,16 @@ export default function App() {
       <div style={S.stage}>
         {stageMode === "vinyl" ? (
           <div style={{ position: "relative", width: geometry.width, height: 560 }}>
-            <div style={{
-              position: "absolute",
-              left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius,
-              width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1,
-            }}>
+            <div
+              style={{
+                position: "absolute",
+                left: geometry.cx - vinylRadius,
+                top: geometry.cy - vinylRadius,
+                width: vinylRadius * 2,
+                height: vinylRadius * 2,
+                zIndex: 1,
+              }}
+            >
               <VinylDisc
                 radius={vinylRadius}
                 colors={vinylColors}
@@ -2442,6 +3110,7 @@ export default function App() {
                 pictureVinyl={pictureVinyl}
               />
             </div>
+
             <TurntableDeck
               style={normalizedDeckStyle}
               color={deckColor}
@@ -2449,15 +3118,15 @@ export default function App() {
               textColor={text}
               progress={sideProgress}
             />
+
             {needsTurn && (
-              <button style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>
+              <button style={S.turnBtn} onClick={flipVinyl}>
+                turn vinyl
+              </button>
             )}
           </div>
         ) : (
-          <div style={{
-            position: "relative", width: "min(760px, 100%)", height: 480,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
+          <div style={{ position: "relative", width: "min(760px, 100%)", height: 480, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <EqualizerVisualizer
               analyserRef={analyserRef}
               shape={eqShape}
@@ -2473,11 +3142,22 @@ export default function App() {
           </div>
         )}
 
+        {/* Stage-mode switch — bottom right */}
         <div style={S.modeSwitch}>
-          <button style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }}
-            onClick={() => setStageMode("vinyl")} title="Show vinyl">vinyl</button>
-          <button style={{ ...S.modeSwitchBtn, ...(stageMode === "equalizer" ? S.modeSwitchActive : {}) }}
-            onClick={() => setStageMode("equalizer")} title="Show equalizer">EQ</button>
+          <button
+            style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }}
+            onClick={() => setStageMode("vinyl")}
+            title="Show vinyl"
+          >
+            vinyl
+          </button>
+          <button
+            style={{ ...S.modeSwitchBtn, ...(stageMode === "equalizer" ? S.modeSwitchActive : {}) }}
+            onClick={() => setStageMode("equalizer")}
+            title="Show equalizer"
+          >
+            EQ
+          </button>
         </div>
       </div>
 
@@ -2491,9 +3171,14 @@ export default function App() {
           {awaitingFlip ? `end of side ${vinylSide}` : current?.name || "no track"}
         </div>
         <div style={S.time}>{fmt(currentTime)} / {fmt(duration)}</div>
-        <input type="range" min="0" max={duration || 0}
+        <input
+          type="range"
+          min="0"
+          max={duration || 0}
           value={Math.min(currentTime, duration || currentTime || 0)}
-          onChange={seek} style={S.playerRange} />
+          onChange={seek}
+          style={S.playerRange}
+        />
       </div>
 
       {songMenu && (
@@ -2508,11 +3193,7 @@ export default function App() {
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Styles
-// ──────────────────────────────────────────────────────────────────────
-
-function makeStyles(dark, text) {
+function makeStyles(dark: boolean, text: string) {
   const glass = dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.64)";
   const glassStrong = dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.86)";
   const border = dark ? "1px solid rgba(255,255,255,0.13)" : "1px solid rgba(0,0,0,0.08)";
@@ -2521,7 +3202,7 @@ function makeStyles(dark, text) {
     ? "radial-gradient(circle at 16% 12%, rgba(120,160,255,0.12), transparent 28%), radial-gradient(circle at 78% 20%, rgba(255,120,190,0.10), transparent 28%), #070708"
     : "radial-gradient(circle at 14% 12%, rgba(120,170,255,0.22), transparent 28%), radial-gradient(circle at 82% 16%, rgba(255,160,210,0.18), transparent 32%), #f4f6f8";
   const baseFont = "Courier New, monospace";
-  const scrollVars = {
+  const scrollVars: any = {
     "--aurae-scroll-track": dark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.045)",
     "--aurae-scroll-thumb": dark ? "rgba(255,255,255,0.26)" : "rgba(0,0,0,0.20)",
     "--aurae-scroll-thumb-hover": dark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.32)",
@@ -2565,14 +3246,22 @@ function makeStyles(dark, text) {
     focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 },
     focusActions: { display: "flex", flexWrap: "wrap", gap: 6 },
 
-    crateStage: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: "40px 0 50px" },
-    crate: { position: "relative", height: SLEEVE_SIZE + HOVER_LIFT + 70, maxWidth: "100%", overflow: "visible", filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))" },
+    crateStage: {
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      gap: 18, padding: "40px 0 50px",
+    },
+    crate: {
+      position: "relative", height: SLEEVE_SIZE + HOVER_LIFT + 70, maxWidth: "100%",
+      overflow: "visible", filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))",
+    },
     crateBack: {
       position: "absolute", left: 22, right: 22, top: HOVER_LIFT + 4, bottom: 64,
       background: "var(--storage-face)", backgroundBlendMode: "multiply",
-      backgroundImage: "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)",
+      backgroundImage:
+        "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)",
       borderRadius: "3px 3px 5px 5px", border: "1px solid rgba(0,0,0,0.5)",
-      boxShadow: "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)",
+      boxShadow:
+        "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)",
     },
     crateLeftWall: {
       position: "absolute", left: 30, top: HOVER_LIFT + 4, bottom: 60, width: 16,
@@ -2587,7 +3276,8 @@ function makeStyles(dark, text) {
     crateFloor: {
       position: "absolute", left: 30, right: 30, bottom: 56, height: 12,
       background: "var(--storage-face)",
-      backgroundImage: "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)",
+      backgroundImage:
+        "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)",
       borderTop: "1px solid rgba(0,0,0,0.5)", borderBottom: "1px solid rgba(0,0,0,0.55)",
       boxShadow: "0 6px 10px rgba(0,0,0,0.35)",
     },
@@ -2608,8 +3298,14 @@ function makeStyles(dark, text) {
       display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
       color: dark ? "#eee" : "#fff", fontSize: 13, textShadow: "0 2px 6px rgba(0,0,0,0.7)",
     },
-    crateLabel: { color: text, opacity: 0.6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" },
-    storageRecord: { position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" },
+    crateLabel: {
+      color: text, opacity: 0.6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+    },
+
+    storageRecord: {
+      position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", outline: "none",
+      WebkitTapHighlightColor: "transparent",
+    },
 
     loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
     cover: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
@@ -2644,12 +3340,14 @@ function makeStyles(dark, text) {
     sectionTitle: { color: text, fontSize: 12, opacity: 0.9, textTransform: "uppercase", letterSpacing: 1 },
     optionGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, color: text },
     optionActive: { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", color: text, borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
+    // NEW — clean grid for color swatches
     swatchGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, padding: "6px 2px" },
     colorRow: { display: "grid", gridTemplateColumns: "minmax(0, 90px)", gap: 10, padding: "4px 2px" },
     inlineControls: { display: "flex", gap: 12, alignItems: "stretch", color: text },
     sliderLabel: { display: "flex", flexDirection: "column", gap: 8, color: text, fontSize: 12, opacity: 0.9 },
     range: { width: "100%", accentColor: text },
 
+    // NEW — picture vinyl toggle row
     pictureRow: { display: "flex", alignItems: "center", gap: 12 },
     pictureCaption: { color: text, opacity: 0.78, fontSize: 11, lineHeight: 1.45 },
     pictureHint: { color: text, opacity: 0.55, fontSize: 10, fontStyle: "italic" },
@@ -2709,13 +3407,15 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
+
     @keyframes vinylFlip {
-      0%   { transform: perspective(1200px) rotateY(0deg)   scale(1);    filter: brightness(1); }
-      44%  { transform: perspective(1200px) rotateY(88deg)  scale(0.84); filter: brightness(0.34); }
-      50%  { transform: perspective(1200px) rotateY(90deg)  scale(0.82); filter: brightness(0.28); }
-      56%  { transform: perspective(1200px) rotateY(92deg)  scale(0.84); filter: brightness(0.34); }
-      100% { transform: perspective(1200px) rotateY(180deg) scale(1);    filter: brightness(1); }
+      0% { transform: perspective(1200px) rotateY(0deg) scale(1); filter: brightness(1); }
+      44% { transform: perspective(1200px) rotateY(88deg) scale(0.84); filter: brightness(0.34); }
+      50% { transform: perspective(1200px) rotateY(90deg) scale(0.82); filter: brightness(0.28); }
+      56% { transform: perspective(1200px) rotateY(92deg) scale(0.84); filter: brightness(0.34); }
+      100% { transform: perspective(1200px) rotateY(180deg) scale(1); filter: brightness(1); }
     }
+
     html, body, #root { margin: 0; width: 100%; min-height: 100%; }
     body { overflow: hidden; }
     * {
@@ -2724,8 +3424,11 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       scrollbar-color: var(--aurae-scroll-thumb, rgba(150,150,160,0.35)) transparent;
     }
     button, input { font: inherit; }
+
     button { transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
+
     ::placeholder { color: currentColor; opacity: 0.55; }
+
     ::-webkit-scrollbar { width: 12px; height: 12px; }
     ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
     ::-webkit-scrollbar-corner { background: transparent; }
@@ -2735,24 +3438,37 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       margin: 6px 0;
     }
     ::-webkit-scrollbar-thumb {
-      background: linear-gradient(180deg, rgba(255,255,255,0.24), var(--aurae-scroll-thumb, rgba(150,150,160,0.35)));
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.24),
+          var(--aurae-scroll-thumb, rgba(150,150,160,0.35))
+        );
       border-radius: 999px;
       border: 3px solid var(--aurae-scroll-border, transparent);
       background-clip: padding-box;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px rgba(0,0,0,0.18);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        0 4px 12px rgba(0,0,0,0.18);
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(180deg, rgba(255,255,255,0.30), var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48)));
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.30),
+          var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48))
+        );
       background-clip: padding-box;
     }
     ::-webkit-scrollbar-thumb:active {
-      background: linear-gradient(180deg, rgba(255,255,255,0.36), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62)));
+      background:
+        linear-gradient(180deg,
+          rgba(255,255,255,0.36),
+          var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))
+        );
       background-clip: padding-box;
     }
   `;
   document.head.appendChild(style);
 }
-
 
 
 
