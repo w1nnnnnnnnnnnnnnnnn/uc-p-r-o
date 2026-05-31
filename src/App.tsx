@@ -2445,7 +2445,7 @@ export function Aurae() {
       || null;
     const focusedMeta = focusedProject ? projectsMeta[focusedProject] || {} : {};
     const focusedCovers = focusedProject ? normalizeSideCovers(focusedMeta) : [];
-    const focusedCover = focusedMeta.homeCover || focusedMeta.cover || focusedCovers[0] || null;
+    const focusedCover = focusedMeta.cover || focusedCovers[0] || null;
 
     if (!storageConfig) {
       return (
