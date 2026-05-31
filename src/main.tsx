@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Aurae as App } from './App'
+import App from './App'
+
 
 
 ReactDOM.createRoot(document.getElementById("root")).render(
