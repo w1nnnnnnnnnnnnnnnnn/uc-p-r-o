@@ -864,6 +864,10 @@ function StandardControls({ id, style, textColor }: any) {
   const s = normalizeDeckStyle(style);
   const compact = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s);
 
+  if (s === "realistic1" || s === "realistic2") {
+    return null;
+  }
+
   if (!compact && s !== "minimal") {
     return (
       <g>
@@ -888,27 +892,6 @@ function StandardControls({ id, style, textColor }: any) {
         <circle cx="520" cy="152" r="5" fill={textColor} opacity="0.75" />
         <text x="520" y="256" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">
           VOL
-        </text>
-      </g>
-    );
-  }
-
-  if (s === "realistic2") {
-    return (
-      <g>
-        <rect x="414" y="48" width="112" height="142" rx="22"
-          fill="rgba(255,255,255,0.20)" stroke="rgba(70,55,40,0.20)" strokeWidth="1.2" filter={`url(#${id}-soft)`} />
-        <rect x="432" y="70" width="76" height="25" rx="12" fill="rgba(0,0,0,0.16)" />
-        <text x="470" y="87" fill={textColor} opacity="0.76" fontSize="8" fontFamily="monospace" textAnchor="middle">
-          START
-        </text>
-        <circle cx="470" cy="136" r="24"
-          fill="rgba(238,232,220,0.96)"
-          stroke="rgba(80,60,40,0.28)" strokeWidth="2" />
-        <circle cx="470" cy="136" r="14" fill={`url(#${id}-knob)`} opacity="0.72" />
-        <line x1="470" y1="115" x2="470" y2="124" stroke={textColor} opacity="0.65" strokeWidth="2" />
-        <text x="470" y="176" fill={textColor} opacity="0.62" fontSize="8" fontFamily="monospace" textAnchor="middle">
-          SPEED
         </text>
       </g>
     );
