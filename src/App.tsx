@@ -189,13 +189,16 @@ const SIDE_TARGET = 25 * 60;
 const FLIP_DURATION = 1400;
 const FLIP_COVER_SWAP = 700;
 
+// Up to 4 vinyls → at most 8 sides.
+const MAX_SIDES = 8;
+
 function computeSideBoundaries(tracks: any[]) {
   if (!tracks.length) return [0];
 
   const boundaries = [0];
   let pos = 0;
 
-  while (pos < tracks.length) {
+  while (pos < tracks.length && boundaries.length < MAX_SIDES) {
     let elapsed = 0;
     let i = pos;
 
@@ -383,7 +386,13 @@ function deckGeometry(style: string) {
   if (s === "realistic3") {
     return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 472, pivotY: 112 };
   }
-  if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) {
+  if (s === "realistic1") {
+    return { width: 560, height: 560, cx: 238, cy: 292, pivotX: 500, pivotY: 132 };
+  }
+  if (s === "realistic2") {
+    return { width: 560, height: 560, cx: 248, cy: 282, pivotX: 500, pivotY: 112 };
+  }
+  if (["dark", "chrome", "wood"].includes(s)) {
     return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 508, pivotY: 126 };
   }
   return { width: 560, height: 560, cx: 280, cy: 280, pivotX: 520, pivotY: 120 };
@@ -562,7 +571,7 @@ function VinylDisc({
         opacity,
         overflow: "hidden",
         boxShadow:
-          "0 30px 60px rgba(0,0,0,0.42), inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 42px rgba(0,0,0,0.55)",
+          "0 36px 80px rgba(0,0,0,0.72), 0 6px 18px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 0 60px rgba(0,0,0,0.6)",
         animation: flipping
           ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
           : playing
@@ -588,19 +597,46 @@ function VinylDisc({
         />
       )}
 
-      {/* Groove sheen — softer on picture vinyls so the artwork stays visible */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: "50%",
-          background:
-            "repeating-radial-gradient(circle, rgba(255,255,255,0.13) 0 1px, rgba(0,0,0,0.17) 2px, transparent 4px, transparent 8px)",
-          mixBlendMode: "screen",
-          opacity: isPicture ? 0.18 : 0.34,
+      {/* Ultra-fine grooves — two passes for micro-groove realism */}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
+        background: "repeating-radial-gradient(circle, rgba(255,255,255,0.10) 0 0.5px, rgba(0,0,0,0.20) 0.5px 1px, transparent 1px 2.5px)",
+        opacity: isPicture ? 0.12 : 0.92,
+        pointerEvents: "none",
+      }} />
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
+        background: "repeating-radial-gradient(circle, transparent 0 7px, rgba(255,255,255,0.035) 7px 8px, transparent 8px 16px)",
+        opacity: isPicture ? 0.08 : 0.7,
+        pointerEvents: "none",
+      }} />
+      {/* Dual conic sheen — primary + warm accent */}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
+        background: "conic-gradient(from 200deg, rgba(255,255,255,0.38) 0deg, rgba(200,160,255,0.14) 28deg, transparent 58deg, rgba(255,255,255,0.05) 130deg, transparent 195deg, rgba(255,255,255,0.30) 252deg, rgba(160,200,255,0.12) 280deg, transparent 320deg)",
+        mixBlendMode: isPicture ? "overlay" : "screen",
+        pointerEvents: "none",
+      }} />
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
+        background: "conic-gradient(from 42deg, transparent 0deg, rgba(255,210,170,0.11) 18deg, transparent 65deg, rgba(170,255,210,0.09) 198deg, transparent 260deg)",
+        mixBlendMode: "screen",
+        pointerEvents: "none",
+      }} />
+      {/* Deep edge vignette */}
+      {!isPicture && (
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          background: "radial-gradient(circle, transparent 46%, rgba(0,0,0,0.38) 66%, rgba(0,0,0,0.78) 100%)",
           pointerEvents: "none",
-        }}
-      />
+        }} />
+      )}
+      {/* Top-light specular highlight */}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
+        background: "radial-gradient(ellipse 55% 28% at 42% 20%, rgba(255,255,255,0.14) 0%, transparent 100%)",
+        pointerEvents: "none",
+      }} />
 
       {/* Inner outline ring */}
       <div
@@ -699,6 +735,19 @@ function DeckDefs({ id, style, color }: any) {
             <stop offset="56%" stopColor="#9b6537" />
             <stop offset="100%" stopColor="#b47b47" />
           </>
+        ) : s === "realistic1" ? (
+          <>
+            <stop offset="0%" stopColor={lighten(base, 34)} />
+            <stop offset="34%" stopColor={base} />
+            <stop offset="72%" stopColor={darken(base, 34)} />
+            <stop offset="100%" stopColor="#090a0d" />
+          </>
+        ) : s === "realistic2" ? (
+          <>
+            <stop offset="0%" stopColor={lighten(base, 28)} />
+            <stop offset="42%" stopColor={base} />
+            <stop offset="100%" stopColor={darken(base, 22)} />
+          </>
         ) : (
           <>
             <stop offset="0%" stopColor={lighten(base, 44)} />
@@ -745,47 +794,67 @@ function DeckDefs({ id, style, color }: any) {
 }
 
 function Tonearm({ id, geometry, stylus, textColor }: any) {
-  const angle = Math.atan2(stylus.y - geometry.pivotY, stylus.x - geometry.pivotX) * 180 / Math.PI;
   const dx = stylus.x - geometry.pivotX;
   const dy = stylus.y - geometry.pivotY;
   const len = Math.max(1, Math.hypot(dx, dy));
-  const ux = dx / len;
-  const uy = dy / len;
-  const px = -uy;
-  const py = ux;
-  const armStart = { x: geometry.pivotX + ux * 18, y: geometry.pivotY + uy * 18 };
-  const armEnd = { x: stylus.x - ux * 24, y: stylus.y - uy * 24 };
-  const shineStart = { x: armStart.x + px * 2.2, y: armStart.y + py * 2.2 };
-  const shineEnd = { x: armEnd.x + px * 2.2, y: armEnd.y + py * 2.2 };
-  const counter = { x: geometry.pivotX - ux * 24, y: geometry.pivotY - uy * 24 };
+  const ux = dx / len; const uy = dy / len;
+  const px = -uy; const py = ux;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const a0 = { x: geometry.pivotX + ux * 22, y: geometry.pivotY + uy * 22 };
+  const a1 = { x: stylus.x - ux * 42, y: stylus.y - uy * 42 };
+  const w0 = 5.5; const w1 = 2.5;
+  const armPoly = [
+    { x: a0.x + px * w0, y: a0.y + py * w0 },
+    { x: a1.x + px * w1, y: a1.y + py * w1 },
+    { x: a1.x - px * w1, y: a1.y - py * w1 },
+    { x: a0.x - px * w0, y: a0.y - py * w0 },
+  ].map(p => `${p.x},${p.y}`).join(" ");
+  // top shine strip
+  const s0 = { x: a0.x + px * (w0 - 1.2), y: a0.y + py * (w0 - 1.2) };
+  const s1 = { x: a1.x + px * (w1 - 0.6), y: a1.y + py * (w1 - 0.6) };
+  const counter = { x: geometry.pivotX - ux * 28, y: geometry.pivotY - uy * 28 };
 
   return (
     <g>
-      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="25"
-        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.34)" strokeWidth="1.4" filter={`url(#${id}-soft)`} />
-      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="10" fill="rgba(0,0,0,0.36)" />
-      <circle cx={geometry.pivotX - 3} cy={geometry.pivotY - 3} r="2.2" fill="rgba(255,255,255,0.75)" />
+      {/* pivot bearing — outer ring + inner gloss */}
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="28"
+        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="2" filter={`url(#${id}-soft)`} />
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="19" fill="rgba(0,0,0,0.45)" />
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="7" fill="rgba(30,30,30,0.9)" />
+      <circle cx={geometry.pivotX - 4} cy={geometry.pivotY - 4} r="2.8" fill="rgba(255,255,255,0.72)" />
 
-      <line x1={armStart.x} y1={armStart.y} x2={armEnd.x} y2={armEnd.y}
-        stroke={`url(#${id}-arm)`} strokeWidth="7" strokeLinecap="round" />
-      <line x1={shineStart.x} y1={shineStart.y} x2={shineEnd.x} y2={shineEnd.y}
-        stroke="rgba(255,255,255,0.42)" strokeWidth="2" strokeLinecap="round" />
+      {/* anti-skate counterweight */}
+      <ellipse cx={counter.x} cy={counter.y} rx="14" ry="9"
+        transform={`rotate(${angle} ${counter.x} ${counter.y})`}
+        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
+      <ellipse cx={counter.x} cy={counter.y} rx="5" ry="3"
+        transform={`rotate(${angle} ${counter.x} ${counter.y})`}
+        fill="rgba(255,255,255,0.15)" />
 
+      {/* arm body — tapered aluminium tube */}
+      <polygon points={armPoly} fill={`url(#${id}-arm)`}
+        stroke="rgba(0,0,0,0.32)" strokeWidth="0.6" strokeLinejoin="round" />
+      {/* top-edge specular */}
+      <line x1={s0.x} y1={s0.y} x2={s1.x} y2={s1.y}
+        stroke="rgba(255,255,255,0.52)" strokeWidth="1.2" strokeLinecap="round" />
+
+      {/* headshell: the local 0,0 point is the real stylus tip */}
       <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
-        <rect x="-30" y="-8" width="34" height="17" rx="3"
-          fill="#b9b9b9" stroke="rgba(0,0,0,0.35)" strokeWidth="0.9" filter={`url(#${id}-soft)`} />
-        <rect x="-27" y="-5" width="19" height="11" rx="2" fill="#2b2b2b" />
-        <path d="M -4 7 L 5 13 L 2 17 L -8 10 Z" fill="#181818" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5" />
-        <line x1="3" y1="15" x2="8" y2="21" stroke="#111" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M -48 -10 L -15 -12 Q -8 -12 -5 -6 L -1 4 Q -4 12 -13 13 L -48 10 Z"
+          fill="#c8c8c8" stroke="rgba(0,0,0,0.40)" strokeWidth="1" filter={`url(#${id}-soft)`} />
+        <rect x="-42" y="-6" width="22" height="12" rx="2.5" fill="#1e1e1e" />
+        <rect x="-39" y="-4" width="15" height="4.5" rx="1.5" fill="rgba(80,160,220,0.35)" />
+        <path d="M -16 7 L -4 4 L 0 0 L -6 10 Z" fill="#141414" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" />
+        <line x1="-4" y1="4" x2="0" y2="0" stroke="#0a0a0a" strokeWidth="1.7" strokeLinecap="round" />
+        <circle cx="0" cy="0" r="1.7" fill="rgba(140,220,255,0.78)" />
+        {/* headshell shine */}
+        <line x1="-44" y1="-8" x2="-8" y2="-7" stroke="rgba(255,255,255,0.38)" strokeWidth="1" strokeLinecap="round" />
       </g>
 
-      <circle cx={stylus.x} cy={stylus.y} r="2.3" fill="#111" />
-      <ellipse cx={counter.x} cy={counter.y} rx="16" ry="10"
-        transform={`rotate(${angle} ${counter.x} ${counter.y})`}
-        fill="#8a8a8a" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
-      <text x={geometry.pivotX} y={geometry.pivotY + 44} fill={textColor} opacity="0.82"
-        fontSize="8" fontFamily="monospace" textAnchor="middle">
-        TONE
+      <circle cx={stylus.x} cy={stylus.y} r="1.35" fill="rgba(0,0,0,0.52)" />
+      <text x={geometry.pivotX} y={geometry.pivotY + 50} fill={textColor} opacity="0.65"
+        fontSize="7" fontFamily="monospace" textAnchor="middle" letterSpacing="2">
+        TONE ARM
       </text>
     </g>
   );
@@ -824,21 +893,42 @@ function StandardControls({ id, style, textColor }: any) {
     );
   }
 
+  if (s === "realistic2") {
+    return (
+      <g>
+        <rect x="414" y="48" width="112" height="142" rx="22"
+          fill="rgba(255,255,255,0.20)" stroke="rgba(70,55,40,0.20)" strokeWidth="1.2" filter={`url(#${id}-soft)`} />
+        <rect x="432" y="70" width="76" height="25" rx="12" fill="rgba(0,0,0,0.16)" />
+        <text x="470" y="87" fill={textColor} opacity="0.76" fontSize="8" fontFamily="monospace" textAnchor="middle">
+          START
+        </text>
+        <circle cx="470" cy="136" r="24"
+          fill="rgba(238,232,220,0.96)"
+          stroke="rgba(80,60,40,0.28)" strokeWidth="2" />
+        <circle cx="470" cy="136" r="14" fill={`url(#${id}-knob)`} opacity="0.72" />
+        <line x1="470" y1="115" x2="470" y2="124" stroke={textColor} opacity="0.65" strokeWidth="2" />
+        <text x="470" y="176" fill={textColor} opacity="0.62" fontSize="8" fontFamily="monospace" textAnchor="middle">
+          SPEED
+        </text>
+      </g>
+    );
+  }
+
   return (
     <g>
-      <rect x="430" y="58" width="96" height="150" rx={s === "dark" ? 3 : 9}
+      <rect x="430" y="58" width="96" height="150" rx={s === "dark" || s === "realistic1" ? 3 : 9}
         fill={s === "wood" ? "rgba(0,0,0,0.24)" : "rgba(0,0,0,0.25)"}
         stroke="rgba(255,255,255,0.14)" strokeWidth="1" filter={`url(#${id}-soft)`} />
       <rect x="444" y="74" width="68" height="28" rx="5" fill="rgba(0,0,0,0.35)" />
       <text x="478" y="92" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
-        {s === "wood" ? "CONTROL" : "START"}
+        {s === "wood" ? "CONTROL" : s === "realistic1" ? "QUARTZ" : "START"}
       </text>
       <circle cx="478" cy="142" r="22"
         fill={s === "wood" ? "#241406" : `url(#${id}-knob)`}
         stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
       <line x1="478" y1="126" x2="478" y2="135" stroke={textColor} strokeWidth="2" />
       <text x="478" y="182" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
-        {s === "dark" ? "RPM" : "LEVEL"}
+        {s === "dark" || s === "realistic1" ? "RPM" : "LEVEL"}
       </text>
     </g>
   );
@@ -883,21 +973,41 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }: any) {
       )}
 
       {s === "realistic1" && (
-        <text x="78" y="65" fill={textColor} fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>
+        <>
+          <rect x="38" y="38" width="484" height="484" rx="8" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2" />
+          <rect x="52" y="50" width="176" height="26" rx="3" fill="rgba(0,0,0,0.34)" stroke="rgba(255,255,255,0.10)" />
+          <text x="66" y="67" fill={textColor} opacity="0.72" fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>
+          <circle cx="74" cy="482" r="12" fill="#d92727" opacity="0.9" />
+          <circle cx="74" cy="482" r="5" fill="rgba(255,210,210,0.9)" />
+          <rect x="100" y="470" width="86" height="24" rx="4" fill="rgba(0,0,0,0.32)" stroke="rgba(255,255,255,0.10)" />
+          <text x="143" y="486" fill={textColor} opacity="0.68" fontSize="8" fontFamily="monospace" textAnchor="middle">PITCH</text>
+        </>
       )}
       {s === "realistic2" && (
-        <text x="70" y="61" fill={textColor} fontSize="9" fontFamily="monospace">BELT DRIVE</text>
+        <>
+          <rect x="48" y="40" width="464" height="480" rx="30" fill="none" stroke="rgba(80,60,40,0.18)" strokeWidth="2" />
+          <rect x="66" y="58" width="146" height="30" rx="15" fill="rgba(255,255,255,0.26)" stroke="rgba(70,55,40,0.15)" />
+          <text x="139" y="77" fill={textColor} opacity="0.68" fontSize="9" fontFamily="monospace" textAnchor="middle">BELT DRIVE</text>
+          <rect x="72" y="448" width="132" height="42" rx="21" fill="rgba(0,0,0,0.12)" stroke="rgba(70,55,40,0.14)" />
+          <circle cx="96" cy="469" r="9" fill="rgba(40,170,90,0.78)" />
+          <circle cx="96" cy="469" r="4" fill="rgba(210,255,225,0.82)" />
+          <text x="154" y="473" fill={textColor} opacity="0.62" fontSize="8" fontFamily="monospace" textAnchor="middle">AUTO STOP</text>
+        </>
       )}
 
-      <circle cx={g.cx} cy={g.cy} r={holeR + 13} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="7" />
-      <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
-      <circle cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="2" />
+      {/* platter bearing rings — chrome concentric detail */}
+      <circle cx={g.cx} cy={g.cy} r={holeR + 20} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="9" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 14} fill="none" stroke="rgba(255,255,255,0.20)" strokeWidth="2.5" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3.5" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
 
       <StandardControls id={id} style={s} textColor={textColor} />
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
 
-      <circle cx={g.cx} cy={g.cy} r="5.5" fill="rgba(255,255,255,0.72)" stroke="rgba(0,0,0,0.4)" />
-      <circle cx={g.cx} cy={g.cy} r="2.2" fill="rgba(0,0,0,0.55)" />
+      {/* center spindle pin */}
+      <circle cx={g.cx} cy={g.cy} r="7" fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+      <circle cx={g.cx} cy={g.cy} r="3" fill="rgba(255,255,255,0.55)" />
+      <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.2" fill="rgba(255,255,255,0.85)" />
     </svg>
   );
 }
@@ -943,14 +1053,20 @@ function Realistic3Deck({ vinylRadius, textColor, progress }: any) {
       <rect x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
       <rect x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
 
-      <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="8" />
-      <circle cx={g.cx} cy={g.cy} r={holeR + 10} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
+      {/* platter bearing ring — 3 concentric chrome rings */}
+      <circle cx={g.cx} cy={g.cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="10" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="3" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 12} fill="none" stroke="rgba(0,0,0,0.45)" strokeWidth="4" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 6} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" />
 
-      <rect x="502" y="20" width="108" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="508" y="34" fill={textColor} fontSize="8" fontFamily="monospace">POWER</text>
+      <rect x="502" y="20" width="108" height="70" rx="6" fill="rgba(0,0,0,0.42)" stroke="rgba(255,255,255,0.07)" />
+      <text x="556" y="42" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle" letterSpacing="1">POWER</text>
+      {/* power LED */}
+      <circle cx="543" cy="60" r="5" fill="#22dd44" opacity="0.85" />
+      <circle cx="543" cy="60" r="3" fill="rgba(180,255,200,0.6)" />
 
-      <rect x="620" y="20" width="120" height="70" rx="5" fill="rgba(0,0,0,0.3)" />
-      <text x="626" y="34" fill={textColor} fontSize="8" fontFamily="monospace">SELECTOR</text>
+      <rect x="622" y="20" width="120" height="70" rx="6" fill="rgba(0,0,0,0.42)" stroke="rgba(255,255,255,0.07)" />
+      <text x="682" y="42" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle" letterSpacing="1">SELECTOR</text>
 
       {["BASS", "TREBLE", "VOL L", "VOL R"].map((label, i) => (
         <g key={label}>
@@ -966,8 +1082,10 @@ function Realistic3Deck({ vinylRadius, textColor, progress }: any) {
 
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
 
-      <circle cx={g.cx} cy={g.cy} r="5.5" fill="#d0c9bd" stroke="rgba(0,0,0,0.42)" />
-      <circle cx={g.cx} cy={g.cy} r="2.5" fill="#f2eee7" />
+      {/* center spindle */}
+      <circle cx={g.cx} cy={g.cy} r="7.5" fill="#d8d2c8" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+      <circle cx={g.cx} cy={g.cy} r="3.5" fill="#f5f2ec" />
+      <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.4" fill="rgba(255,255,255,0.9)" />
     </svg>
   );
 }
@@ -1571,9 +1689,556 @@ const StorageRecord = React.memo(function StorageRecord({
   );
 });
 
+// ──────────────────────────────────────────────────────────────────────
+// SleevePresentation — the "open the record" experience. Shows the sleeve
+// large and centered (no shrink-wrap). Tapping the sleeve slides the inner
+// vinyl out and then transitions to the player. For 2-vinyl releases the
+// sleeve is a gatefold: tapping opens it, then each inner panel (left/right)
+// can be tapped to pull its vinyl out.
+// ──────────────────────────────────────────────────────────────────────
+// A realistic vinyl disc with grooves, colour-accurate body and printed label.
+// `vinylColor` is the user-chosen body colour (hex). The grooves are drawn
+// on top so they stay visible regardless of colour.
+function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a" }: any) {
+  return (
+    <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+      background: vinylColor,
+      boxShadow: "0 20px 52px rgba(0,0,0,0.72), 0 4px 12px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07)",
+      overflow: "hidden" }}>
+      {/* ultra-fine grooves: two layers for depth */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        background: "repeating-radial-gradient(circle, rgba(255,255,255,0.11) 0 0.5px, rgba(0,0,0,0.22) 0.5px 1px, transparent 1px 2.5px)",
+        opacity: 0.9, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        background: "repeating-radial-gradient(circle, transparent 0 6px, rgba(255,255,255,0.04) 6px 7px, transparent 7px 14px)",
+        opacity: 0.6, pointerEvents: "none" }} />
+      {/* strong iridescent sheen — two conic passes for realism */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        background: "conic-gradient(from 200deg, rgba(255,255,255,0.32) 0deg, rgba(200,160,255,0.12) 30deg, transparent 60deg, rgba(255,255,255,0.06) 130deg, transparent 190deg, rgba(255,255,255,0.28) 250deg, rgba(160,200,255,0.10) 280deg, transparent 320deg)",
+        mixBlendMode: "screen", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        background: "conic-gradient(from 40deg, transparent 0deg, rgba(255,220,180,0.10) 20deg, transparent 70deg, rgba(180,255,220,0.08) 200deg, transparent 260deg)",
+        mixBlendMode: "screen", pointerEvents: "none" }} />
+      {/* deep edge vignette */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        background: "radial-gradient(circle, transparent 44%, rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.82) 100%)",
+        pointerEvents: "none" }} />
+      {/* subtle top-light specular */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        background: "radial-gradient(ellipse 60% 30% at 42% 22%, rgba(255,255,255,0.13) 0%, transparent 100%)",
+        pointerEvents: "none" }} />
+      {/* center label — raised ring */}
+      <div style={{ position: "absolute", top: "50%", left: "50%",
+        width: size * 0.38, height: size * 0.38, borderRadius: "50%",
+        transform: "translate(-50%,-50%)", overflow: "hidden",
+        background: cover ? "#000" : `radial-gradient(circle at 36% 28%, ${labelColor}, #b8b0a0 55%, #8a8070 100%)`,
+        boxShadow: "0 0 0 4px rgba(0,0,0,0.55), 0 0 0 5px rgba(255,255,255,0.06), inset 0 0 12px rgba(0,0,0,0.35)" }}>
+        {cover && <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+      </div>
+      {/* spindle hole */}
+      <div style={{ position: "absolute", top: "50%", left: "50%",
+        width: size * 0.034, height: size * 0.034, borderRadius: "50%",
+        transform: "translate(-50%,-50%)",
+        background: "radial-gradient(circle at 38% 30%, #2a2a2a, #000)",
+        boxShadow: "inset 0 0 4px rgba(255,255,255,0.28), 0 0 0 1.5px rgba(255,255,255,0.08)" }} />
+    </div>
+  );
+}
+
+// Right-click menu for a single gatefold panel
+function PanelCtxMenu({ dark, text, border, panelBg, mono, onSet, onClear, readImageFile }: any) {
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const btn: any = { padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent",
+    color: text, cursor: "pointer", textAlign: "left", fontFamily: mono, fontSize: 11, whiteSpace: "nowrap", display: "block" };
+  return (
+    <>
+      <div style={{ position: "absolute", inset: 0, zIndex: 7 }}
+        onContextMenu={e => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }} />
+      {menu && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setMenu(null)} />
+          <div style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 101,
+            background: panelBg, border, borderRadius: 10, padding: 6,
+            display: "flex", flexDirection: "column", gap: 2,
+            boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)" }}>
+            <label style={{ ...btn, cursor: "pointer" }} onClick={() => setMenu(null)}>
+              change art
+              <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
+                onChange={e => { setMenu(null); readImageFile(e, onSet); }} />
+            </label>
+            <button style={{ ...btn, color: dark ? "#ff8a8a" : "#b13030" }}
+              onClick={() => { setMenu(null); onClear(); }}>remove art</button>
+            <button style={{ ...btn, opacity: 0.5 }} onClick={() => setMenu(null)}>close</button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+// ── Crease / fold divider between gatefold panels ─────────────────────────────────
+function Crease({ vertical = true }: { vertical?: boolean }) {
+  return (
+    <div style={{
+      [vertical ? "width" : "height"]: 20,
+      [vertical ? "height" : "width"]: "100%",
+      flexShrink: 0, zIndex: 6,
+      background: vertical
+        ? "linear-gradient(90deg, rgba(0,0,0,0.7) 0%, rgba(22,22,24,1) 18%, rgba(34,33,36,1) 38%, rgba(28,27,30,1) 50%, rgba(34,33,36,1) 62%, rgba(22,22,24,1) 82%, rgba(0,0,0,0.7) 100%)"
+        : "linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(22,22,24,1) 18%, rgba(34,33,36,1) 38%, rgba(28,27,30,1) 50%, rgba(34,33,36,1) 62%, rgba(22,22,24,1) 82%, rgba(0,0,0,0.7) 100%)",
+      boxShadow: vertical
+        ? "inset 3px 0 10px rgba(0,0,0,0.6), inset -3px 0 10px rgba(0,0,0,0.6)"
+        : "inset 0 3px 10px rgba(0,0,0,0.6), inset 0 -3px 10px rgba(0,0,0,0.6)",
+      position: "relative",
+    }}>
+      <div style={{
+        position: "absolute",
+        [vertical ? "top" : "left"]: 0, [vertical ? "bottom" : "right"]: 0,
+        [vertical ? "left" : "top"]: "50%",
+        [vertical ? "width" : "height"]: 1,
+        transform: vertical ? "translateX(-50%)" : "translateY(-50%)",
+        background: vertical
+          ? "linear-gradient(180deg, transparent, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.06) 70%, transparent)"
+          : "linear-gradient(90deg, transparent, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.06) 70%, transparent)",
+      }} />
+    </div>
+  );
+}
+
+function SleevePresentation({
+  dark, text, title, cover, sideCovers, repeatSideCovers,
+  totalVinyls, isGatefold, gatefoldOpen, setGatefoldOpen,
+  gatefoldPanelArts, onSetGatefoldPanelArt, onClearGatefoldPanelArt,
+  gatefoldCover, gatefoldLeft, gatefoldRight,
+  onSetGatefoldBoth, onSetGatefoldSide, onClearGatefoldBoth, onClearGatefoldSide,
+  readImageFile, vinylColor,
+  onBack, onEnterPlayer, activeVinyl,
+}: any) {
+  const [pulling, setPulling] = useState<null | number>(null);
+  const [fading, setFading] = useState(false);
+  const panelBg = dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.6)";
+  const border = dark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.08)";
+  const pageBg = dark
+    ? "radial-gradient(circle at 50% 30%, #15161a 0%, #050506 70%)"
+    : "radial-gradient(circle at 50% 30%, #ffffff 0%, #e8eaee 70%)";
+
+  const SIZE = 300;
+  const frontCover = cover || sideCovers?.[0] || null;
+  const vc = vinylColor || "#0a0a0a";
+  // Cover per vinyl (label image, not gatefold art)
+  const vinylCovers = [1, 2, 3, 4].map(v => sideCoverFor((v - 1) * 2 + 1, sideCovers || [], repeatSideCovers, cover));
+
+  const pullVinyl = (vinyl: number) => {
+    if (pulling) return;
+    setPulling(vinyl);
+    // disc slides for 1.2s — fade starts at 900ms, player enters at 1350ms
+    setTimeout(() => setFading(true), 900);
+    setTimeout(() => onEnterPlayer(vinyl), 1350);
+  };
+
+  const panelArt = gatefoldPanelArts || [];
+  const mono = "Courier New, monospace";
+
+  const headerBar = (
+    <div style={{ position: "absolute", top: 26, left: 0, right: 0, display: "flex",
+      justifyContent: "center", gap: 12, alignItems: "center", zIndex: 20 }}>
+      <button onClick={onBack} style={{ padding: "9px 14px", borderRadius: 12, border,
+        background: panelBg, color: text, cursor: "pointer", fontFamily: mono, fontSize: 12,
+        backdropFilter: "blur(20px)" }}>back</button>
+      <div style={{ color: text, fontFamily: mono, letterSpacing: 2, fontSize: 15, opacity: 0.85 }}>{title}</div>
+    </div>
+  );
+  const fadeOverlay = (
+    <div style={{ position: "fixed", inset: 0, background: pageBg, opacity: fading ? 1 : 0,
+      transition: "opacity 0.45s ease", pointerEvents: "none", zIndex: 60 }} />
+  );
+
+  // Reusable card panel
+  const CardPanel = ({ panelIdx, discSide, vinylNum, sharedArtSrc, totalHorizPanels, panelHorizIdx }: any) => {
+    const art = panelArt[panelIdx] || null;
+    const hasArt = Boolean(art || sharedArtSrc);
+    // No-art background = plain off-white inner sleeve, always
+    const emptyBg = "#f5f3ee";
+    const isPulling = pulling === vinylNum;
+    // disc peeks 8% at rest (thin sliver visible at edge = affordance);
+    // on tap slides fully out (110% of SIZE)
+    const peek = SIZE * 0.08;
+    const dX = discSide === "left" ? (isPulling ? -SIZE * 1.12 : -peek)
+      : discSide === "right" ? (isPulling ? SIZE * 1.12 : peek) : 0;
+    const dY = discSide === "top" ? (isPulling ? -SIZE * 1.12 : -peek)
+      : discSide === "bottom" ? (isPulling ? SIZE * 1.12 : peek) : 0;
+    const arrowChar = discSide === "left" ? "‹" : discSide === "top" ? "↑" : discSide === "bottom" ? "↓" : "›";
+    const arrowPos: any = discSide === "left" ? { left: 8, top: "50%", transform: "translateY(-50%)" }
+      : discSide === "right" ? { right: 8, top: "50%", transform: "translateY(-50%)" }
+      : discSide === "top" ? { top: 8, left: "50%", transform: "translateX(-50%)" }
+      : { bottom: 8, left: "50%", transform: "translateX(-50%)" };
+    return (
+      // whole panel is tap target; overflow:visible so disc exits cleanly
+      <div onClick={() => pullVinyl(vinylNum)}
+        style={{ position: "relative", width: SIZE, height: SIZE, cursor: isPulling ? "default" : "pointer",
+        background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
+        boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
+        overflow: "visible" }}>
+        {/* disc peeks at edge, slides out fully on tap */}
+        <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE * 0.9, height: SIZE * 0.9,
+            transform: `translate(calc(-50% + ${dX}px), calc(-50% + ${dY}px))`,
+            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)",
+            pointerEvents: "none",
+            zIndex: 2 }}>
+          {/* white paper inner sleeve */}
+          <div style={{ position: "absolute", inset: "3%", borderRadius: "50%",
+            background: "#f0ede6", boxShadow: "0 8px 22px rgba(0,0,0,0.22)" }} />
+          <RealVinyl size={SIZE * 0.9} cover={vinylCovers[vinylNum - 1]} vinylColor={vc} />
+        </div>
+        {/* artwork layer — clipped to panel so it doesn’t overflow */}
+        {/* artwork covers full panel on top of disc — sleeve hides disc until it slides out */}
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
+          {sharedArtSrc && totalHorizPanels > 0 ? (
+            <img src={sharedArtSrc} alt="" style={{ position: "absolute", top: 0, height: "100%",
+              width: totalHorizPanels * SIZE, objectFit: "cover", left: -(panelHorizIdx ?? 0) * SIZE }} />
+          ) : art ? (
+            <img src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : null}
+        </div>
+        {/* subtle edge shadows toward adjacent creases */}
+        {["left", "right"].map(dir => (
+          <div key={dir} style={{ position: "absolute", top: 0, bottom: 0, [dir]: 0, width: 28,
+            pointerEvents: "none", zIndex: 4,
+            background: `linear-gradient(${dir === "left" ? "270deg" : "90deg"}, transparent, rgba(0,0,0,0.28))` }} />
+        ))}
+        {/* add art button: bottom corner, does NOT block panel tap */}
+        {!hasArt && (
+          <label onClick={e => e.stopPropagation()}
+            style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
+            zIndex: 8, padding: "6px 12px", borderRadius: 10, border,
+            background: "rgba(255,255,255,0.85)", color: "#333",
+            cursor: "pointer", fontFamily: mono, fontSize: 10, textAlign: "center",
+            backdropFilter: "blur(12px)", boxShadow: "0 2px 12px rgba(0,0,0,0.12)" }}>
+            + art
+            <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
+              onChange={e => readImageFile(e, (d: string) => onSetGatefoldPanelArt(panelIdx, d))} />
+          </label>
+        )}
+        {/* right-click to change / remove */}
+        {hasArt && <PanelCtxMenu dark={dark} text={text} border={border} panelBg={panelBg} mono={mono}
+          onSet={(d: string) => onSetGatefoldPanelArt(panelIdx, d)}
+          onClear={() => onClearGatefoldPanelArt(panelIdx)} readImageFile={readImageFile} />}
+        {/* arrow hint */}
+        <div style={{ position: "absolute", ...arrowPos, zIndex: 5, fontSize: 22,
+          color: hasArt ? "#fff" : "#888",
+          opacity: isPulling ? 0 : 0.6, animation: "sleeveArrow 1.4s ease-in-out infinite",
+          textShadow: hasArt ? "0 1px 4px rgba(0,0,0,0.8)" : "none" }}>{arrowChar}</div>
+      </div>
+    );
+  };
+
+  const closedCover = (
+    <div onClick={() => setGatefoldOpen(true)}
+      style={{ position: "relative", width: SIZE, height: SIZE, cursor: "pointer" }} title="tap to open">
+      <div style={{ position: "absolute", top: "50%", right: -SIZE * 0.12, width: SIZE * 0.9, height: SIZE * 0.9,
+        transform: "translateY(-50%)", zIndex: 0 }}>
+        <RealVinyl size={SIZE * 0.9} cover={vinylCovers[0]} vinylColor={vc} />
+      </div>
+      <div style={{ position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
+        background: frontCover ? "#111" : (dark ? "#15151a" : "#e7e9ee"), border,
+        boxShadow: "0 34px 80px rgba(0,0,0,0.55)", zIndex: 1 }}>
+        {frontCover ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center",
+            justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.5 }}>{title || "AURAE"}</div>}
+      </div>
+      <div style={{ position: "absolute", bottom: -34, left: 0, right: 0, textAlign: "center", fontFamily: mono, fontSize: 12, opacity: 0.7 }}>tap to open</div>
+    </div>
+  );
+
+  // ── Single vinyl ──────────────────────────────────────────────────────────────
+  if (!isGatefold) {
+    const pull = pulling === 1;
+    return (
+      <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
+        {headerBar}
+        <div onClick={() => pullVinyl(1)}
+          style={{ position: "relative", width: SIZE * 1.7, height: SIZE * 1.18, cursor: pulling ? "default" : "pointer",
+            overflow: "visible" }}
+          title="tap to play">
+          <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE * 0.96, height: SIZE * 0.96,
+            transform: `translate(calc(-50% + ${pull ? SIZE * 1.1 : SIZE * 0.08}px), -50%)`,
+            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", zIndex: 2 }}>
+            <div style={{ position: "absolute", inset: "3%", borderRadius: "50%",
+              background: dark ? "#e9e7df" : "#f6f4ee", boxShadow: "0 8px 22px rgba(0,0,0,0.3)" }} />
+            <RealVinyl size={SIZE * 0.96} cover={vinylCovers[0]} vinylColor={vc} />
+          </div>
+          <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE, height: SIZE,
+            transform: "translate(-50%, -50%)", borderRadius: 4, overflow: "hidden", zIndex: 3,
+            background: frontCover ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
+            border, boxShadow: "0 34px 80px rgba(0,0,0,0.55)" }}>
+            {frontCover ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center",
+                justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.35 }}>{title || "AURAE"}</div>}
+            <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 6,
+              background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))" }} />
+          </div>
+          <div style={{ position: "absolute", top: "50%", right: SIZE * 0.18, transform: "translateY(-50%)",
+            zIndex: 3, fontSize: 28, color: text, opacity: pulling ? 0 : 0.7, transition: "opacity 0.3s",
+            animation: "sleeveArrow 1.4s ease-in-out infinite" }}>›</div>
+        </div>
+        {fadeOverlay}
+      </div>
+    );
+  }
+
+  // ── 2 vinyls: double gatefold ──────────────────────────────────────────────
+  if (totalVinyls === 2) {
+    const sharedArt = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
+    return (
+      <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
+        {headerBar}
+        {!gatefoldOpen ? closedCover : (
+          <div style={{ display: "flex", alignItems: "stretch", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)",
+            boxShadow: "0 40px 90px rgba(0,0,0,0.6)" }}>
+            {CardPanel({ panelIdx: 0, discSide: "left", vinylNum: 1, sharedArtSrc: sharedArt, totalHorizPanels: 2, panelHorizIdx: 0 })}
+            <Crease />
+            {CardPanel({ panelIdx: 1, discSide: "right", vinylNum: 2, sharedArtSrc: sharedArt, totalHorizPanels: 2, panelHorizIdx: 1 })}
+          </div>
+        )}
+        {fadeOverlay}
+      </div>
+    );
+  }
+
+  // ── 3 vinyls: triple gatefold cross ──────────────────────────────────────
+  //  [ top: vinyl3, disc out UP ]
+  //  [L vinyl1] crease [R vinyl2]
+  if (totalVinyls === 3) {
+    const sharedHoriz = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
+    return (
+      <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
+        {headerBar}
+        {!gatefoldOpen ? closedCover : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+            animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
+            <div style={{ display: "flex", alignItems: "stretch" }}>
+              <div style={{ width: SIZE }} /><Crease />
+              {CardPanel({ panelIdx: 2, discSide: "top", vinylNum: 3 })}
+              <Crease /><div style={{ width: SIZE }} />
+            </div>
+            <Crease vertical={false} />
+            <div style={{ display: "flex", alignItems: "stretch", boxShadow: "0 40px 90px rgba(0,0,0,0.6)" }}>
+              {CardPanel({ panelIdx: 0, discSide: "left", vinylNum: 1, sharedArtSrc: sharedHoriz, totalHorizPanels: 2, panelHorizIdx: 0 })}
+              <Crease />
+              {CardPanel({ panelIdx: 1, discSide: "right", vinylNum: 2, sharedArtSrc: sharedHoriz, totalHorizPanels: 2, panelHorizIdx: 1 })}
+            </div>
+          </div>
+        )}
+        {fadeOverlay}
+      </div>
+    );
+  }
+
+  // ── 4 vinyls: quad gatefold cross ────────────────────────────────────────
+  //     [ top: vinyl3, disc UP ]
+  //  [L vinyl1] crease [R vinyl2]
+  //     [ bot: vinyl4, disc DN ]
+  const sharedLR = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
+      {headerBar}
+      {!gatefoldOpen ? closedCover : (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+          animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
+          <div style={{ display: "flex", alignItems: "stretch" }}>
+            <div style={{ width: SIZE + 20 }} />
+            {CardPanel({ panelIdx: 2, discSide: "top", vinylNum: 3 })}
+            <div style={{ width: SIZE + 20 }} />
+          </div>
+          <Crease vertical={false} />
+          <div style={{ display: "flex", alignItems: "stretch", boxShadow: "0 40px 90px rgba(0,0,0,0.6)" }}>
+            {CardPanel({ panelIdx: 0, discSide: "left", vinylNum: 1, sharedArtSrc: sharedLR, totalHorizPanels: 2, panelHorizIdx: 0 })}
+            <Crease />
+            {CardPanel({ panelIdx: 1, discSide: "right", vinylNum: 2, sharedArtSrc: sharedLR, totalHorizPanels: 2, panelHorizIdx: 1 })}
+          </div>
+          <Crease vertical={false} />
+          <div style={{ display: "flex", alignItems: "stretch" }}>
+            <div style={{ width: SIZE + 20 }} />
+            {CardPanel({ panelIdx: 3, discSide: "bottom", vinylNum: 4 })}
+            <div style={{ width: SIZE + 20 }} />
+          </div>
+        </div>
+      )}
+      {fadeOverlay}
+    </div>
+  );
+}
+
+function GatefoldPanel({
+  side, SIZE, dark, text, border, art,
+  hasBothArt, hasPerSideArt,
+  vinylCover, vinylColor, pulling, onPull,
+  onSetBoth, onSetSide, onClearBoth, onClearSide, readImageFile,
+}: any) {
+  const isLeft = side === "left";
+  const peek = SIZE * 0.08; // small sliver visible at edge
+  const restOffset = isLeft ? -peek : peek;
+  const pullOffset = isLeft ? -SIZE * 1.12 : SIZE * 1.12;
+  const menuFont: any = { fontFamily: "Courier New, monospace", fontSize: 11 };
+  const panelBg = dark ? "rgba(18,18,22,0.96)" : "rgba(255,255,255,0.96)";
+
+  // right-click context menu on this panel
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const noArtHere = !art;  // no image on this specific panel
+  const hasArt = Boolean(art);
+
+  return (
+    <div
+      style={{ position: "relative", width: SIZE, height: SIZE,
+        background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
+        boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
+        borderTop: border, borderBottom: border,
+        borderLeft: isLeft ? border : "none",
+        borderRight: !isLeft ? border : "none",
+        borderTopLeftRadius: isLeft ? 4 : 0, borderBottomLeftRadius: isLeft ? 4 : 0,
+        borderTopRightRadius: !isLeft ? 4 : 0, borderBottomRightRadius: !isLeft ? 4 : 0,
+        overflow: "visible",
+      }}
+      onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
+    >
+      {/* disc peeks at outer edge; whole panel is tap target */}
+      <div onClick={onPull} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        cursor: "pointer", zIndex: 5 }} />
+      <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE * 0.9, height: SIZE * 0.9,
+        transform: `translate(calc(-50% + ${pulling ? pullOffset : restOffset}px), -50%)`,
+        transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none", zIndex: 2 }}>
+        <div style={{ position: "absolute", inset: "3%", borderRadius: "50%", background: dark ? "#e9e7df" : "#f6f4ee", boxShadow: "0 8px 22px rgba(0,0,0,0.3)" }} />
+        <RealVinyl size={SIZE * 0.9} cover={vinylCover} vinylColor={vinylColor} />
+      </div>
+
+      {/* artwork covers full panel on top of disc (zIndex 3), passes clicks to tap-layer above */}
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3,
+        borderTopLeftRadius: isLeft ? 4 : 0, borderBottomLeftRadius: isLeft ? 4 : 0,
+        borderTopRightRadius: !isLeft ? 4 : 0, borderBottomRightRadius: !isLeft ? 4 : 0,
+        pointerEvents: "none" }}>
+        {hasArt && <img src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: isLeft ? "left" : "right" }} />}
+      </div>
+
+      {/* inner fold edge shadow */}
+      <div style={{ position: "absolute", top: 0, bottom: 0, [isLeft ? "right" : "left"]: 0, width: 28,
+        background: `linear-gradient(${isLeft ? "90deg" : "270deg"}, transparent, rgba(0,0,0,0.38))`,
+        pointerEvents: "none", zIndex: 4 } as any} />
+
+      {/* arrow hint — outer edge */}
+      <div style={{ position: "absolute", top: "50%", [isLeft ? "left" : "right"]: 10,
+        transform: "translateY(-50%)", zIndex: 5, fontSize: 24, color: text,
+        opacity: pulling ? 0 : (hasArt ? 0.55 : 0.7),
+        animation: "sleeveArrow 1.4s ease-in-out infinite",
+        textShadow: "0 1px 4px rgba(0,0,0,0.8)" } as any}>{isLeft ? "‹" : "›"}</div>
+
+      {/* ── no art yet: show add buttons centred between the two panels ── */}
+      {!hasBothArt && !hasPerSideArt && isLeft && (
+        <div style={{ position: "absolute", top: "50%", left: "50%",
+          transform: "translate(-10%, -50%)", zIndex: 8,
+          display: "flex", flexDirection: "column", gap: 8, width: 160 }}>
+          <div style={{ ...menuFont, color: text, opacity: 0.5, marginBottom: 2, textAlign: "center" }}>add gatefold art</div>
+          <label style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text,
+            cursor: "pointer", textAlign: "center", ...menuFont }}>
+            one image (both)
+            <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetBoth)} />
+          </label>
+          <label style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text,
+            cursor: "pointer", textAlign: "center", ...menuFont }}>
+            image per side
+            <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetSide)} />
+          </label>
+        </div>
+      )}
+
+      {/* per-side mode: right panel empty → show its own add button */}
+      {hasPerSideArt && noArtHere && (
+        <label style={{ position: "absolute", top: "50%", left: "50%",
+          transform: "translate(-50%,-50%)", zIndex: 8,
+          padding: "9px 14px", borderRadius: 10, border, background: panelBg,
+          color: text, cursor: "pointer", ...menuFont }}>
+          add image
+          <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetSide)} />
+        </label>
+      )}
+
+      {/* right-click context menu */}
+      {ctxMenu && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setCtxMenu(null)} />
+          <div style={{ position: "fixed", left: ctxMenu.x, top: ctxMenu.y, zIndex: 101,
+            background: panelBg, border, borderRadius: 10, padding: 6,
+            display: "flex", flexDirection: "column", gap: 4,
+            boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)" }}>
+            {/* change this side / change both */}
+            {hasBothArt && (
+              <>
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
+                  background: "transparent", color: text, ...menuFont,
+                  display: "block", whiteSpace: "nowrap" }}
+                  onClick={() => setCtxMenu(null)}>
+                  change both sides
+                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetBoth); }} />
+                </label>
+                <button style={{ padding: "8px 12px", borderRadius: 8, border: "none",
+                  background: "transparent", color: dark ? "#ff8a8a" : "#b13030",
+                  cursor: "pointer", textAlign: "left", ...menuFont }}
+                  onClick={() => { setCtxMenu(null); onClearBoth(); }}>
+                  remove
+                </button>
+              </>
+            )}
+            {hasPerSideArt && (
+              <>
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
+                  background: "transparent", color: text, ...menuFont,
+                  display: "block", whiteSpace: "nowrap" }}
+                  onClick={() => setCtxMenu(null)}>
+                  change this side
+                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetSide); }} />
+                </label>
+                {hasArt && (
+                  <button style={{ padding: "8px 12px", borderRadius: 8, border: "none",
+                    background: "transparent", color: dark ? "#ff8a8a" : "#b13030",
+                    cursor: "pointer", textAlign: "left", ...menuFont }}
+                    onClick={() => { setCtxMenu(null); onClearSide(); }}>
+                    remove this side
+                  </button>
+                )}
+              </>
+            )}
+            {!hasBothArt && !hasPerSideArt && (
+              <>
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
+                  background: "transparent", color: text, ...menuFont,
+                  display: "block", whiteSpace: "nowrap" }}
+                  onClick={() => setCtxMenu(null)}>
+                  add image (both)
+                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetBoth); }} />
+                </label>
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
+                  background: "transparent", color: text, ...menuFont,
+                  display: "block", whiteSpace: "nowrap" }}
+                  onClick={() => setCtxMenu(null)}>
+                  add image (this side)
+                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetSide); }} />
+                </label>
+              </>
+            )}
+            <button style={{ padding: "8px 12px", borderRadius: 8, border: "none",
+              background: "transparent", color: text, cursor: "pointer",
+              textAlign: "left", opacity: 0.5, ...menuFont }}
+              onClick={() => setCtxMenu(null)}>close</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Aurae() {
   const initialUser = getInitialSessionUser();
-  const [view, setView] = useState<"auth" | "home" | "studio">(() => initialUser ? "home" : "auth");
+  const [view, setView] = useState<"auth" | "home" | "sleeve" | "studio">(() => initialUser ? "home" : "auth");
   const [theme, setTheme] = useState(() => localStorage.getItem("aurae_theme") || "dark");
   const [users, setUsers] = useState<any>(() => normalizeUsers(safeJSON("aurae_users", {})));
   const [currentUser, setCurrentUser] = useState(initialUser);
@@ -1625,6 +2290,20 @@ export function Aurae() {
   const [sideCovers, setSideCovers] = useState<any[]>([]);
   const [repeatSideCovers, setRepeatSideCovers] = useState(false);
   const [homeCover, setHomeCover] = useState<string | null>(null);
+  // Legacy gatefold fields (kept for backwards compat with saved projects)
+  const [gatefoldCover, setGatefoldCover] = useState<string | null>(null);
+  const [gatefoldLeft, setGatefoldLeft] = useState<string | null>(null);
+  const [gatefoldRight, setGatefoldRight] = useState<string | null>(null);
+  const [gatefoldPerSide, setGatefoldPerSide] = useState(false);
+  // Per-panel art: index 0..3 for up to 4 panels
+  const [gatefoldPanelArts, setGatefoldPanelArts] = useState<(string | null)[]>([null, null, null, null]);
+  // Sleeve presentation state
+  const [gatefoldOpen, setGatefoldOpen] = useState(false);
+  const [sleeveSliding, setSleeveSliding] = useState<null | "left" | "right" | "single">(null);
+  // Which vinyl (1-based) is currently loaded on the deck, and whether the
+  // current vinyl finished and is waiting for the user to swap to the next one.
+  const [activeVinyl, setActiveVinyl] = useState(1);
+  const [awaitingVinylChange, setAwaitingVinylChange] = useState(false);
 
   const [vinylColor, setVinylColor] = useState("#111111");
   const [vinylColors, setVinylColors] = useState<string[]>(DEFAULT_VINYL_COLORS);
@@ -1665,6 +2344,9 @@ export function Aurae() {
   const sideBoundaries = useMemo(() => computeSideBoundaries(tracks), [tracks]);
   const totalSides = sideBoundaries.length;
   const sideCoverButtonCount = Math.max(totalSides, 1);
+  // Each vinyl holds 2 sides. Up to 4 vinyls (quad gatefold).
+  const totalVinyls = Math.max(1, Math.min(4, Math.ceil(totalSides / 2)));
+  const isGatefold = totalVinyls >= 2;
 
   const currentVinylCover = sideCoverFor(vinylSide, sideCovers, repeatSideCovers, albumCover);
 
@@ -1803,7 +2485,14 @@ export function Aurae() {
 
       if (index === lastOfSide && vinylSide < totalSides) {
         setPlaying(false);
-        setAwaitingFlip(true);
+        // Even side = last side of a vinyl → go back to sleeve to pick next.
+        // Odd side = just flip the current vinyl.
+        if (vinylSide % 2 === 0) {
+          setGatefoldOpen(true);
+          setView("sleeve");
+        } else {
+          setAwaitingFlip(true);
+        }
       } else if (index < tracks.length - 1) {
         playTrack(index + 1);
       } else {
@@ -1971,6 +2660,11 @@ export function Aurae() {
       side2Cover: null,
       repeatSideCovers: false,
       homeCover: null,
+      gatefoldCover: null,
+      gatefoldLeft: null,
+      gatefoldRight: null,
+      gatefoldPerSide: false,
+      gatefoldPanelArts: [null, null, null, null],
       vinylColor: "#111111",
       vinylColors: DEFAULT_VINYL_COLORS,
       vinylGradient: "solid",
@@ -2020,6 +2714,11 @@ export function Aurae() {
       side2Cover: nextSideCovers[1] || null,
       repeatSideCovers: overrides.repeatSideCovers ?? repeatSideCovers,
       homeCover: overrides.homeCover ?? homeCover,
+      gatefoldCover: overrides.gatefoldCover ?? gatefoldCover,
+      gatefoldLeft: overrides.gatefoldLeft ?? gatefoldLeft,
+      gatefoldRight: overrides.gatefoldRight ?? gatefoldRight,
+      gatefoldPerSide: overrides.gatefoldPerSide ?? gatefoldPerSide,
+      gatefoldPanelArts: overrides.gatefoldPanelArts ?? gatefoldPanelArts,
       vinylColor: nextVinylColor,
       vinylColors: nextColors,
       vinylGradient: overrides.vinylGradient ?? vinylGradient,
@@ -2063,7 +2762,7 @@ export function Aurae() {
     if (activeProject) saveCurrentProject(tracks, albumCover, { repeatSideCovers: value });
   }
 
-  async function openProject(name: string) {
+  async function openProject(name: string, target: "studio" | "sleeve" = "studio") {
     const p: any = await loadProjectFromDB(name);
     if (!p) return;
 
@@ -2078,6 +2777,13 @@ export function Aurae() {
     setSideCovers(restoredSideCovers);
     setRepeatSideCovers(Boolean(p.repeatSideCovers));
     setHomeCover(p.homeCover || p.cover || restoredSideCovers[0] || null);
+    setGatefoldCover(p.gatefoldCover || null);
+    setGatefoldLeft(p.gatefoldLeft || null);
+    setGatefoldRight(p.gatefoldRight || null);
+    setGatefoldPerSide(Boolean(p.gatefoldPerSide));
+    setGatefoldPanelArts(Array.isArray(p.gatefoldPanelArts)
+      ? p.gatefoldPanelArts
+      : [p.gatefoldLeft || null, p.gatefoldRight || null, null, null]);
     setVinylColor(restoredColors[0] || "#111111");
     setVinylColors(restoredColors.slice(0, 4));
     setVinylGradient(p.vinylGradient || "radial");
@@ -2089,6 +2795,10 @@ export function Aurae() {
     setDeckColor(p.deckColor || "#1a1a1a");
     setPictureVinyl(Boolean(p.pictureVinyl));
     setVinylSide(1);
+    setActiveVinyl(1);
+    setAwaitingVinylChange(false);
+    setGatefoldOpen(false);
+    setSleeveSliding(null);
     setFlipping(false);
     setAwaitingFlip(false);
     setIndex(0);
@@ -2105,7 +2815,7 @@ export function Aurae() {
       })
     );
     setTracks(restored);
-    setView("studio");
+    setView(target);
   }
 
   async function applyRenameProject(oldName: string, nextName: string) {
@@ -2249,6 +2959,56 @@ export function Aurae() {
     if (activeProject === projectNameForCover) setSideCovers(nextCovers);
   }
 
+  // Gatefold inner artwork — either one spanning image or one per inner panel.
+  function setGatefoldArtBoth(dataUrl: string) {
+    setGatefoldCover(dataUrl);
+    setGatefoldLeft(null);
+    setGatefoldRight(null);
+    setGatefoldPerSide(false);
+    if (activeProject) {
+      saveCurrentProject(tracks, albumCover, {
+        gatefoldCover: dataUrl, gatefoldLeft: null, gatefoldRight: null, gatefoldPerSide: false,
+      });
+    }
+  }
+  function setGatefoldArtSide(side: "left" | "right", dataUrl: string) {
+    const nextLeft = side === "left" ? dataUrl : gatefoldLeft;
+    const nextRight = side === "right" ? dataUrl : gatefoldRight;
+    setGatefoldLeft(nextLeft);
+    setGatefoldRight(nextRight);
+    setGatefoldCover(null);
+    setGatefoldPerSide(true);
+    if (activeProject) {
+      saveCurrentProject(tracks, albumCover, {
+        gatefoldCover: null, gatefoldLeft: nextLeft, gatefoldRight: nextRight, gatefoldPerSide: true,
+      });
+    }
+  }
+  function clearGatefoldBoth() {
+    setGatefoldCover(null);
+    setGatefoldLeft(null);
+    setGatefoldRight(null);
+    setGatefoldPerSide(false);
+    if (activeProject) {
+      saveCurrentProject(tracks, albumCover, {
+        gatefoldCover: null, gatefoldLeft: null, gatefoldRight: null, gatefoldPerSide: false,
+      });
+    }
+  }
+  function clearGatefoldSide(side: "left" | "right") {
+    const nextLeft = side === "left" ? null : gatefoldLeft;
+    const nextRight = side === "right" ? null : gatefoldRight;
+    setGatefoldLeft(nextLeft);
+    setGatefoldRight(nextRight);
+    if (!nextLeft && !nextRight) setGatefoldPerSide(false);
+    if (activeProject) {
+      saveCurrentProject(tracks, albumCover, {
+        gatefoldCover: null, gatefoldLeft: nextLeft, gatefoldRight: nextRight,
+        gatefoldPerSide: Boolean(nextLeft || nextRight),
+      });
+    }
+  }
+
   function addHomeCover(e: React.ChangeEvent<HTMLInputElement>, projectNameForCover: string) {
     e.stopPropagation();
     readImageFile(e, async result => {
@@ -2308,8 +3068,10 @@ export function Aurae() {
 
     const trackSide = getSideForTrack(sideBoundaries, trackIndex);
     if (trackSide !== vinylSide) setVinylSide(trackSide);
+    setActiveVinyl(Math.ceil(trackSide / 2));
 
     setAwaitingFlip(false);
+    setAwaitingVinylChange(false);
     setIndex(trackIndex);
     setPlaying(true);
 
@@ -2342,9 +3104,35 @@ export function Aurae() {
     }, FLIP_DURATION);
   }
 
+  // Swap to the next vinyl in a gatefold release. Loads the first side of the
+  // next vinyl onto the deck with a brief swap animation.
+  function changeVinyl() {
+    if (!awaitingVinylChange) return;
+    const nextSide = vinylSide + 1;
+    if (nextSide > totalSides) return;
+    const firstTrack = sideBoundaries[nextSide - 1] ?? 0;
+    const audio = audioRef.current;
+    if (audio) audio.pause();
+    setPlaying(false);
+    setAwaitingVinylChange(false);
+    setFlipping(true);
+    setTimeout(() => {
+      setVinylSide(nextSide);
+      setActiveVinyl(Math.ceil(nextSide / 2));
+    }, FLIP_COVER_SWAP);
+    setTimeout(() => {
+      setFlipping(false);
+      setTimeout(() => playTrack(firstTrack), 80);
+    }, FLIP_DURATION);
+  }
+
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
+    if (awaitingVinylChange) {
+      changeVinyl();
+      return;
+    }
     if (awaitingFlip) {
       flipVinyl();
       return;
@@ -2556,7 +3344,8 @@ export function Aurae() {
                   </div>
 
                   <div style={S.focusActions}>
-                    <button style={S.smallBtn} onClick={() => openProject(focusedProject)}>open player</button>
+                    <button style={S.smallBtn} onClick={() => openProject(focusedProject, "sleeve")}>open sleeve</button>
+                    <button style={S.smallBtn} onClick={() => openProject(focusedProject, "studio")}>open player</button>
                     <label style={S.smallBtn}>
                       cover art
                       <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addHomeCover(e, focusedProject)} />
@@ -2611,7 +3400,7 @@ export function Aurae() {
                         onClick={() => {
                           // Suppress click that fires after a drag
                           if (draggingProject) return;
-                          openProject(name);
+                          openProject(name, "sleeve");
                         }}
                         onContextMenu={(e: any) => {
                           e.preventDefault();
@@ -2758,7 +3547,10 @@ export function Aurae() {
               <div style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>
                 {projectMenu.name}
               </div>
-              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name); setProjectMenu(null); }}>
+              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "sleeve"); setProjectMenu(null); }}>
+                open sleeve
+              </button>
+              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "studio"); setProjectMenu(null); }}>
                 open player
               </button>
               <label style={S.menuBtn}>
@@ -2781,6 +3573,60 @@ export function Aurae() {
           </>
         )}
       </div>
+    );
+  }
+
+  if (view === "sleeve") {
+    return (
+      <SleevePresentation
+        dark={dark}
+        text={text}
+        title={activeProject || ""}
+        cover={albumCover}
+        sideCovers={sideCovers}
+        repeatSideCovers={repeatSideCovers}
+        totalVinyls={totalVinyls}
+        isGatefold={isGatefold}
+        gatefoldOpen={gatefoldOpen}
+        setGatefoldOpen={setGatefoldOpen}
+        gatefoldCover={gatefoldCover}
+        gatefoldLeft={gatefoldLeft}
+        gatefoldRight={gatefoldRight}
+        gatefoldPanelArts={gatefoldPanelArts}
+        onSetGatefoldBoth={setGatefoldArtBoth}
+        onSetGatefoldSide={setGatefoldArtSide}
+        onClearGatefoldBoth={clearGatefoldBoth}
+        onClearGatefoldSide={clearGatefoldSide}
+        onSetGatefoldPanelArt={(idx: number, d: string) => {
+          const next = [...gatefoldPanelArts];
+          next[idx] = d;
+          setGatefoldPanelArts(next);
+          if (activeProject) saveCurrentProject(tracks, albumCover, { gatefoldPanelArts: next });
+        }}
+        onClearGatefoldPanelArt={(idx: number) => {
+          const next = [...gatefoldPanelArts];
+          next[idx] = null;
+          setGatefoldPanelArts(next);
+          if (activeProject) saveCurrentProject(tracks, albumCover, { gatefoldPanelArts: next });
+        }}
+        activeVinyl={activeVinyl}
+        vinylColor={vinylColors[0] || vinylColor}
+        readImageFile={readImageFile}
+        onBack={() => setView("home")}
+        onEnterPlayer={(vinyl: number) => {
+          // Load the chosen vinyl's first side onto the deck and open the player
+          const firstSideOfVinyl = (vinyl - 1) * 2 + 1;
+          const firstTrack = sideBoundaries[firstSideOfVinyl - 1] ?? 0;
+          setActiveVinyl(vinyl);
+          setAwaitingVinylChange(false);
+          setVinylSide(firstSideOfVinyl);
+          setIndex(firstTrack);
+          setAwaitingFlip(false);
+          setFlipping(false);
+          setPlaying(false);
+          setView("studio");
+        }}
+      />
     );
   }
 
@@ -2863,10 +3709,19 @@ export function Aurae() {
             </div>
 
             <div style={S.list}>
-              {tracks.map((track, i) => {
-                const showSideLabel = sideBoundaries.includes(i) && totalSides > 1;
-                const trackSide = getSideForTrack(sideBoundaries, i);
-                return (
+              {(() => {
+                // In the player we only show the two sides belonging to activeVinyl.
+                // Side 1 & 2 for vinyl 1, sides 3 & 4 for vinyl 2, etc.
+                const vinylFirstSide = (activeVinyl - 1) * 2 + 1;
+                const vinylLastSide  = activeVinyl * 2;
+                const vinylStart = sideBoundaries[vinylFirstSide - 1] ?? 0;
+                const vinylEnd   = sideBoundaries[vinylLastSide] ?? tracks.length;
+                const visibleTracks = tracks.slice(vinylStart, vinylEnd);
+                return visibleTracks.map((track, relI) => {
+                  const i = vinylStart + relI; // absolute index in `tracks`
+                  const trackSide = getSideForTrack(sideBoundaries, i);
+                  const showSideLabel = (sideBoundaries[trackSide - 1] === i) && totalSides > 1;
+                  return (
                   <React.Fragment key={track.id || `${track.name}-${i}`}>
                     {showSideLabel && (
                       <div style={S.sideLabel}>
@@ -2902,8 +3757,9 @@ export function Aurae() {
                       <span style={S.trackTime}>{fmt(track.duration)}</span>
                     </div>
                   </React.Fragment>
-                );
-              })}
+                  );
+                });
+              })()}
 
               {!tracks.length && (
                 <div style={S.emptyState}>
@@ -3124,6 +3980,11 @@ export function Aurae() {
                 turn vinyl
               </button>
             )}
+            {awaitingVinylChange && !flipping && (
+              <button style={S.turnBtn} onClick={changeVinyl}>
+                change vinyl
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ position: "relative", width: "min(760px, 100%)", height: 480, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -3164,11 +4025,11 @@ export function Aurae() {
       <div style={S.player}>
         <button style={S.transportBtn} onClick={prevTrack}>prev</button>
         <button style={S.transportBtn} onClick={toggle}>
-          {awaitingFlip ? "turn & play" : playing ? "pause" : "play"}
+          {awaitingVinylChange ? "change vinyl" : awaitingFlip ? "turn & play" : playing ? "pause" : "play"}
         </button>
         <button style={S.transportBtn} onClick={nextTrack}>next</button>
         <div style={S.now}>
-          {awaitingFlip ? `end of side ${vinylSide}` : current?.name || "no track"}
+          {awaitingVinylChange ? `end of vinyl ${activeVinyl}` : awaitingFlip ? `end of side ${vinylSide}` : current?.name || "no track"}
         </div>
         <div style={S.time}>{fmt(currentTime)} / {fmt(duration)}</div>
         <input
@@ -3408,6 +4269,22 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       to { transform: rotate(360deg); }
     }
 
+    @keyframes sleeveArrow {
+      0%, 100% { transform: translateY(-50%) translateX(0); }
+      50% { transform: translateY(-50%) translateX(5px); }
+    }
+
+    @keyframes gatefoldIn {
+      0% { transform: rotateX(8deg) scale(0.92); opacity: 0; }
+      100% { transform: rotateX(0deg) scale(1); opacity: 1; }
+    }
+
+    @keyframes gatefoldOpen {
+      0% { transform: rotateY(-38deg) scale(0.9); opacity: 0; }
+      60% { opacity: 1; }
+      100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+    }
+
     @keyframes vinylFlip {
       0% { transform: perspective(1200px) rotateY(0deg) scale(1); filter: brightness(1); }
       44% { transform: perspective(1200px) rotateY(88deg) scale(0.84); filter: brightness(0.34); }
@@ -3469,7 +4346,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   `;
   document.head.appendChild(style);
 }
+
 export default Aurae;
-
-
 
