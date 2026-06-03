@@ -864,7 +864,7 @@ function StandardControls({ id, style, textColor }: any) {
   const s = normalizeDeckStyle(style);
   const compact = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s);
 
-  if (s === "realistic1" || s === "realistic2") {
+  if (s === "realistic1" || s === "realistic2" || s === "dark") {
     return null;
   }
 
