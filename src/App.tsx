@@ -10,9 +10,33 @@ import {
   verifyEmailForSignup,
   persistSession,
   clearSession,
-  getInitialUser,
   type UserRecord,
 } from "./secureAuth";
+
+// Inline fallback for getInitialUser — reads the persisted session written by
+// persistSession(). We check the common storage keys in both localStorage
+// (remember-me) and sessionStorage so the auto-login feature keeps working
+// regardless of which key secureAuth.ts uses internally.
+function getInitialUser(): string {
+  if (typeof window === "undefined") return "";
+  const KEYS = ["aurae_session", "aurae_current_user", "aurae_user", "aurae_email"];
+  try {
+    for (const k of KEYS) {
+      const v = (localStorage.getItem(k) || sessionStorage.getItem(k) || "").trim();
+      if (!v) continue;
+      if (v.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(v);
+          const email = (parsed?.email || parsed?.user || parsed?.id || "").toString().trim();
+          if (email) return email;
+        } catch { /* ignore */ }
+      } else if (v.includes("@")) {
+        return v;
+      }
+    }
+  } catch { /* storage blocked */ }
+  return "";
+}
 
 // IndexedDB helpers
 
