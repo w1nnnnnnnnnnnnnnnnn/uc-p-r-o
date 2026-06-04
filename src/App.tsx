@@ -140,7 +140,7 @@ function getInitialUser(): string {
 
 // IndexedDB helpers
 
-function openDB() {
+function openDB(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
     const req = indexedDB.open("aurae_audio", 2);
     req.onupgradeneeded = e => {
@@ -3029,7 +3029,7 @@ export function Aurae() {
   }
 
   async function addTracks(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files || []);
+    const files: File[] = Array.from(e.target.files || []);
     if (!files.length) return;
 
     const loaded = await Promise.all(
@@ -4503,3 +4503,4 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
