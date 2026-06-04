@@ -1,4 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import {
+  normalizeEmail,
+  isEmailSyntaxValid,
+  loadUsers,
+  saveUsers,
+  hashPassword,
+  verifyPassword,
+  isLegacyRecord,
+  verifyEmailForSignup,
+  persistSession,
+  clearSession,
+  getInitialUser,
+  type UserRecord,
+} from "./secureAuth";
 
 // IndexedDB helpers
 
@@ -77,64 +91,6 @@ function safeJSON(key: string, fallback: any) {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
   } catch {
     return fallback;
-  }
-}
-
-function normalizeEmail(value: any) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function normalizeUsers(users: any) {
-  return Object.entries(users || {}).reduce((acc: any, [email, data]) => {
-    const clean = normalizeEmail(email);
-    if (clean) acc[clean] = data;
-    return acc;
-  }, {});
-}
-
-function isEmailSyntaxValid(value: any) {
-  const email = normalizeEmail(value);
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
-}
-
-function getInitialSessionUser() {
-  const users = normalizeUsers(safeJSON("aurae_users", {}));
-  const remembered = normalizeEmail(localStorage.getItem("aurae_remember"));
-  const session = normalizeEmail(sessionStorage.getItem("aurae_session"));
-  const active = remembered || session;
-  if (active && users[active]) return active;
-  localStorage.removeItem("aurae_remember");
-  sessionStorage.removeItem("aurae_session");
-  return "";
-}
-
-async function emailDomainHasMailExchange(email: string) {
-  const domain = normalizeEmail(email).split("@")[1];
-  if (!domain || domain.includes("..")) return false;
-
-  const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`, {
-    headers: { accept: "application/dns-json" },
-  });
-  if (!res.ok) return false;
-
-  const data = await res.json();
-  return data.Status === 0 && Array.isArray(data.Answer) && data.Answer.some((answer: any) => answer.type === 15);
-}
-
-async function verifyWorkingEmailAddress(email: string) {
-  const clean = normalizeEmail(email);
-  if (!isEmailSyntaxValid(clean)) {
-    return { ok: false, email: clean, error: "Enter a valid email address." };
-  }
-
-  try {
-    const hasMx = await emailDomainHasMailExchange(clean);
-    if (!hasMx) {
-      return { ok: false, email: clean, error: "This email domain does not accept mail." };
-    }
-    return { ok: true, email: clean, error: "" };
-  } catch {
-    return { ok: false, email: clean, error: "Email could not be verified. Check your connection and try again." };
   }
 }
 
@@ -2270,10 +2226,10 @@ function GatefoldPanel({
 }
 
 export function Aurae() {
-  const initialUser = getInitialSessionUser();
+  const initialUser = getInitialUser();
   const [view, setView] = useState<"auth" | "home" | "sleeve" | "studio">(() => initialUser ? "home" : "auth");
   const [theme, setTheme] = useState(() => localStorage.getItem("aurae_theme") || "dark");
-  const [users, setUsers] = useState<any>(() => normalizeUsers(safeJSON("aurae_users", {})));
+  const [users, setUsers] = useState<Record<string, UserRecord>>(() => loadUsers());
   const [currentUser, setCurrentUser] = useState(initialUser);
   const [projectsMeta, setProjectsMeta] = useState<any>({});
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -2559,12 +2515,20 @@ export function Aurae() {
   const totalDur = (list: any[]) => fmt(list.reduce((sum, t) => sum + (t.duration || 0), 0));
 
   function finishAuth(cleanEmail: string) {
-    sessionStorage.setItem("aurae_session", cleanEmail);
-    if (rememberMe) localStorage.setItem("aurae_remember", cleanEmail);
-    else localStorage.removeItem("aurae_remember");
+    persistSession(cleanEmail, rememberMe);
     setCurrentUser(cleanEmail);
     setAuthError("");
     setView("home");
+  }
+
+  function logout() {
+    clearSession();
+    setCurrentUser("");
+    setEmail("");
+    setPassword("");
+    setRememberMe(false);
+    setAuthError("");
+    setView("auth");
   }
 
   async function login() {
@@ -2572,20 +2536,33 @@ export function Aurae() {
     setAuthLoading(true);
     setAuthError("");
 
-    const verified = await verifyWorkingEmailAddress(email);
-    if (!verified.ok) {
-      setAuthError(verified.error);
+    const cleanEmail = normalizeEmail(email);
+    if (!isEmailSyntaxValid(cleanEmail)) {
+      setAuthError("Enter a valid email address.");
       setAuthLoading(false);
       return;
     }
 
-    if (!users[verified.email] || users[verified.email].password !== password) {
+    // Read straight from storage so login works even if React state is stale
+    // (e.g. account just created in another tab). Authentication only needs the
+    // credentials to match — it must not depend on a live network/DNS lookup.
+    const store = loadUsers();
+    const record = store[cleanEmail];
+    const ok = await verifyPassword(password, record);
+    if (!record || !ok) {
       setAuthError("Email or password is wrong.");
       setAuthLoading(false);
       return;
     }
 
-    finishAuth(verified.email);
+    // Transparently upgrade legacy plaintext accounts to a salted hash.
+    let nextUsers = store;
+    if (isLegacyRecord(record)) {
+      nextUsers = { ...store, [cleanEmail]: await hashPassword(password) };
+      saveUsers(nextUsers);
+    }
+    setUsers(nextUsers);
+    finishAuth(cleanEmail);
     setAuthLoading(false);
   }
 
@@ -2594,26 +2571,28 @@ export function Aurae() {
     setAuthLoading(true);
     setAuthError("");
 
-    const verified = await verifyWorkingEmailAddress(email);
+    const verified = await verifyEmailForSignup(email);
     if (!verified.ok) {
       setAuthError(verified.error);
       setAuthLoading(false);
       return;
     }
-    if (!password.trim()) {
-      setAuthError("Enter a password.");
-      setAuthLoading(false);
-      return;
-    }
-    if (users[verified.email]) {
-      setAuthError("This account already exists.");
+    if (password.length < 6) {
+      setAuthError("Password must be at least 6 characters.");
       setAuthLoading(false);
       return;
     }
 
-    const next = { ...users, [verified.email]: { password } };
+    const store = loadUsers();
+    if (store[verified.email]) {
+      setAuthError("This account already exists. Log in instead.");
+      setAuthLoading(false);
+      return;
+    }
+
+    const next = { ...store, [verified.email]: await hashPassword(password) };
     setUsers(next);
-    localStorage.setItem("aurae_users", JSON.stringify(next));
+    saveUsers(next);
     finishAuth(verified.email);
     setAuthLoading(false);
   }
@@ -3338,6 +3317,7 @@ export function Aurae() {
               </button>
               <button style={S.btn} onClick={() => setShowStorageCreate(true)}>+ storage</button>
               <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
+              <button style={S.btn} onClick={logout}>log out</button>
             </div>
           </div>
 
