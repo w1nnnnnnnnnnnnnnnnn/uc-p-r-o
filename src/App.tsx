@@ -186,14 +186,55 @@ function seededRand(seed: number) {
 // Side splitting logic
 
 const SIDE_TARGET = 25 * 60;
+const SINGLE_SIDE_TARGET = 5 * 60;
+const SINGLE_TOTAL_TARGET = 10 * 60;
+const SINGLE_LONG_TRACK_OK = 6 * 60;
 const FLIP_DURATION = 1400;
 const FLIP_COVER_SWAP = 700;
 
 // Up to 4 vinyls → at most 8 sides.
 const MAX_SIDES = 8;
 
-function computeSideBoundaries(tracks: any[]) {
+function trackDuration(track: any) {
+  const dur = Number(track?.duration || 0);
+  return Number.isFinite(dur) && dur > 0 ? dur : 0;
+}
+
+function singleSideFits(sideTracks: any[]) {
+  const total = sideTracks.reduce((sum, track) => sum + trackDuration(track), 0);
+  return total <= SINGLE_SIDE_TARGET || (sideTracks.length === 1 && total <= SINGLE_LONG_TRACK_OK);
+}
+
+function computeSingleSideBoundaries(tracks: any[]) {
   if (!tracks.length) return [0];
+  const total = tracks.reduce((sum, track) => sum + trackDuration(track), 0);
+  if (total > SINGLE_TOTAL_TARGET) return null;
+  if (tracks.some(track => trackDuration(track) > SINGLE_LONG_TRACK_OK)) return null;
+  if (singleSideFits(tracks)) return [0];
+
+  for (let split = 1; split < tracks.length; split++) {
+    const sideA = tracks.slice(0, split);
+    const sideB = tracks.slice(split);
+    if (singleSideFits(sideA) && singleSideFits(sideB)) return [0, split];
+  }
+
+  return null;
+}
+
+function isSevenInchSingleRelease(tracks: any[]) {
+  return Boolean(computeSingleSideBoundaries(tracks));
+}
+
+function computeReleaseSideBoundaries(tracks: any[]) {
+  return computeSideBoundaries(tracks, isSevenInchSingleRelease(tracks));
+}
+
+function computeSideBoundaries(tracks: any[], singleMode = false) {
+  if (!tracks.length) return [0];
+  if (singleMode) {
+    const singleBoundaries = computeSingleSideBoundaries(tracks);
+    if (singleBoundaries) return singleBoundaries;
+  }
 
   const boundaries = [0];
   let pos = 0;
@@ -557,7 +598,8 @@ function VinylDisc({
   radius, colors, gradient, opacity, splatterOn, splatterColor, splatterStyle,
   cover, isSingle, playing, textColor, flipping, pictureVinyl,
 }: any) {
-  const labelSize = Math.round(radius * (isSingle ? 0.68 : 0.75));
+  const labelSize = Math.round(radius * (isSingle ? 0.58 : 0.75));
+  const centerHoleSize = Math.round(radius * (isSingle ? 0.34 : 0.12));
   const isPicture = Boolean(pictureVinyl && cover);
 
   return (
@@ -700,14 +742,16 @@ function VinylDisc({
       <div
         style={{
           position: "absolute",
-          width: Math.round(radius * 0.12),
-          height: Math.round(radius * 0.12),
+          width: centerHoleSize,
+          height: centerHoleSize,
           borderRadius: "50%",
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
           background: "rgba(8,8,8,0.78)",
-          boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12)",
+          boxShadow: isSingle
+            ? "inset 0 0 0 5px rgba(255,255,255,0.14), inset 0 0 22px rgba(0,0,0,0.82), 0 0 0 2px rgba(0,0,0,0.55)"
+            : "inset 0 0 0 2px rgba(255,255,255,0.12)",
         }}
       />
     </div>
@@ -1117,7 +1161,8 @@ function EqualizerVisualizer({
 
       // build a normalised value array (length = bars)
       const values = new Array(bars).fill(0);
-      if (analyser) {
+      let energy = 0;
+      if (analyser && playing) {
         analyser.getByteFrequencyData(freqData);
         // sample logarithmically from the lower 3/4 of the spectrum (the
         // perceptually interesting range)
@@ -1126,14 +1171,19 @@ function EqualizerVisualizer({
           const t = i / Math.max(1, bars - 1);
           // log scale: more buckets in lows
           const idx = Math.floor(Math.pow(t, 1.6) * (usable - 1));
-          values[i] = (freqData[idx] || 0) / 255;
+          const raw = (freqData[idx] || 0) / 255;
+          energy += raw;
+          values[i] = Math.min(1, Math.pow(raw, 0.72) * 1.35);
         }
-      } else {
-        // idle wave so the UI doesn't look dead before audio starts
-        idleTimeRef.current += 0.04;
+      }
+
+      if (!analyser || !playing || energy < 0.01) {
+        // idle/silent wave so the UI does not look frozen before the analyser
+        // has usable samples or during very quiet intros.
+        idleTimeRef.current += playing ? 0.075 : 0.035;
         for (let i = 0; i < bars; i++) {
           const t = i / Math.max(1, bars - 1);
-          values[i] = (Math.sin(idleTimeRef.current + t * 7) * 0.5 + 0.5) * 0.25;
+          values[i] = (Math.sin(idleTimeRef.current + t * 7) * 0.5 + 0.5) * (playing ? 0.34 : 0.18);
         }
       }
 
@@ -2324,7 +2374,8 @@ export function Aurae() {
   const text = dark ? "#ffffff" : "#000000";
   const S: any = useMemo(() => makeStyles(dark, text), [dark, text]);
 
-  const sideBoundaries = useMemo(() => computeSideBoundaries(tracks), [tracks]);
+  const isSingle = useMemo(() => isSevenInchSingleRelease(tracks), [tracks]);
+  const sideBoundaries = useMemo(() => computeSideBoundaries(tracks, isSingle), [tracks, isSingle]);
   const totalSides = sideBoundaries.length;
   const sideCoverButtonCount = Math.max(totalSides, 1);
   // Each vinyl holds 2 sides. Up to 4 vinyls (quad gatefold).
@@ -2459,8 +2510,10 @@ export function Aurae() {
     if (!audio) return;
 
     const update = () => {
+      const knownDuration = trackDuration(tracks[index]);
+      const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : knownDuration;
       setCurrentTime(audio.currentTime || 0);
-      setDuration(audio.duration || 0);
+      setDuration(audioDuration || 0);
     };
 
     const end = () => {
@@ -2485,10 +2538,14 @@ export function Aurae() {
 
     audio.addEventListener("timeupdate", update);
     audio.addEventListener("loadedmetadata", update);
+    audio.addEventListener("durationchange", update);
+    audio.addEventListener("canplay", update);
     audio.addEventListener("ended", end);
     return () => {
       audio.removeEventListener("timeupdate", update);
       audio.removeEventListener("loadedmetadata", update);
+      audio.removeEventListener("durationchange", update);
+      audio.removeEventListener("canplay", update);
       audio.removeEventListener("ended", end);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3025,6 +3082,9 @@ export function Aurae() {
         const src = ctx.createMediaElementSource(audio);
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
+        analyser.minDecibels = -90;
+        analyser.maxDecibels = -8;
+        analyser.smoothingTimeConstant = eqSmoothing;
         src.connect(analyser);
         analyser.connect(ctx.destination);
         audioCtxRef.current = ctx;
@@ -3057,11 +3117,15 @@ export function Aurae() {
     setAwaitingVinylChange(false);
     setIndex(trackIndex);
     setPlaying(true);
+    setCurrentTime(0);
+    setDuration(trackDuration(track));
 
     setTimeout(() => {
       const audio = audioRef.current;
       if (!audio) return;
       audio.src = track.url;
+      audio.preload = "metadata";
+      audio.load();
       ensureAudioGraph();
       audio.play().catch(() => setPlaying(false));
     }, 20);
@@ -3145,16 +3209,19 @@ export function Aurae() {
     const value = Number(e.target.value);
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = value;
-    setCurrentTime(value);
+    const max = duration || trackDuration(tracks[index]);
+    const safeValue = Math.max(0, Math.min(value, max || value));
+    audio.currentTime = safeValue;
+    setCurrentTime(safeValue);
   }
 
   const normalizedDeckStyle = normalizeDeckStyle(deckStyle);
-  const isSingle = tracks.length > 0 && tracks.length <= 3;
   const geometry = deckGeometry(normalizedDeckStyle);
   const compactDecks = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(normalizedDeckStyle);
-  const vinylRadius = isSingle ? 106 : normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
+  const vinylRadius = normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
   const current = tracks[index];
+  const displayDuration = duration || current?.duration || 0;
+  const remainingTime = Math.max(0, displayDuration - currentTime);
 
   if (view === "auth") {
     return (
@@ -3389,7 +3456,7 @@ export function Aurae() {
                           e.preventDefault();
                           const meta = projectsMeta[name] || {};
                           const trackList = meta.tracks || [];
-                          const sides = computeSideBoundaries(trackList).length || 1;
+                          const sides = computeReleaseSideBoundaries(trackList).length || 1;
                           setFocusedProjectName(name);
                           setProjectMenu({ x: e.clientX, y: e.clientY, name, sides });
                         }}
@@ -4014,12 +4081,12 @@ export function Aurae() {
         <div style={S.now}>
           {awaitingVinylChange ? `end of vinyl ${activeVinyl}` : awaitingFlip ? `end of side ${vinylSide}` : current?.name || "no track"}
         </div>
-        <div style={S.time}>{fmt(currentTime)} / {fmt(duration)}</div>
+        <div style={S.time}>{fmt(currentTime)} / {fmt(displayDuration)} -{fmt(remainingTime)}</div>
         <input
           type="range"
           min="0"
-          max={duration || 0}
-          value={Math.min(currentTime, duration || currentTime || 0)}
+          max={displayDuration || 0}
+          value={Math.min(currentTime, displayDuration || currentTime || 0)}
           onChange={seek}
           style={S.playerRange}
         />
@@ -4331,3 +4398,4 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
