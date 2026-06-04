@@ -1,39 +1,139 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import {
-  normalizeEmail,
-  isEmailSyntaxValid,
-  loadUsers,
-  saveUsers,
-  hashPassword,
-  verifyPassword,
-  isLegacyRecord,
-  verifyEmailForSignup,
-  persistSession,
-  clearSession,
-  type UserRecord,
-} from "./secureAuth";
 
-// Inline fallback for getInitialUser — reads the persisted session written by
-// persistSession(). We check the common storage keys in both localStorage
-// (remember-me) and sessionStorage so the auto-login feature keeps working
-// regardless of which key secureAuth.ts uses internally.
+// ----------------------------------------------------------------------------
+// Inline auth helpers (previously imported from ./secureAuth).
+// Self-contained so the Vercel/Rollup build does not depend on that file.
+// All features (login, signup, remember-me, legacy upgrade) preserved.
+// ----------------------------------------------------------------------------
+type UserRecord =
+  | string // legacy plaintext password
+  | {
+      v: 1;
+      salt: string;
+      hash: string;
+      algo?: "sha-256";
+      createdAt?: number;
+    };
+
+function normalizeEmail(raw: string): string {
+  return String(raw || "").trim().toLowerCase();
+}
+
+function isEmailSyntaxValid(email: string): boolean {
+  if (!email) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
+const USERS_KEY = "aurae_users";
+
+function loadUsers(): Record<string, UserRecord> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(USERS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveUsers(users: Record<string, UserRecord>): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  } catch { /* quota / storage blocked */ }
+}
+
+function isLegacyRecord(rec: UserRecord | undefined): rec is string {
+  return typeof rec === "string";
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, "0");
+  return s;
+}
+
+function randomSalt(len = 16): string {
+  const arr = new Uint8Array(len);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    crypto.getRandomValues(arr);
+  } else {
+    for (let i = 0; i < len; i++) arr[i] = Math.floor(Math.random() * 256);
+  }
+  return bytesToHex(arr);
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  if (typeof crypto !== "undefined" && crypto.subtle) {
+    const buf = new TextEncoder().encode(text);
+    const hash = await crypto.subtle.digest("SHA-256", buf);
+    return bytesToHex(new Uint8Array(hash));
+  }
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(16).padStart(8, "0");
+}
+
+async function hashPassword(password: string): Promise<UserRecord> {
+  const salt = randomSalt(16);
+  const hash = await sha256Hex(`${salt}:${password}`);
+  return { v: 1, salt, hash, algo: "sha-256", createdAt: Date.now() };
+}
+
+async function verifyPassword(password: string, record: UserRecord | undefined): Promise<boolean> {
+  if (!record) return false;
+  if (isLegacyRecord(record)) return record === password;
+  if (record.v === 1 && record.salt && record.hash) {
+    const candidate = await sha256Hex(`${record.salt}:${password}`);
+    return candidate === record.hash;
+  }
+  return false;
+}
+
+async function verifyEmailForSignup(
+  email: string,
+): Promise<{ ok: boolean; email: string; error: string }> {
+  const clean = normalizeEmail(email);
+  if (!clean) return { ok: false, email: "", error: "Enter an email address." };
+  if (!isEmailSyntaxValid(clean)) return { ok: false, email: "", error: "Enter a valid email address." };
+  return { ok: true, email: clean, error: "" };
+}
+
+const SESSION_KEY = "aurae_session";
+const REMEMBER_KEY = "aurae_remember";
+
+function persistSession(email: string, remember: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    const clean = normalizeEmail(email);
+    if (remember) {
+      localStorage.setItem(SESSION_KEY, clean);
+      localStorage.setItem(REMEMBER_KEY, "1");
+      sessionStorage.removeItem(SESSION_KEY);
+    } else {
+      sessionStorage.setItem(SESSION_KEY, clean);
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(REMEMBER_KEY);
+    }
+  } catch { /* storage blocked */ }
+}
+
+function clearSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(REMEMBER_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch { /* storage blocked */ }
+}
+
 function getInitialUser(): string {
   if (typeof window === "undefined") return "";
-  const KEYS = ["aurae_session", "aurae_current_user", "aurae_user", "aurae_email"];
   try {
-    for (const k of KEYS) {
-      const v = (localStorage.getItem(k) || sessionStorage.getItem(k) || "").trim();
-      if (!v) continue;
-      if (v.startsWith("{")) {
-        try {
-          const parsed = JSON.parse(v);
-          const email = (parsed?.email || parsed?.user || parsed?.id || "").toString().trim();
-          if (email) return email;
-        } catch { /* ignore */ }
-      } else if (v.includes("@")) {
-        return v;
-      }
-    }
+    const v = (localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || "").trim();
+    if (v && v.includes("@")) return v;
   } catch { /* storage blocked */ }
   return "";
 }
