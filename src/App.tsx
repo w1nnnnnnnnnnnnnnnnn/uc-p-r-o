@@ -961,12 +961,12 @@ function StandardControls({ id, style, textColor }: any) {
   );
 }
 
-function StandardDeck({ style, color, vinylRadius, textColor, progress }: any) {
+function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, progress }: any) {
   const s = normalizeDeckStyle(style);
   const id = `deck-${s}`;
   const g = deckGeometry(s);
   const stylus = groovePoint(g, vinylRadius, progress);
-  const holeR = vinylRadius + 8;
+  const holeR = (platterRadius ?? vinylRadius) + 8;
   const hole = holePath(g.cx, g.cy, holeR);
   const board = boardPath(s);
 
@@ -1039,11 +1039,11 @@ function StandardDeck({ style, color, vinylRadius, textColor, progress }: any) {
   );
 }
 
-function Realistic3Deck({ vinylRadius, textColor, progress }: any) {
+function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any) {
   const id = "deck-realistic3";
   const g = deckGeometry("realistic3");
   const stylus = groovePoint(g, vinylRadius, progress);
-  const holeR = vinylRadius + 7;
+  const holeR = (platterRadius ?? vinylRadius) + 7;
   const hole = holePath(g.cx, g.cy, holeR);
 
   return (
@@ -1117,12 +1117,12 @@ function Realistic3Deck({ vinylRadius, textColor, progress }: any) {
   );
 }
 
-function TurntableDeck({ style, color, vinylRadius, textColor, progress }: any) {
+function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, progress }: any) {
   const s = normalizeDeckStyle(style);
   if (s === "realistic3") {
-    return <Realistic3Deck vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
+    return <Realistic3Deck vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
   }
-  return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} textColor={textColor} progress={progress} />;
+  return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -3218,10 +3218,10 @@ export function Aurae() {
   const normalizedDeckStyle = normalizeDeckStyle(deckStyle);
   const geometry = deckGeometry(normalizedDeckStyle);
   const compactDecks = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(normalizedDeckStyle);
-  const vinylRadius = normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
+  const platterRadius = normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
+  const vinylRadius = isSingle ? Math.round(platterRadius * 0.64) : platterRadius;
   const current = tracks[index];
   const displayDuration = duration || current?.duration || 0;
-  const remainingTime = Math.max(0, displayDuration - currentTime);
 
   if (view === "auth") {
     return (
@@ -4021,6 +4021,7 @@ export function Aurae() {
               style={normalizedDeckStyle}
               color={deckColor}
               vinylRadius={vinylRadius}
+              platterRadius={platterRadius}
               textColor={text}
               progress={sideProgress}
             />
@@ -4081,7 +4082,7 @@ export function Aurae() {
         <div style={S.now}>
           {awaitingVinylChange ? `end of vinyl ${activeVinyl}` : awaitingFlip ? `end of side ${vinylSide}` : current?.name || "no track"}
         </div>
-        <div style={S.time}>{fmt(currentTime)} / {fmt(displayDuration)} -{fmt(remainingTime)}</div>
+        <div style={S.time}>{fmt(currentTime)} / {fmt(displayDuration)}</div>
         <input
           type="range"
           min="0"
@@ -4398,4 +4399,3 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
-
