@@ -24,6 +24,60 @@ function isEmailSyntaxValid(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
 }
 
+// Common throwaway / fake domains we never accept.
+const BLOCKED_EMAIL_DOMAINS = new Set([
+  "example.com", "example.org", "example.net", "test.com", "test.test",
+  "email.com", "domain.com", "fake.com", "fake.net", "mailinator.com",
+  "guerrillamail.com", "10minutemail.com", "tempmail.com", "temp-mail.org",
+  "yopmail.com", "trashmail.com", "sharklasers.com", "getnada.com",
+  "dispostable.com", "maildrop.cc",
+]);
+
+/**
+ * Verifies that an email address can realistically receive mail.
+ * Checks syntax, blocks known throwaway/fake domains, and confirms the
+ * domain actually has MX (or A) DNS records via DNS-over-HTTPS.
+ *
+ * Note: a browser cannot fully guarantee a mailbox exists without sending
+ * a real message — this is the strongest deliverability check possible
+ * client-side. On a network/DNS failure it allows the address through so
+ * legitimate users are never locked out while offline.
+ *
+ * @param email - the raw email address to verify
+ * @returns true if the domain can receive mail, false otherwise
+ */
+async function isEmailDomainReal(email: string): Promise<boolean> {
+  const clean = normalizeEmail(email);
+  if (!isEmailSyntaxValid(clean)) return false;
+  const domain = clean.split("@")[1];
+  if (!domain || domain.indexOf(".") === -1) return false;
+  if (BLOCKED_EMAIL_DOMAINS.has(domain)) return false;
+
+  const dnsLookup = async (type: "MX" | "A") => {
+    const res = await fetch(
+      `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`,
+      { headers: { accept: "application/dns-json" } }
+    );
+    if (!res.ok) return null; // network/service issue → unknown
+    return res.json();
+  };
+
+  try {
+    const mx = await dnsLookup("MX");
+    if (mx === null) return true; // DNS unreachable → don't block real users
+    // type 15 === MX record. NXDOMAIN (status 3) means the domain doesn't exist.
+    if (mx.Status === 3) return false;
+    if (Array.isArray(mx.Answer) && mx.Answer.some((a: any) => a.type === 15)) return true;
+
+    // No MX — some domains still accept mail on their A record.
+    const a = await dnsLookup("A");
+    if (a === null) return true;
+    return Array.isArray(a.Answer) && a.Answer.length > 0;
+  } catch {
+    return true; // network failure → allow, never lock out offline users
+  }
+}
+
 const USERS_KEY = "aurae_users";
 
 function loadUsers(): Record<string, UserRecord> {
@@ -98,6 +152,10 @@ async function verifyEmailForSignup(
   const clean = normalizeEmail(email);
   if (!clean) return { ok: false, email: "", error: "Enter an email address." };
   if (!isEmailSyntaxValid(clean)) return { ok: false, email: "", error: "Enter a valid email address." };
+  const deliverable = await isEmailDomainReal(clean);
+  if (!deliverable) {
+    return { ok: false, email: "", error: "This email isn't real or can't receive mail. Use a working address." };
+  }
   return { ok: true, email: clean, error: "" };
 }
 
@@ -702,7 +760,6 @@ function VinylDisc({
         transformOrigin: "50% 50%",
       }}
     >
-      {/* Full-disc image for picture vinyl */}
       {isPicture && (
         <img
           src={cover}
@@ -719,7 +776,6 @@ function VinylDisc({
         />
       )}
 
-      {/* Ultra-fine grooves — two passes for micro-groove realism */}
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.10) 0 0.5px, rgba(0,0,0,0.20) 0.5px 1px, transparent 1px 2.5px)",
@@ -732,7 +788,6 @@ function VinylDisc({
         opacity: isPicture ? 0.08 : 0.7,
         pointerEvents: "none",
       }} />
-      {/* Dual conic sheen — primary + warm accent */}
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 200deg, rgba(255,255,255,0.38) 0deg, rgba(200,160,255,0.14) 28deg, transparent 58deg, rgba(255,255,255,0.05) 130deg, transparent 195deg, rgba(255,255,255,0.30) 252deg, rgba(160,200,255,0.12) 280deg, transparent 320deg)",
@@ -745,7 +800,6 @@ function VinylDisc({
         mixBlendMode: "screen",
         pointerEvents: "none",
       }} />
-      {/* Deep edge vignette */}
       {!isPicture && (
         <div style={{
           position: "absolute", inset: 0, borderRadius: "50%",
@@ -753,14 +807,12 @@ function VinylDisc({
           pointerEvents: "none",
         }} />
       )}
-      {/* Top-light specular highlight */}
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "radial-gradient(ellipse 55% 28% at 42% 20%, rgba(255,255,255,0.14) 0%, transparent 100%)",
         pointerEvents: "none",
       }} />
 
-      {/* Inner outline ring */}
       <div
         style={{
           position: "absolute",
@@ -772,10 +824,8 @@ function VinylDisc({
         }}
       />
 
-      {/* Splatter only on regular vinyls */}
       {!isPicture && splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
 
-      {/* Label — hidden on picture vinyl */}
       {!isPicture && (cover ? (
         <img
           src={cover}
@@ -818,7 +868,6 @@ function VinylDisc({
         </div>
       ))}
 
-      {/* Center hole — always visible (real picture vinyls still have the spindle hole) */}
       <div
         style={{
           position: "absolute",
@@ -933,21 +982,18 @@ function Tonearm({ id, geometry, stylus, textColor }: any) {
     { x: a1.x - px * w1, y: a1.y - py * w1 },
     { x: a0.x - px * w0, y: a0.y - py * w0 },
   ].map(p => `${p.x},${p.y}`).join(" ");
-  // top shine strip
   const s0 = { x: a0.x + px * (w0 - 1.2), y: a0.y + py * (w0 - 1.2) };
   const s1 = { x: a1.x + px * (w1 - 0.6), y: a1.y + py * (w1 - 0.6) };
   const counter = { x: geometry.pivotX - ux * 28, y: geometry.pivotY - uy * 28 };
 
   return (
     <g>
-      {/* pivot bearing — outer ring + inner gloss */}
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="28"
         fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="2" filter={`url(#${id}-soft)`} />
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="19" fill="rgba(0,0,0,0.45)" />
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="7" fill="rgba(30,30,30,0.9)" />
       <circle cx={geometry.pivotX - 4} cy={geometry.pivotY - 4} r="2.8" fill="rgba(255,255,255,0.72)" />
 
-      {/* anti-skate counterweight */}
       <ellipse cx={counter.x} cy={counter.y} rx="14" ry="9"
         transform={`rotate(${angle} ${counter.x} ${counter.y})`}
         fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
@@ -955,14 +1001,11 @@ function Tonearm({ id, geometry, stylus, textColor }: any) {
         transform={`rotate(${angle} ${counter.x} ${counter.y})`}
         fill="rgba(255,255,255,0.15)" />
 
-      {/* arm body — tapered aluminium tube */}
       <polygon points={armPoly} fill={`url(#${id}-arm)`}
         stroke="rgba(0,0,0,0.32)" strokeWidth="0.6" strokeLinejoin="round" />
-      {/* top-edge specular */}
       <line x1={s0.x} y1={s0.y} x2={s1.x} y2={s1.y}
         stroke="rgba(255,255,255,0.52)" strokeWidth="1.2" strokeLinecap="round" />
 
-      {/* headshell: the local 0,0 point is the real stylus tip */}
       <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
         <path d="M -48 -10 L -15 -12 Q -8 -12 -5 -6 L -1 4 Q -4 12 -13 13 L -48 10 Z"
           fill="#c8c8c8" stroke="rgba(0,0,0,0.40)" strokeWidth="1" filter={`url(#${id}-soft)`} />
@@ -971,7 +1014,6 @@ function Tonearm({ id, geometry, stylus, textColor }: any) {
         <path d="M -16 7 L -4 4 L 0 0 L -6 10 Z" fill="#141414" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" />
         <line x1="-4" y1="4" x2="0" y2="0" stroke="#0a0a0a" strokeWidth="1.7" strokeLinecap="round" />
         <circle cx="0" cy="0" r="1.7" fill="rgba(140,220,255,0.78)" />
-        {/* headshell shine */}
         <line x1="-44" y1="-8" x2="-8" y2="-7" stroke="rgba(255,255,255,0.38)" strokeWidth="1" strokeLinecap="round" />
       </g>
 
@@ -1102,7 +1144,6 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
         </>
       )}
 
-      {/* platter bearing rings — chrome concentric detail */}
       <circle cx={g.cx} cy={g.cy} r={holeR + 20} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="9" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 14} fill="none" stroke="rgba(255,255,255,0.20)" strokeWidth="2.5" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3.5" />
@@ -1111,7 +1152,6 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
       <StandardControls id={id} style={s} textColor={textColor} />
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
 
-      {/* center spindle pin */}
       <circle cx={g.cx} cy={g.cy} r="7" fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
       <circle cx={g.cx} cy={g.cy} r="3" fill="rgba(255,255,255,0.55)" />
       <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.2" fill="rgba(255,255,255,0.85)" />
@@ -1160,7 +1200,6 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
       <rect x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
       <rect x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
 
-      {/* platter bearing ring — 3 concentric chrome rings */}
       <circle cx={g.cx} cy={g.cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="10" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="3" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 12} fill="none" stroke="rgba(0,0,0,0.45)" strokeWidth="4" />
@@ -1168,7 +1207,6 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
 
       <rect x="502" y="20" width="108" height="70" rx="6" fill="rgba(0,0,0,0.42)" stroke="rgba(255,255,255,0.07)" />
       <text x="556" y="42" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle" letterSpacing="1">POWER</text>
-      {/* power LED */}
       <circle cx="543" cy="60" r="5" fill="#22dd44" opacity="0.85" />
       <circle cx="543" cy="60" r="3" fill="rgba(180,255,200,0.6)" />
 
@@ -1189,7 +1227,6 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
 
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
 
-      {/* center spindle */}
       <circle cx={g.cx} cy={g.cy} r="7.5" fill="#d8d2c8" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
       <circle cx={g.cx} cy={g.cy} r="3.5" fill="#f5f2ec" />
       <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.4" fill="rgba(255,255,255,0.9)" />
@@ -1206,9 +1243,7 @@ function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, pr
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// EqualizerVisualizer — reads frequency data from the shared AnalyserNode
-// and renders one of several shapes on a canvas. Falls back to a calm idle
-// animation when no analyser is available yet (before first playback).
+// EqualizerVisualizer
 // ──────────────────────────────────────────────────────────────────────
 function EqualizerVisualizer({
   analyserRef, shape, color, color2, bars, glow, bgColor, playing, width, height,
@@ -1235,21 +1270,16 @@ function EqualizerVisualizer({
       const w = width;
       const h = height;
 
-      // background
       ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, w, h);
 
-      // build a normalised value array (length = bars)
       const values = new Array(bars).fill(0);
       let energy = 0;
       if (analyser && playing) {
         analyser.getByteFrequencyData(freqData);
-        // sample logarithmically from the lower 3/4 of the spectrum (the
-        // perceptually interesting range)
         const usable = Math.floor(dataLen * 0.75);
         for (let i = 0; i < bars; i++) {
           const t = i / Math.max(1, bars - 1);
-          // log scale: more buckets in lows
           const idx = Math.floor(Math.pow(t, 1.6) * (usable - 1));
           const raw = (freqData[idx] || 0) / 255;
           energy += raw;
@@ -1258,8 +1288,6 @@ function EqualizerVisualizer({
       }
 
       if (!analyser || !playing || energy < 0.01) {
-        // idle/silent wave so the UI does not look frozen before the analyser
-        // has usable samples or during very quiet intros.
         idleTimeRef.current += playing ? 0.075 : 0.035;
         for (let i = 0; i < bars; i++) {
           const t = i / Math.max(1, bars - 1);
@@ -1267,7 +1295,6 @@ function EqualizerVisualizer({
         }
       }
 
-      // gradient stroke/fill colour
       const grad = ctx.createLinearGradient(0, h, 0, 0);
       grad.addColorStop(0, color);
       grad.addColorStop(1, color2);
@@ -1322,7 +1349,6 @@ function EqualizerVisualizer({
           ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2);
           ctx.stroke();
         }
-        // inner ring
         ctx.beginPath();
         ctx.arc(cx, cy, radius - 6, 0, Math.PI * 2);
         ctx.strokeStyle = color2;
@@ -1356,7 +1382,6 @@ function EqualizerVisualizer({
         }
         ctx.globalAlpha = 1;
       } else {
-        // bars (default)
         const colW = w / bars * 0.82;
         const gap = w / bars - colW;
         const maxH = h * 0.86;
@@ -1366,7 +1391,6 @@ function EqualizerVisualizer({
           const x = i * (colW + gap) + gap / 2;
           const y = h - bh;
           ctx.fillStyle = grad;
-          // rounded top via path
           const r = Math.min(colW / 2, 4);
           ctx.beginPath();
           ctx.moveTo(x, h);
@@ -1406,15 +1430,8 @@ function EqualizerVisualizer({
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Modern in-app color picker. Replaces the native <input type="color">
-// (which opens the OS color dialog — ugly Windows grid on most systems).
-//
-// • ColorSwatch  — the chip + hex label shown in the panel.
-// • ColorPicker  — popover with hue strip + saturation/lightness pad + hex.
-//
-// Pure HSV math, no extra libs. Click outside or press Escape to close.
+// Color picker
 // ──────────────────────────────────────────────────────────────────────
-
 function rgbToHex(r: number, g: number, b: number) {
   const h = (n: number) => clamp(Math.round(n)).toString(16).padStart(2, "0");
   return `#${h(r)}${h(g)}${h(b)}`;
@@ -1469,7 +1486,6 @@ function ColorPicker({
   const hueRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  // close on outside click / esc
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
@@ -1490,7 +1506,6 @@ function ColorPicker({
     onChange(hex);
   };
 
-  // SV pad drag
   const padDragging = useRef(false);
   const handlePadEvent = (e: React.PointerEvent | PointerEvent) => {
     const rect = padRef.current?.getBoundingClientRect();
@@ -1499,7 +1514,6 @@ function ColorPicker({
     const y = Math.max(0, Math.min(1, ((e as any).clientY - rect.top) / rect.height));
     commit({ h: hsv.h, s: x, v: 1 - y });
   };
-  // Hue strip drag
   const hueDragging = useRef(false);
   const handleHueEvent = (e: React.PointerEvent | PointerEvent) => {
     const rect = hueRef.current?.getBoundingClientRect();
@@ -1523,7 +1537,6 @@ function ColorPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hsv]);
 
-  // anchored positioning — appear below the swatch, flip up if it would clip
   const PANEL_W = 240, PANEL_H = 260;
   const pad = 8;
   let top = (anchorRect?.top ?? 0) + (anchorRect?.height ?? 0) + pad;
@@ -1549,7 +1562,6 @@ function ColorPicker({
       onMouseDown={e => e.stopPropagation()}
     >
       <div style={{ display: "flex", gap: 10 }}>
-        {/* SV pad */}
         <div
           ref={padRef}
           onPointerDown={e => { padDragging.current = true; handlePadEvent(e); }}
@@ -1571,7 +1583,6 @@ function ColorPicker({
             pointerEvents: "none",
           }} />
         </div>
-        {/* Hue strip */}
         <div
           ref={hueRef}
           onPointerDown={e => { hueDragging.current = true; handleHueEvent(e); }}
@@ -1595,7 +1606,6 @@ function ColorPicker({
         </div>
       </div>
 
-      {/* preview + hex input */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{
           width: 36, height: 30, borderRadius: 8, background: hsvToHex(hsv.h, hsv.s, hsv.v),
@@ -1802,45 +1812,31 @@ const StorageRecord = React.memo(function StorageRecord({
   );
 });
 
-// ──────────────────────────────────────────────────────────────────────
-// SleevePresentation — the "open the record" experience. Shows the sleeve
-// large and centered (no shrink-wrap). Tapping the sleeve slides the inner
-// vinyl out and then transitions to the player. For 2-vinyl releases the
-// sleeve is a gatefold: tapping opens it, then each inner panel (left/right)
-// can be tapped to pull its vinyl out.
-// ──────────────────────────────────────────────────────────────────────
-// A realistic vinyl disc with grooves, colour-accurate body and printed label.
-// `vinylColor` is the user-chosen body colour (hex). The grooves are drawn
-// on top so they stay visible regardless of colour.
+// A realistic vinyl disc
 function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a" }: any) {
   return (
     <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
       background: vinylColor,
       boxShadow: "0 20px 52px rgba(0,0,0,0.72), 0 4px 12px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07)",
       overflow: "hidden" }}>
-      {/* ultra-fine grooves: two layers for depth */}
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.11) 0 0.5px, rgba(0,0,0,0.22) 0.5px 1px, transparent 1px 2.5px)",
         opacity: 0.9, pointerEvents: "none" }} />
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, transparent 0 6px, rgba(255,255,255,0.04) 6px 7px, transparent 7px 14px)",
         opacity: 0.6, pointerEvents: "none" }} />
-      {/* strong iridescent sheen — two conic passes for realism */}
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 200deg, rgba(255,255,255,0.32) 0deg, rgba(200,160,255,0.12) 30deg, transparent 60deg, rgba(255,255,255,0.06) 130deg, transparent 190deg, rgba(255,255,255,0.28) 250deg, rgba(160,200,255,0.10) 280deg, transparent 320deg)",
         mixBlendMode: "screen", pointerEvents: "none" }} />
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 40deg, transparent 0deg, rgba(255,220,180,0.10) 20deg, transparent 70deg, rgba(180,255,220,0.08) 200deg, transparent 260deg)",
         mixBlendMode: "screen", pointerEvents: "none" }} />
-      {/* deep edge vignette */}
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "radial-gradient(circle, transparent 44%, rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.82) 100%)",
         pointerEvents: "none" }} />
-      {/* subtle top-light specular */}
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "radial-gradient(ellipse 60% 30% at 42% 22%, rgba(255,255,255,0.13) 0%, transparent 100%)",
         pointerEvents: "none" }} />
-      {/* center label — raised ring */}
       <div style={{ position: "absolute", top: "50%", left: "50%",
         width: size * 0.38, height: size * 0.38, borderRadius: "50%",
         transform: "translate(-50%,-50%)", overflow: "hidden",
@@ -1848,7 +1844,6 @@ function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a"
         boxShadow: "0 0 0 4px rgba(0,0,0,0.55), 0 0 0 5px rgba(255,255,255,0.06), inset 0 0 12px rgba(0,0,0,0.35)" }}>
         {cover && <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
-      {/* spindle hole */}
       <div style={{ position: "absolute", top: "50%", left: "50%",
         width: size * 0.034, height: size * 0.034, borderRadius: "50%",
         transform: "translate(-50%,-50%)",
@@ -1858,7 +1853,6 @@ function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a"
   );
 }
 
-// Right-click menu for a single gatefold panel
 function PanelCtxMenu({ dark, text, border, panelBg, mono, onSet, onClear, readImageFile }: any) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const btn: any = { padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent",
@@ -1889,7 +1883,6 @@ function PanelCtxMenu({ dark, text, border, panelBg, mono, onSet, onClear, readI
   );
 }
 
-// ── Crease / fold divider between gatefold panels ─────────────────────────────────
 function Crease({ vertical = true }: { vertical?: boolean }) {
   return (
     <div style={{
@@ -1938,13 +1931,11 @@ function SleevePresentation({
   const SIZE = 300;
   const frontCover = cover || sideCovers?.[0] || null;
   const vc = vinylColor || "#0a0a0a";
-  // Cover per vinyl (label image, not gatefold art)
   const vinylCovers = [1, 2, 3, 4].map(v => sideCoverFor((v - 1) * 2 + 1, sideCovers || [], repeatSideCovers, cover));
 
   const pullVinyl = (vinyl: number) => {
     if (pulling) return;
     setPulling(vinyl);
-    // disc slides for 1.2s — fade starts at 900ms, player enters at 1350ms
     setTimeout(() => setFading(true), 900);
     setTimeout(() => onEnterPlayer(vinyl), 1350);
   };
@@ -1966,15 +1957,10 @@ function SleevePresentation({
       transition: "opacity 0.45s ease", pointerEvents: "none", zIndex: 60 }} />
   );
 
-  // Reusable card panel
   const CardPanel = ({ panelIdx, discSide, vinylNum, sharedArtSrc, totalHorizPanels, panelHorizIdx }: any) => {
     const art = panelArt[panelIdx] || null;
     const hasArt = Boolean(art || sharedArtSrc);
-    // No-art background = plain off-white inner sleeve, always
-    const emptyBg = "#f5f3ee";
     const isPulling = pulling === vinylNum;
-    // disc peeks 8% at rest (thin sliver visible at edge = affordance);
-    // on tap slides fully out (110% of SIZE)
     const peek = SIZE * 0.08;
     const dX = discSide === "left" ? (isPulling ? -SIZE * 1.12 : -peek)
       : discSide === "right" ? (isPulling ? SIZE * 1.12 : peek) : 0;
@@ -1986,25 +1972,20 @@ function SleevePresentation({
       : discSide === "top" ? { top: 8, left: "50%", transform: "translateX(-50%)" }
       : { bottom: 8, left: "50%", transform: "translateX(-50%)" };
     return (
-      // whole panel is tap target; overflow:visible so disc exits cleanly
       <div onClick={() => pullVinyl(vinylNum)}
         style={{ position: "relative", width: SIZE, height: SIZE, cursor: isPulling ? "default" : "pointer",
         background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
         boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
         overflow: "visible" }}>
-        {/* disc peeks at edge, slides out fully on tap */}
         <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE * 0.9, height: SIZE * 0.9,
             transform: `translate(calc(-50% + ${dX}px), calc(-50% + ${dY}px))`,
             transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)",
             pointerEvents: "none",
             zIndex: 2 }}>
-          {/* white paper inner sleeve */}
           <div style={{ position: "absolute", inset: "3%", borderRadius: "50%",
             background: "#f0ede6", boxShadow: "0 8px 22px rgba(0,0,0,0.22)" }} />
           <RealVinyl size={SIZE * 0.9} cover={vinylCovers[vinylNum - 1]} vinylColor={vc} />
         </div>
-        {/* artwork layer — clipped to panel so it doesn’t overflow */}
-        {/* artwork covers full panel on top of disc — sleeve hides disc until it slides out */}
         <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
           {sharedArtSrc && totalHorizPanels > 0 ? (
             <img src={sharedArtSrc} alt="" style={{ position: "absolute", top: 0, height: "100%",
@@ -2013,13 +1994,11 @@ function SleevePresentation({
             <img src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
           ) : null}
         </div>
-        {/* subtle edge shadows toward adjacent creases */}
         {["left", "right"].map(dir => (
           <div key={dir} style={{ position: "absolute", top: 0, bottom: 0, [dir]: 0, width: 28,
             pointerEvents: "none", zIndex: 4,
             background: `linear-gradient(${dir === "left" ? "270deg" : "90deg"}, transparent, rgba(0,0,0,0.28))` }} />
         ))}
-        {/* add art button: bottom corner, does NOT block panel tap */}
         {!hasArt && (
           <label onClick={e => e.stopPropagation()}
             style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
@@ -2032,11 +2011,9 @@ function SleevePresentation({
               onChange={e => readImageFile(e, (d: string) => onSetGatefoldPanelArt(panelIdx, d))} />
           </label>
         )}
-        {/* right-click to change / remove */}
         {hasArt && <PanelCtxMenu dark={dark} text={text} border={border} panelBg={panelBg} mono={mono}
           onSet={(d: string) => onSetGatefoldPanelArt(panelIdx, d)}
           onClear={() => onClearGatefoldPanelArt(panelIdx)} readImageFile={readImageFile} />}
-        {/* arrow hint */}
         <div style={{ position: "absolute", ...arrowPos, zIndex: 5, fontSize: 22,
           color: hasArt ? "#fff" : "#888",
           opacity: isPulling ? 0 : 0.6, animation: "sleeveArrow 1.4s ease-in-out infinite",
@@ -2063,7 +2040,6 @@ function SleevePresentation({
     </div>
   );
 
-  // ── Single vinyl ──────────────────────────────────────────────────────────────
   if (!isGatefold) {
     const pull = pulling === 1;
     return (
@@ -2099,7 +2075,6 @@ function SleevePresentation({
     );
   }
 
-  // ── 2 vinyls: double gatefold ──────────────────────────────────────────────
   if (totalVinyls === 2) {
     const sharedArt = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
     return (
@@ -2118,9 +2093,6 @@ function SleevePresentation({
     );
   }
 
-  // ── 3 vinyls: triple gatefold cross ──────────────────────────────────────
-  //  [ top: vinyl3, disc out UP ]
-  //  [L vinyl1] crease [R vinyl2]
   if (totalVinyls === 3) {
     const sharedHoriz = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
     return (
@@ -2147,10 +2119,6 @@ function SleevePresentation({
     );
   }
 
-  // ── 4 vinyls: quad gatefold cross ────────────────────────────────────────
-  //     [ top: vinyl3, disc UP ]
-  //  [L vinyl1] crease [R vinyl2]
-  //     [ bot: vinyl4, disc DN ]
   const sharedLR = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
   return (
     <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
@@ -2189,16 +2157,15 @@ function GatefoldPanel({
   onSetBoth, onSetSide, onClearBoth, onClearSide, readImageFile,
 }: any) {
   const isLeft = side === "left";
-  const peek = SIZE * 0.08; // small sliver visible at edge
+  const peek = SIZE * 0.08;
   const restOffset = isLeft ? -peek : peek;
   const pullOffset = isLeft ? -SIZE * 1.12 : SIZE * 1.12;
   const menuFont: any = { fontFamily: "Courier New, monospace", fontSize: 11 };
   const panelBg = dark ? "rgba(18,18,22,0.96)" : "rgba(255,255,255,0.96)";
 
-  // right-click context menu on this panel
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
 
-  const noArtHere = !art;  // no image on this specific panel
+  const noArtHere = !art;
   const hasArt = Boolean(art);
 
   return (
@@ -2215,7 +2182,6 @@ function GatefoldPanel({
       }}
       onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
     >
-      {/* disc peeks at outer edge; whole panel is tap target */}
       <div onClick={onPull} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
         cursor: "pointer", zIndex: 5 }} />
       <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE * 0.9, height: SIZE * 0.9,
@@ -2225,7 +2191,6 @@ function GatefoldPanel({
         <RealVinyl size={SIZE * 0.9} cover={vinylCover} vinylColor={vinylColor} />
       </div>
 
-      {/* artwork covers full panel on top of disc (zIndex 3), passes clicks to tap-layer above */}
       <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3,
         borderTopLeftRadius: isLeft ? 4 : 0, borderBottomLeftRadius: isLeft ? 4 : 0,
         borderTopRightRadius: !isLeft ? 4 : 0, borderBottomRightRadius: !isLeft ? 4 : 0,
@@ -2233,19 +2198,16 @@ function GatefoldPanel({
         {hasArt && <img src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: isLeft ? "left" : "right" }} />}
       </div>
 
-      {/* inner fold edge shadow */}
       <div style={{ position: "absolute", top: 0, bottom: 0, [isLeft ? "right" : "left"]: 0, width: 28,
         background: `linear-gradient(${isLeft ? "90deg" : "270deg"}, transparent, rgba(0,0,0,0.38))`,
         pointerEvents: "none", zIndex: 4 } as any} />
 
-      {/* arrow hint — outer edge */}
       <div style={{ position: "absolute", top: "50%", [isLeft ? "left" : "right"]: 10,
         transform: "translateY(-50%)", zIndex: 5, fontSize: 24, color: text,
         opacity: pulling ? 0 : (hasArt ? 0.55 : 0.7),
         animation: "sleeveArrow 1.4s ease-in-out infinite",
         textShadow: "0 1px 4px rgba(0,0,0,0.8)" } as any}>{isLeft ? "‹" : "›"}</div>
 
-      {/* ── no art yet: show add buttons centred between the two panels ── */}
       {!hasBothArt && !hasPerSideArt && isLeft && (
         <div style={{ position: "absolute", top: "50%", left: "50%",
           transform: "translate(-10%, -50%)", zIndex: 8,
@@ -2264,7 +2226,6 @@ function GatefoldPanel({
         </div>
       )}
 
-      {/* per-side mode: right panel empty → show its own add button */}
       {hasPerSideArt && noArtHere && (
         <label style={{ position: "absolute", top: "50%", left: "50%",
           transform: "translate(-50%,-50%)", zIndex: 8,
@@ -2275,7 +2236,6 @@ function GatefoldPanel({
         </label>
       )}
 
-      {/* right-click context menu */}
       {ctxMenu && (
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setCtxMenu(null)} />
@@ -2283,7 +2243,6 @@ function GatefoldPanel({
             background: panelBg, border, borderRadius: 10, padding: 6,
             display: "flex", flexDirection: "column", gap: 4,
             boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)" }}>
-            {/* change this side / change both */}
             {hasBothArt && (
               <>
                 <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
@@ -2378,16 +2337,10 @@ export function Aurae() {
   const [projectName, setProjectName] = useState("");
   const [renameModal, setRenameModal] = useState<any>(null);
   const [songMenu, setSongMenu] = useState<any>(null);
-  // NEW — right-click menu for project records in the home crate
   const [projectMenu, setProjectMenu] = useState<any>(null);
-  // Sticky "focused" project for the side panel (last hovered). Separate from
-  // `hoveredProject` so the lift visual still drops back down when the cursor
-  // leaves the spine, but the options panel keeps showing the last project.
   const [focusedProjectName, setFocusedProjectName] = useState<string | null>(null);
-  // Drag-and-drop reorder state for spines in the crate
   const [draggingProject, setDraggingProject] = useState<string | null>(null);
   const [dropTargetProject, setDropTargetProject] = useState<string | null>(null);
-  // hidden file input ref used by the project menu to upload a side cover
   const sideCoverInputRef = useRef<HTMLInputElement | null>(null);
   const sideCoverTargetRef = useRef<{ name: string; side: number } | null>(null);
 
@@ -2403,18 +2356,13 @@ export function Aurae() {
   const [sideCovers, setSideCovers] = useState<any[]>([]);
   const [repeatSideCovers, setRepeatSideCovers] = useState(false);
   const [homeCover, setHomeCover] = useState<string | null>(null);
-  // Legacy gatefold fields (kept for backwards compat with saved projects)
   const [gatefoldCover, setGatefoldCover] = useState<string | null>(null);
   const [gatefoldLeft, setGatefoldLeft] = useState<string | null>(null);
   const [gatefoldRight, setGatefoldRight] = useState<string | null>(null);
   const [gatefoldPerSide, setGatefoldPerSide] = useState(false);
-  // Per-panel art: index 0..3 for up to 4 panels
   const [gatefoldPanelArts, setGatefoldPanelArts] = useState<(string | null)[]>([null, null, null, null]);
-  // Sleeve presentation state
   const [gatefoldOpen, setGatefoldOpen] = useState(false);
   const [sleeveSliding, setSleeveSliding] = useState<null | "left" | "right" | "single">(null);
-  // Which vinyl (1-based) is currently loaded on the deck, and whether the
-  // current vinyl finished and is waiting for the user to swap to the next one.
   const [activeVinyl, setActiveVinyl] = useState(1);
   const [awaitingVinylChange, setAwaitingVinylChange] = useState(false);
 
@@ -2430,10 +2378,8 @@ export function Aurae() {
   const [vinylSide, setVinylSide] = useState(1);
   const [flipping, setFlipping] = useState(false);
   const [awaitingFlip, setAwaitingFlip] = useState(false);
-  // NEW — picture vinyl: full-cover image disc, no label
   const [pictureVinyl, setPictureVinyl] = useState(false);
 
-  // NEW — stage mode + equalizer settings
   const [stageMode, setStageMode] = useState<"vinyl" | "equalizer">("vinyl");
   const [eqShape, setEqShape] = useState("bars");
   const [eqColor, setEqColor] = useState("#7afcff");
@@ -2444,7 +2390,6 @@ export function Aurae() {
   const [eqBgColor, setEqBgColor] = useState("#070708");
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Web Audio graph — created lazily once (MediaElementSource cannot be recreated)
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -2458,7 +2403,6 @@ export function Aurae() {
   const sideBoundaries = useMemo(() => computeSideBoundaries(tracks, isSingle), [tracks, isSingle]);
   const totalSides = sideBoundaries.length;
   const sideCoverButtonCount = Math.max(totalSides, 1);
-  // Each vinyl holds 2 sides. Up to 4 vinyls (quad gatefold).
   const totalVinyls = Math.max(1, Math.min(4, Math.ceil(totalSides / 2)));
   const isGatefold = totalVinyls >= 2;
 
@@ -2480,23 +2424,14 @@ export function Aurae() {
   const handleRecordMouseEnter = useCallback((name: string) => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoveredProject(name);
-    // Make the side panel options stick to the last project the user hovered over,
-    // even after the mouse leaves the spine. This way the option buttons under
-    // "Storages" reliably reflect the third project when only the third is
-    // hovered, instead of jumping to whatever is geometrically closest.
     setFocusedProjectName(name);
   }, []);
 
   const handleRecordMouseLeave = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => setHoveredProject(null), 80);
-    // Keep focusedProjectName — the panel stays on the last hovered project
-    // until the user hovers a different one.
   }, []);
 
-  // Reorder projects inside the currently active storage by moving `fromName`
-  // to the position of `toName`. No-op when called with the same project or
-  // when either name does not exist in the active shelf.
   const reorderProjectInStorage = useCallback((fromName: string, toName: string) => {
     if (!currentUser || !fromName || !toName || fromName === toName) return;
     setStorageConfigs((prev: any) => {
@@ -2508,7 +2443,6 @@ export function Aurae() {
         const toIdx = arr.indexOf(toName);
         if (fromIdx === -1 || toIdx === -1) return item;
         arr.splice(fromIdx, 1);
-        // Insert before the target's current index (after removal indices shift)
         const insertAt = arr.indexOf(toName);
         const finalIdx = fromIdx < toIdx ? insertAt + 1 : insertAt;
         arr.splice(finalIdx, 0, fromName);
@@ -2601,8 +2535,6 @@ export function Aurae() {
 
       if (index === lastOfSide && vinylSide < totalSides) {
         setPlaying(false);
-        // Even side = last side of a vinyl → go back to sleeve to pick next.
-        // Odd side = just flip the current vinyl.
         if (vinylSide % 2 === 0) {
           setGatefoldOpen(true);
           setView("sleeve");
@@ -2667,9 +2599,14 @@ export function Aurae() {
       return;
     }
 
-    // Read straight from storage so login works even if React state is stale
-    // (e.g. account just created in another tab). Authentication only needs the
-    // credentials to match — it must not depend on a live network/DNS lookup.
+    // The email must be real and able to receive mail — not just valid syntax.
+    const deliverable = await isEmailDomainReal(cleanEmail);
+    if (!deliverable) {
+      setAuthError("This email isn't real or can't receive mail. Use a working address.");
+      setAuthLoading(false);
+      return;
+    }
+
     const store = loadUsers();
     const record = store[cleanEmail];
     const ok = await verifyPassword(password, record);
@@ -2679,7 +2616,6 @@ export function Aurae() {
       return;
     }
 
-    // Transparently upgrade legacy plaintext accounts to a salted hash.
     let nextUsers = store;
     if (isLegacyRecord(record)) {
       nextUsers = { ...store, [cleanEmail]: await hashPassword(password) };
@@ -3081,10 +3017,6 @@ export function Aurae() {
     saveCurrentProject(tracks, albumCover, { sideCovers: next });
   }
 
-  // Add a cover for a specific side (1..N) of an arbitrary project from the
-  // home crate's right-click menu. Re-uses the same sideCovers array shape
-  // the project player uses, so opening the project shows the new cover
-  // immediately.
   async function addSideCoverFor(projectNameForCover: string, side: number, dataUrl: string) {
     const existing = (await loadProjectFromDB(projectNameForCover)) || projectsMeta[projectNameForCover] || {};
     const currentCovers = normalizeSideCovers(existing);
@@ -3102,7 +3034,6 @@ export function Aurae() {
     if (activeProject === projectNameForCover) setSideCovers(nextCovers);
   }
 
-  // Gatefold inner artwork — either one spanning image or one per inner panel.
   function setGatefoldArtBoth(dataUrl: string) {
     setGatefoldCover(dataUrl);
     setGatefoldLeft(null);
@@ -3163,6 +3094,19 @@ export function Aurae() {
     });
   }
 
+  // Set the MAIN album cover (used on the sleeve & player) for a project from
+  // the home crate's focus panel — NOT the spine/home cover.
+  function addMainCoverFor(e: React.ChangeEvent<HTMLInputElement>, projectNameForCover: string) {
+    e.stopPropagation();
+    readImageFile(e, async result => {
+      const existing = (await loadProjectFromDB(projectNameForCover)) || projectsMeta[projectNameForCover] || {};
+      const next = { ...existing, cover: result };
+      await saveProjectToDB(projectNameForCover, next);
+      setProjectsMeta((prev: any) => ({ ...prev, [projectNameForCover]: next }));
+      if (activeProject === projectNameForCover) setAlbumCover(result);
+    });
+  }
+
   function deleteTrack(trackIndex: number) {
     const track = tracks[trackIndex];
     if (track?.id) deleteBlob(track.id);
@@ -3172,9 +3116,6 @@ export function Aurae() {
     setSongMenu(null);
   }
 
-  // Connect the <audio> element to a shared analyser node — created lazily on
-  // first playback because MediaElementAudioSourceNode can only be created
-  // ONCE per element and requires a user gesture in some browsers.
   function ensureAudioGraph() {
     const audio = audioRef.current;
     if (!audio) return null;
@@ -3197,13 +3138,11 @@ export function Aurae() {
         // Fail silently — EQ just won't react.
       }
     }
-    // Resume on user gesture
     audioCtxRef.current?.resume?.().catch(() => {});
     if (analyserRef.current) analyserRef.current.smoothingTimeConstant = eqSmoothing;
     return analyserRef.current;
   }
 
-  // Keep analyser smoothing in sync with the slider
   useEffect(() => {
     if (analyserRef.current) analyserRef.current.smoothingTimeConstant = eqSmoothing;
   }, [eqSmoothing]);
@@ -3254,8 +3193,6 @@ export function Aurae() {
     }, FLIP_DURATION);
   }
 
-  // Swap to the next vinyl in a gatefold release. Loads the first side of the
-  // next vinyl onto the deck with a brief swap animation.
   function changeVinyl() {
     if (!awaitingVinylChange) return;
     const nextSide = vinylSide + 1;
@@ -3373,10 +3310,6 @@ export function Aurae() {
     const storageConfig = storageShelf.items.find((item: any) => item.id === storageShelf.activeId) || storageShelf.items[0] || null;
     const wood = getWoodTheme(storageConfig?.wood || storageDraftWood);
     const storageProjects = (storageConfig?.projects || []).filter((name: string) => projectsMeta[name]);
-    // Prefer the spine the cursor is currently over; otherwise fall back to the
-    // sticky "last hovered" focus (still inside the active storage), and only as
-    // a last resort to the first project. This guarantees that hovering over the
-    // third project shows options for the third project — not for something else.
     const stickyFocus = focusedProjectName && storageProjects.includes(focusedProjectName)
       ? focusedProjectName : null;
     const focusedProject =
@@ -3502,7 +3435,7 @@ export function Aurae() {
                     <button style={S.smallBtn} onClick={() => openProject(focusedProject, "studio")}>open player</button>
                     <label style={S.smallBtn}>
                       cover art
-                      <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addHomeCover(e, focusedProject)} />
+                      <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addMainCoverFor(e, focusedProject)} />
                     </label>
                     <button
                       style={S.smallBtn}
@@ -3552,7 +3485,6 @@ export function Aurae() {
                         onPointerEnter={() => handleRecordMouseEnter(name)}
                         onPointerLeave={handleRecordMouseLeave}
                         onClick={() => {
-                          // Suppress click that fires after a drag
                           if (draggingProject) return;
                           openProject(name, "sleeve");
                         }}
@@ -3566,14 +3498,14 @@ export function Aurae() {
                         }}
                         onDragStart={(e: any) => {
                           setDraggingProject(name);
-                          // Required for Firefox to actually start the drag
                           try { e.dataTransfer.setData("text/plain", name); } catch {}
                           if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
                         }}
                         onDragOver={(e: any) => {
                           if (!draggingProject || draggingProject === name) return;
                           e.preventDefault();
-                          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+                          if (e.dataTransfer) e.dataTransfer.dropEffect
+                          e.dataTransfer.dropEffect = "move";
                           setDropTargetProject(name);
                         }}
                         onDragLeave={() => {
@@ -3664,27 +3596,18 @@ export function Aurae() {
                 value={renameModal.value}
                 onChange={e => setRenameModal({ ...renameModal, value: e.target.value })}
                 onKeyDown={e => {
-                  if (e.key === "Enter") {
-                    applyRenameProject(renameModal.id, renameModal.value);
-                  }
+                  if (e.key === "Enter") applyRenameProject(renameModal.id, renameModal.value);
                   if (e.key === "Escape") setRenameModal(null);
                 }}
               />
               <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  style={S.btn}
-                  onClick={() => applyRenameProject(renameModal.id, renameModal.value)}
-                >
-                  save
-                </button>
+                <button style={S.btn} onClick={() => applyRenameProject(renameModal.id, renameModal.value)}>save</button>
                 <button style={S.btn} onClick={() => setRenameModal(null)}>cancel</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Right-click menu on a vinyl spine — minimal: open, cover art per side,
-            delete, close. */}
         {projectMenu && (
           <>
             <div
@@ -3701,20 +3624,12 @@ export function Aurae() {
               <div style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>
                 {projectMenu.name}
               </div>
-              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "sleeve"); setProjectMenu(null); }}>
-                open sleeve
-              </button>
-              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "studio"); setProjectMenu(null); }}>
-                open player
-              </button>
+              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "sleeve"); setProjectMenu(null); }}>open sleeve</button>
+              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "studio"); setProjectMenu(null); }}>open player</button>
               <label style={S.menuBtn}>
                 add spine cover
                 <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
-                  onChange={e => {
-                    const target = projectMenu.name;
-                    setProjectMenu(null);
-                    addHomeCover(e, target);
-                  }} />
+                  onChange={e => { const target = projectMenu.name; setProjectMenu(null); addHomeCover(e, target); }} />
               </label>
               <button
                 style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
@@ -3768,7 +3683,6 @@ export function Aurae() {
         readImageFile={readImageFile}
         onBack={() => setView("home")}
         onEnterPlayer={(vinyl: number) => {
-          // Load the chosen vinyl's first side onto the deck and open the player
           const firstSideOfVinyl = (vinyl - 1) * 2 + 1;
           const firstTrack = sideBoundaries[firstSideOfVinyl - 1] ?? 0;
           setActiveVinyl(vinyl);
@@ -3836,7 +3750,6 @@ export function Aurae() {
                   </button>
                 )}
               </div>
-
               <div style={S.sideCoverGrid}>
                 {Array.from({ length: sideCoverButtonCount }).map((_, i) => {
                   const side = i + 1;
@@ -3852,9 +3765,7 @@ export function Aurae() {
                         <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(side, e)} />
                       </label>
                       {directCover && (
-                        <button style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>
-                          clear
-                        </button>
+                        <button style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>clear</button>
                       )}
                     </div>
                   );
@@ -3864,57 +3775,54 @@ export function Aurae() {
 
             <div style={S.list}>
               {(() => {
-                // In the player we only show the two sides belonging to activeVinyl.
-                // Side 1 & 2 for vinyl 1, sides 3 & 4 for vinyl 2, etc.
                 const vinylFirstSide = (activeVinyl - 1) * 2 + 1;
                 const vinylLastSide  = activeVinyl * 2;
                 const vinylStart = sideBoundaries[vinylFirstSide - 1] ?? 0;
                 const vinylEnd   = sideBoundaries[vinylLastSide] ?? tracks.length;
                 const visibleTracks = tracks.slice(vinylStart, vinylEnd);
                 return visibleTracks.map((track, relI) => {
-                  const i = vinylStart + relI; // absolute index in `tracks`
+                  const i = vinylStart + relI;
                   const trackSide = getSideForTrack(sideBoundaries, i);
                   const showSideLabel = (sideBoundaries[trackSide - 1] === i) && totalSides > 1;
                   return (
-                  <React.Fragment key={track.id || `${track.name}-${i}`}>
-                    {showSideLabel && (
-                      <div style={S.sideLabel}>
-                        SIDE {trackSide} - {fmt(getSideDuration(tracks, sideBoundaries, trackSide))}
+                    <React.Fragment key={track.id || `${track.name}-${i}`}>
+                      {showSideLabel && (
+                        <div style={S.sideLabel}>
+                          SIDE {trackSide} - {fmt(getSideDuration(tracks, sideBoundaries, trackSide))}
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          ...S.track,
+                          outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.5)" : "none",
+                          opacity: i === index ? 1 : 0.78,
+                        }}
+                        draggable
+                        onDragStart={e => e.dataTransfer.setData("aurae_track", String(i))}
+                        onDragOver={e => { e.preventDefault(); setDragOverTrack(i); }}
+                        onDragLeave={() => setDragOverTrack(null)}
+                        onDrop={e => {
+                          e.preventDefault();
+                          setDragOverTrack(null);
+                          const from = Number(e.dataTransfer.getData("aurae_track"));
+                          if (!Number.isFinite(from) || from === i) return;
+                          const next = [...tracks];
+                          const item = next.splice(from, 1)[0];
+                          next.splice(i, 0, item);
+                          saveCurrentProject(next);
+                          if (index === from) setIndex(i);
+                        }}
+                        onClick={() => playTrack(i)}
+                        onContextMenu={e => { e.preventDefault(); setSongMenu({ x: e.clientX, y: e.clientY, i }); }}
+                      >
+                        <span style={S.dragGrip}>::</span>
+                        <span style={S.trackName}>{track.name}</span>
+                        <span style={S.trackTime}>{fmt(track.duration)}</span>
                       </div>
-                    )}
-                    <div
-                      style={{
-                        ...S.track,
-                        outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.5)" : "none",
-                        opacity: i === index ? 1 : 0.78,
-                      }}
-                      draggable
-                      onDragStart={e => e.dataTransfer.setData("aurae_track", String(i))}
-                      onDragOver={e => { e.preventDefault(); setDragOverTrack(i); }}
-                      onDragLeave={() => setDragOverTrack(null)}
-                      onDrop={e => {
-                        e.preventDefault();
-                        setDragOverTrack(null);
-                        const from = Number(e.dataTransfer.getData("aurae_track"));
-                        if (!Number.isFinite(from) || from === i) return;
-                        const next = [...tracks];
-                        const item = next.splice(from, 1)[0];
-                        next.splice(i, 0, item);
-                        saveCurrentProject(next);
-                        if (index === from) setIndex(i);
-                      }}
-                      onClick={() => playTrack(i)}
-                      onContextMenu={e => { e.preventDefault(); setSongMenu({ x: e.clientX, y: e.clientY, i }); }}
-                    >
-                      <span style={S.dragGrip}>::</span>
-                      <span style={S.trackName}>{track.name}</span>
-                      <span style={S.trackTime}>{fmt(track.duration)}</span>
-                    </div>
-                  </React.Fragment>
+                    </React.Fragment>
                   );
                 });
               })()}
-
               {!tracks.length && (
                 <div style={S.emptyState}>
                   Add songs and the needle will move across the record.
@@ -3938,51 +3846,40 @@ export function Aurae() {
                 ))}
               </div>
             </div>
-
             <div style={S.section}>
               <div style={S.sectionTitle}>Colors</div>
               <div style={S.swatchGrid}>
-                <ColorSwatch value={eqColor}   onChange={setEqColor}   label="low"   dark={dark} />
-                <ColorSwatch value={eqColor2}  onChange={setEqColor2}  label="high"  dark={dark} />
-                <ColorSwatch value={eqBgColor} onChange={setEqBgColor} label="bg"    dark={dark} />
+                <ColorSwatch value={eqColor}   onChange={setEqColor}   label="low"  dark={dark} />
+                <ColorSwatch value={eqColor2}  onChange={setEqColor2}  label="high" dark={dark} />
+                <ColorSwatch value={eqBgColor} onChange={setEqBgColor} label="bg"   dark={dark} />
               </div>
             </div>
-
             <div style={S.section}>
               <div style={S.sectionTitle}>Motion</div>
               <label style={S.sliderLabel}>
                 bars ({eqBars})
-                <input type="range" min="16" max="128" step="2"
-                  value={eqBars}
-                  onChange={e => setEqBars(Number(e.target.value))}
-                  style={S.range} />
+                <input type="range" min="16" max="128" step="2" value={eqBars}
+                  onChange={e => setEqBars(Number(e.target.value))} style={S.range} />
               </label>
               <label style={S.sliderLabel}>
                 smoothing ({eqSmoothing.toFixed(2)})
-                <input type="range" min="0" max="0.95" step="0.01"
-                  value={eqSmoothing}
-                  onChange={e => setEqSmoothing(Number(e.target.value))}
-                  style={S.range} />
+                <input type="range" min="0" max="0.95" step="0.01" value={eqSmoothing}
+                  onChange={e => setEqSmoothing(Number(e.target.value))} style={S.range} />
               </label>
               <label style={S.sliderLabel}>
                 glow ({eqGlow.toFixed(2)})
-                <input type="range" min="0" max="1" step="0.01"
-                  value={eqGlow}
-                  onChange={e => setEqGlow(Number(e.target.value))}
-                  style={S.range} />
+                <input type="range" min="0" max="1" step="0.01" value={eqGlow}
+                  onChange={e => setEqGlow(Number(e.target.value))} style={S.range} />
               </label>
             </div>
           </div>
         ) : (
           <div style={S.designPanel}>
-            {/* NEW — Picture vinyl toggle */}
             <div style={S.section}>
               <div style={S.sectionTitle}>Picture vinyl</div>
               <div style={S.pictureRow}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={S.pictureCaption}>
-                    Use the side cover as a full disc image. The label is hidden.
-                  </div>
+                  <div style={S.pictureCaption}>Use the side cover as a full disc image. The label is hidden.</div>
                   {pictureVinyl && !currentVinylCover && (
                     <div style={S.pictureHint}>Add a side cover to see the picture.</div>
                   )}
@@ -3992,10 +3889,7 @@ export function Aurae() {
                   onClick={() => upd("pictureVinyl", !pictureVinyl, setPictureVinyl)}
                   aria-pressed={pictureVinyl}
                 >
-                  <span style={{
-                    ...S.toggleKnob,
-                    transform: pictureVinyl ? "translateX(22px)" : "translateX(2px)",
-                  }} />
+                  <span style={{ ...S.toggleKnob, transform: pictureVinyl ? "translateX(22px)" : "translateX(2px)" }} />
                 </button>
               </div>
             </div>
@@ -4017,9 +3911,7 @@ export function Aurae() {
 
             <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
               <div style={S.sectionTitle}>Vinyl colors</div>
-              {pictureVinyl && (
-                <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>
-              )}
+              {pictureVinyl && <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
               <div style={S.swatchGrid}>
                 {[0, 1, 2, 3].map(slot => (
                   <ColorSwatch
@@ -4044,30 +3936,17 @@ export function Aurae() {
               </div>
               <label style={S.sliderLabel}>
                 opacity
-                <input
-                  type="range"
-                  min="0.25"
-                  max="1"
-                  step="0.01"
-                  value={vinylOpacity}
+                <input type="range" min="0.25" max="1" step="0.01" value={vinylOpacity}
                   onChange={e => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)}
-                  style={S.range}
-                />
+                  style={S.range} />
               </label>
             </div>
 
             <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
               <div style={S.sectionTitle}>Splatter</div>
-              {pictureVinyl && (
-                <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>
-              )}
+              {pictureVinyl && <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
               <div style={S.inlineControls}>
-                <ColorSwatch
-                  value={splatterColor}
-                  onChange={v => upd("splatterColor", v, setSplatterColor)}
-                  label="color"
-                  dark={dark}
-                />
+                <ColorSwatch value={splatterColor} onChange={v => upd("splatterColor", v, setSplatterColor)} label="color" dark={dark} />
                 <button
                   style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}), alignSelf: "flex-end" }}
                   onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}
@@ -4094,16 +3973,14 @@ export function Aurae() {
       <div style={S.stage}>
         {stageMode === "vinyl" ? (
           <div style={{ position: "relative", width: geometry.width, height: 560 }}>
-            <div
-              style={{
-                position: "absolute",
-                left: geometry.cx - vinylRadius,
-                top: geometry.cy - vinylRadius,
-                width: vinylRadius * 2,
-                height: vinylRadius * 2,
-                zIndex: 1,
-              }}
-            >
+            <div style={{
+              position: "absolute",
+              left: geometry.cx - vinylRadius,
+              top: geometry.cy - vinylRadius,
+              width: vinylRadius * 2,
+              height: vinylRadius * 2,
+              zIndex: 1,
+            }}>
               <VinylDisc
                 radius={vinylRadius}
                 colors={vinylColors}
@@ -4120,7 +3997,6 @@ export function Aurae() {
                 pictureVinyl={pictureVinyl}
               />
             </div>
-
             <TurntableDeck
               style={normalizedDeckStyle}
               color={deckColor}
@@ -4129,16 +4005,11 @@ export function Aurae() {
               textColor={text}
               progress={sideProgress}
             />
-
             {needsTurn && (
-              <button style={S.turnBtn} onClick={flipVinyl}>
-                turn vinyl
-              </button>
+              <button style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>
             )}
             {awaitingVinylChange && !flipping && (
-              <button style={S.turnBtn} onClick={changeVinyl}>
-                change vinyl
-              </button>
+              <button style={S.turnBtn} onClick={changeVinyl}>change vinyl</button>
             )}
           </div>
         ) : (
@@ -4158,22 +4029,15 @@ export function Aurae() {
           </div>
         )}
 
-        {/* Stage-mode switch — bottom right */}
         <div style={S.modeSwitch}>
           <button
             style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }}
             onClick={() => setStageMode("vinyl")}
-            title="Show vinyl"
-          >
-            vinyl
-          </button>
+          >vinyl</button>
           <button
             style={{ ...S.modeSwitchBtn, ...(stageMode === "equalizer" ? S.modeSwitchActive : {}) }}
             onClick={() => setStageMode("equalizer")}
-            title="Show equalizer"
-          >
-            EQ
-          </button>
+          >EQ</button>
         </div>
       </div>
 
@@ -4261,68 +4125,17 @@ function makeStyles(dark: boolean, text: string) {
     focusCover: { width: 88, height: 88, borderRadius: 12, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", flexShrink: 0 },
     focusTitle: { color: text, fontSize: 14, fontFamily: baseFont, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 },
     focusActions: { display: "flex", flexWrap: "wrap", gap: 6 },
-
-    crateStage: {
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      gap: 18, padding: "40px 0 50px",
-    },
-    crate: {
-      position: "relative", height: SLEEVE_SIZE + HOVER_LIFT + 70, maxWidth: "100%",
-      overflow: "visible", filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))",
-    },
-    crateBack: {
-      position: "absolute", left: 22, right: 22, top: HOVER_LIFT + 4, bottom: 64,
-      background: "var(--storage-face)", backgroundBlendMode: "multiply",
-      backgroundImage:
-        "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)",
-      borderRadius: "3px 3px 5px 5px", border: "1px solid rgba(0,0,0,0.5)",
-      boxShadow:
-        "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)",
-    },
-    crateLeftWall: {
-      position: "absolute", left: 30, top: HOVER_LIFT + 4, bottom: 60, width: 16,
-      background: "var(--storage-face)", borderRight: "1px solid rgba(0,0,0,0.45)",
-      borderTopLeftRadius: 4, borderBottomLeftRadius: 4, boxShadow: "inset -4px 0 6px rgba(0,0,0,0.45)",
-    },
-    crateRightWall: {
-      position: "absolute", right: 30, top: HOVER_LIFT + 6, bottom: 60, width: 16,
-      background: "var(--storage-face)", borderLeft: "1px solid rgba(0,0,0,0.45)",
-      borderTopRightRadius: 4, borderBottomRightRadius: 4, boxShadow: "inset 4px 0 6px rgba(0,0,0,0.45)",
-    },
-    crateFloor: {
-      position: "absolute", left: 30, right: 30, bottom: 56, height: 12,
-      background: "var(--storage-face)",
-      backgroundImage:
-        "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)",
-      borderTop: "1px solid rgba(0,0,0,0.5)", borderBottom: "1px solid rgba(0,0,0,0.55)",
-      boxShadow: "0 6px 10px rgba(0,0,0,0.35)",
-    },
-    crateLeg: {
-      position: "absolute", bottom: 0, width: 5, height: 72, borderRadius: 2,
-      background: "linear-gradient(180deg, #1c1c1c 0%, #050505 100%)",
-      boxShadow: "0 8px 12px rgba(0,0,0,0.55), inset 1px 0 0 rgba(255,255,255,0.20)",
-      transformOrigin: "50% 0%",
-    },
-    crateRecords: {
-      position: "absolute", left: 44, right: 44, top: HOVER_LIFT + 4, bottom: 72,
-      overflow: "visible", scrollbarWidth: "thin",
-      display: "flex", flexDirection: "row", alignItems: "flex-end",
-      paddingLeft: 8, paddingRight: 8, paddingTop: 4, gap: 0,
-    },
-    crateEmpty: {
-      position: "absolute", left: 0, right: 0, top: "40%",
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
-      color: dark ? "#eee" : "#fff", fontSize: 13, textShadow: "0 2px 6px rgba(0,0,0,0.7)",
-    },
-    crateLabel: {
-      color: text, opacity: 0.6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-    },
-
-    storageRecord: {
-      position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", outline: "none",
-      WebkitTapHighlightColor: "transparent",
-    },
-
+    crateStage: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: "40px 0 50px" },
+    crate: { position: "relative", height: SLEEVE_SIZE + HOVER_LIFT + 70, maxWidth: "100%", overflow: "visible", filter: "drop-shadow(0 28px 28px rgba(0,0,0,0.50))" },
+    crateBack: { position: "absolute", left: 22, right: 22, top: HOVER_LIFT + 4, bottom: 64, background: "var(--storage-face)", backgroundBlendMode: "multiply", backgroundImage: "repeating-linear-gradient(90deg, transparent 0 36px, var(--storage-line) 37px), var(--storage-face)", borderRadius: "3px 3px 5px 5px", border: "1px solid rgba(0,0,0,0.5)", boxShadow: "inset 0 6px 12px rgba(0,0,0,0.45), inset 0 -10px 16px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35)" },
+    crateLeftWall: { position: "absolute", left: 30, top: HOVER_LIFT + 4, bottom: 60, width: 16, background: "var(--storage-face)", borderRight: "1px solid rgba(0,0,0,0.45)", borderTopLeftRadius: 4, borderBottomLeftRadius: 4, boxShadow: "inset -4px 0 6px rgba(0,0,0,0.45)" },
+    crateRightWall: { position: "absolute", right: 30, top: HOVER_LIFT + 6, bottom: 60, width: 16, background: "var(--storage-face)", borderLeft: "1px solid rgba(0,0,0,0.45)", borderTopRightRadius: 4, borderBottomRightRadius: 4, boxShadow: "inset 4px 0 6px rgba(0,0,0,0.45)" },
+    crateFloor: { position: "absolute", left: 30, right: 30, bottom: 56, height: 12, background: "var(--storage-face)", backgroundImage: "linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.55)), var(--storage-face)", borderTop: "1px solid rgba(0,0,0,0.5)", borderBottom: "1px solid rgba(0,0,0,0.55)", boxShadow: "0 6px 10px rgba(0,0,0,0.35)" },
+    crateLeg: { position: "absolute", bottom: 0, width: 5, height: 72, borderRadius: 2, background: "linear-gradient(180deg, #1c1c1c 0%, #050505 100%)", boxShadow: "0 8px 12px rgba(0,0,0,0.55), inset 1px 0 0 rgba(255,255,255,0.20)", transformOrigin: "50% 0%" },
+    crateRecords: { position: "absolute", left: 44, right: 44, top: HOVER_LIFT + 4, bottom: 72, overflow: "visible", scrollbarWidth: "thin", display: "flex", flexDirection: "row", alignItems: "flex-end", paddingLeft: 8, paddingRight: 8, paddingTop: 4, gap: 0 },
+    crateEmpty: { position: "absolute", left: 0, right: 0, top: "40%", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: dark ? "#eee" : "#fff", fontSize: 13, textShadow: "0 2px 6px rgba(0,0,0,0.7)" },
+    crateLabel: { color: text, opacity: 0.6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" },
+    storageRecord: { position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", outline: "none", WebkitTapHighlightColor: "transparent" },
     loading: { color: text, opacity: 0.8, fontFamily: baseFont, fontSize: 12, marginBottom: 12, textAlign: "center" },
     cover: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
     blankCover: { width: "100%", height: "100%", background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), linear-gradient(135deg, rgba(120,170,255,0.18), rgba(255,120,170,0.12))", display: "block" },
@@ -4356,53 +4169,21 @@ function makeStyles(dark: boolean, text: string) {
     sectionTitle: { color: text, fontSize: 12, opacity: 0.9, textTransform: "uppercase", letterSpacing: 1 },
     optionGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, color: text },
     optionActive: { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", color: text, borderColor: dark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.18)" },
-    // NEW — clean grid for color swatches
     swatchGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, padding: "6px 2px" },
     colorRow: { display: "grid", gridTemplateColumns: "minmax(0, 90px)", gap: 10, padding: "4px 2px" },
     inlineControls: { display: "flex", gap: 12, alignItems: "stretch", color: text },
     sliderLabel: { display: "flex", flexDirection: "column", gap: 8, color: text, fontSize: 12, opacity: 0.9 },
     range: { width: "100%", accentColor: text },
-
-    // NEW — picture vinyl toggle row
     pictureRow: { display: "flex", alignItems: "center", gap: 12 },
     pictureCaption: { color: text, opacity: 0.78, fontSize: 11, lineHeight: 1.45 },
     pictureHint: { color: text, opacity: 0.55, fontSize: 10, fontStyle: "italic" },
-    toggleSwitch: {
-      width: 46, height: 26, borderRadius: 999, border,
-      background: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
-      position: "relative", cursor: "pointer", padding: 0, flexShrink: 0,
-      transition: "background 0.18s ease",
-    },
-    toggleSwitchOn: {
-      background: dark ? "rgba(120,200,140,0.55)" : "rgba(80,170,110,0.85)",
-      borderColor: dark ? "rgba(160,230,180,0.55)" : "rgba(60,140,90,0.55)",
-    },
-    toggleKnob: {
-      position: "absolute", top: 2, left: 0, width: 22, height: 22, borderRadius: "50%",
-      background: "#fff",
-      boxShadow: "0 2px 6px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.6)",
-      transition: "transform 0.18s cubic-bezier(0.22,1,0.36,1)",
-    },
-
+    toggleSwitch: { width: 46, height: 26, borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)", position: "relative", cursor: "pointer", padding: 0, flexShrink: 0, transition: "background 0.18s ease" },
+    toggleSwitchOn: { background: dark ? "rgba(120,200,140,0.55)" : "rgba(80,170,110,0.85)", borderColor: dark ? "rgba(160,230,180,0.55)" : "rgba(60,140,90,0.55)" },
+    toggleKnob: { position: "absolute", top: 2, left: 0, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.6)", transition: "transform 0.18s cubic-bezier(0.22,1,0.36,1)" },
     stage: { flex: 1, minWidth: 0, height: "calc(100vh - 78px)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px 24px 34px", overflow: "hidden", color: text, position: "relative" },
-    modeSwitch: {
-      position: "absolute", right: 22, bottom: 96, zIndex: 20,
-      display: "flex", gap: 4, padding: 4, borderRadius: 999, border,
-      background: dark ? "rgba(20,20,22,0.7)" : "rgba(255,255,255,0.78)",
-      boxShadow: "0 12px 30px rgba(0,0,0,0.30)",
-      backdropFilter: "blur(20px) saturate(1.2)",
-    },
-    modeSwitchBtn: {
-      padding: "7px 14px", borderRadius: 999, border: "none",
-      background: "transparent", color: text, cursor: "pointer",
-      fontFamily: baseFont, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase",
-      opacity: 0.7,
-    },
-    modeSwitchActive: {
-      background: dark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.08)",
-      color: text, opacity: 1,
-      boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.18)" : "0 4px 10px rgba(70,80,100,0.12)",
-    },
+    modeSwitch: { position: "absolute", right: 22, bottom: 96, zIndex: 20, display: "flex", gap: 4, padding: 4, borderRadius: 999, border, background: dark ? "rgba(20,20,22,0.7)" : "rgba(255,255,255,0.78)", boxShadow: "0 12px 30px rgba(0,0,0,0.30)", backdropFilter: "blur(20px) saturate(1.2)" },
+    modeSwitchBtn: { padding: "7px 14px", borderRadius: 999, border: "none", background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase", opacity: 0.7 },
+    modeSwitchActive: { background: dark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.08)", color: text, opacity: 1, boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.18)" : "0 4px 10px rgba(70,80,100,0.12)" },
     turnBtn: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 10, padding: "14px 20px", borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)", color: text, fontFamily: baseFont, fontSize: 13, cursor: "pointer", backdropFilter: "blur(24px) saturate(1.25)", boxShadow: shadow },
     player: { position: "fixed", left: 360, right: 0, bottom: 0, height: 78, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 18px", background: dark ? "rgba(12,12,14,0.82)" : "rgba(255,255,255,0.82)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
     transportBtn: { padding: "10px 13px", minWidth: 58, borderRadius: 14, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 12 },
@@ -4423,23 +4204,19 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
-
     @keyframes sleeveArrow {
       0%, 100% { transform: translateY(-50%) translateX(0); }
       50% { transform: translateY(-50%) translateX(5px); }
     }
-
     @keyframes gatefoldIn {
       0% { transform: rotateX(8deg) scale(0.92); opacity: 0; }
       100% { transform: rotateX(0deg) scale(1); opacity: 1; }
     }
-
     @keyframes gatefoldOpen {
       0% { transform: rotateY(-38deg) scale(0.9); opacity: 0; }
       60% { opacity: 1; }
       100% { transform: rotateY(0deg) scale(1); opacity: 1; }
     }
-
     @keyframes vinylFlip {
       0% { transform: perspective(1200px) rotateY(0deg) scale(1); filter: brightness(1); }
       44% { transform: perspective(1200px) rotateY(88deg) scale(0.84); filter: brightness(0.34); }
@@ -4447,7 +4224,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       56% { transform: perspective(1200px) rotateY(92deg) scale(0.84); filter: brightness(0.34); }
       100% { transform: perspective(1200px) rotateY(180deg) scale(1); filter: brightness(1); }
     }
-
     html, body, #root { margin: 0; width: 100%; min-height: 100%; }
     body { overflow: hidden; }
     * {
@@ -4456,46 +4232,25 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       scrollbar-color: var(--aurae-scroll-thumb, rgba(150,150,160,0.35)) transparent;
     }
     button, input { font: inherit; }
-
     button { transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
-
     ::placeholder { color: currentColor; opacity: 0.55; }
-
     ::-webkit-scrollbar { width: 12px; height: 12px; }
     ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
     ::-webkit-scrollbar-corner { background: transparent; }
-    ::-webkit-scrollbar-track {
-      background: var(--aurae-scroll-track, transparent);
-      border-radius: 999px;
-      margin: 6px 0;
-    }
+    ::-webkit-scrollbar-track { background: var(--aurae-scroll-track, transparent); border-radius: 999px; margin: 6px 0; }
     ::-webkit-scrollbar-thumb {
-      background:
-        linear-gradient(180deg,
-          rgba(255,255,255,0.24),
-          var(--aurae-scroll-thumb, rgba(150,150,160,0.35))
-        );
+      background: linear-gradient(180deg, rgba(255,255,255,0.24), var(--aurae-scroll-thumb, rgba(150,150,160,0.35)));
       border-radius: 999px;
       border: 3px solid var(--aurae-scroll-border, transparent);
       background-clip: padding-box;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.18),
-        0 4px 12px rgba(0,0,0,0.18);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px rgba(0,0,0,0.18);
     }
     ::-webkit-scrollbar-thumb:hover {
-      background:
-        linear-gradient(180deg,
-          rgba(255,255,255,0.30),
-          var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48))
-        );
+      background: linear-gradient(180deg, rgba(255,255,255,0.30), var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48)));
       background-clip: padding-box;
     }
     ::-webkit-scrollbar-thumb:active {
-      background:
-        linear-gradient(180deg,
-          rgba(255,255,255,0.36),
-          var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))
-        );
+      background: linear-gradient(180deg, rgba(255,255,255,0.36), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62)));
       background-clip: padding-box;
     }
   `;
@@ -4503,4 +4258,3 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
-
