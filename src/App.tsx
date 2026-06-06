@@ -1813,37 +1813,48 @@ const StorageRecord = React.memo(function StorageRecord({
 });
 
 // A realistic vinyl disc
-function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a" }: any) {
+function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a", pictureVinyl = false }: any) {
+  const isPicture = Boolean(pictureVinyl && cover);
   return (
     <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
-      background: vinylColor,
+      background: isPicture ? "#000" : vinylColor,
       boxShadow: "0 20px 52px rgba(0,0,0,0.72), 0 4px 12px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07)",
       overflow: "hidden" }}>
+      {isPicture && (
+        <img src={cover} alt="" style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          borderRadius: "50%", objectFit: "cover", display: "block",
+        }} />
+      )}
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.11) 0 0.5px, rgba(0,0,0,0.22) 0.5px 1px, transparent 1px 2.5px)",
-        opacity: 0.9, pointerEvents: "none" }} />
+        opacity: isPicture ? 0.12 : 0.9, pointerEvents: "none" }} />
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, transparent 0 6px, rgba(255,255,255,0.04) 6px 7px, transparent 7px 14px)",
-        opacity: 0.6, pointerEvents: "none" }} />
+        opacity: isPicture ? 0.08 : 0.6, pointerEvents: "none" }} />
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 200deg, rgba(255,255,255,0.32) 0deg, rgba(200,160,255,0.12) 30deg, transparent 60deg, rgba(255,255,255,0.06) 130deg, transparent 190deg, rgba(255,255,255,0.28) 250deg, rgba(160,200,255,0.10) 280deg, transparent 320deg)",
-        mixBlendMode: "screen", pointerEvents: "none" }} />
+        mixBlendMode: isPicture ? "overlay" : "screen", pointerEvents: "none" }} />
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 40deg, transparent 0deg, rgba(255,220,180,0.10) 20deg, transparent 70deg, rgba(180,255,220,0.08) 200deg, transparent 260deg)",
         mixBlendMode: "screen", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
-        background: "radial-gradient(circle, transparent 44%, rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.82) 100%)",
-        pointerEvents: "none" }} />
+      {!isPicture && (
+        <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+          background: "radial-gradient(circle, transparent 44%, rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.82) 100%)",
+          pointerEvents: "none" }} />
+      )}
       <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
         background: "radial-gradient(ellipse 60% 30% at 42% 22%, rgba(255,255,255,0.13) 0%, transparent 100%)",
         pointerEvents: "none" }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%",
-        width: size * 0.38, height: size * 0.38, borderRadius: "50%",
-        transform: "translate(-50%,-50%)", overflow: "hidden",
-        background: cover ? "#000" : `radial-gradient(circle at 36% 28%, ${labelColor}, #b8b0a0 55%, #8a8070 100%)`,
-        boxShadow: "0 0 0 4px rgba(0,0,0,0.55), 0 0 0 5px rgba(255,255,255,0.06), inset 0 0 12px rgba(0,0,0,0.35)" }}>
-        {cover && <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-      </div>
+      {!isPicture && (
+        <div style={{ position: "absolute", top: "50%", left: "50%",
+          width: size * 0.38, height: size * 0.38, borderRadius: "50%",
+          transform: "translate(-50%,-50%)", overflow: "hidden",
+          background: cover ? "#000" : `radial-gradient(circle at 36% 28%, ${labelColor}, #b8b0a0 55%, #8a8070 100%)`,
+          boxShadow: "0 0 0 4px rgba(0,0,0,0.55), 0 0 0 5px rgba(255,255,255,0.06), inset 0 0 12px rgba(0,0,0,0.35)" }}>
+          {cover && <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+        </div>
+      )}
       <div style={{ position: "absolute", top: "50%", left: "50%",
         width: size * 0.034, height: size * 0.034, borderRadius: "50%",
         transform: "translate(-50%,-50%)",
@@ -1917,7 +1928,7 @@ function SleevePresentation({
   gatefoldPanelArts, onSetGatefoldPanelArt, onClearGatefoldPanelArt,
   gatefoldCover, gatefoldLeft, gatefoldRight,
   onSetGatefoldBoth, onSetGatefoldSide, onClearGatefoldBoth, onClearGatefoldSide,
-  readImageFile, vinylColor,
+  readImageFile, vinylColor, pictureVinyl,
   onBack, onEnterPlayer, activeVinyl,
 }: any) {
   const [pulling, setPulling] = useState<null | number>(null);
@@ -1984,7 +1995,7 @@ function SleevePresentation({
             zIndex: 2 }}>
           <div style={{ position: "absolute", inset: "3%", borderRadius: "50%",
             background: "#f0ede6", boxShadow: "0 8px 22px rgba(0,0,0,0.22)" }} />
-          <RealVinyl size={SIZE * 0.9} cover={vinylCovers[vinylNum - 1]} vinylColor={vc} />
+          <RealVinyl size={SIZE * 0.9} cover={vinylCovers[vinylNum - 1]} vinylColor={vc} pictureVinyl={pictureVinyl} />
         </div>
         <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
           {sharedArtSrc && totalHorizPanels > 0 ? (
@@ -2027,7 +2038,7 @@ function SleevePresentation({
       style={{ position: "relative", width: SIZE, height: SIZE, cursor: "pointer" }} title="tap to open">
       <div style={{ position: "absolute", top: "50%", right: -SIZE * 0.12, width: SIZE * 0.9, height: SIZE * 0.9,
         transform: "translateY(-50%)", zIndex: 0 }}>
-        <RealVinyl size={SIZE * 0.9} cover={vinylCovers[0]} vinylColor={vc} />
+        <RealVinyl size={SIZE * 0.9} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
       </div>
       <div style={{ position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
         background: frontCover ? "#111" : (dark ? "#15151a" : "#e7e9ee"), border,
@@ -2054,7 +2065,7 @@ function SleevePresentation({
             transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", zIndex: 2 }}>
             <div style={{ position: "absolute", inset: "3%", borderRadius: "50%",
               background: dark ? "#e9e7df" : "#f6f4ee", boxShadow: "0 8px 22px rgba(0,0,0,0.3)" }} />
-            <RealVinyl size={SIZE * 0.96} cover={vinylCovers[0]} vinylColor={vc} />
+            <RealVinyl size={SIZE * 0.96} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
           </div>
           <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE, height: SIZE,
             transform: "translate(-50%, -50%)", borderRadius: 4, overflow: "hidden", zIndex: 3,
@@ -2188,7 +2199,7 @@ function GatefoldPanel({
         transform: `translate(calc(-50% + ${pulling ? pullOffset : restOffset}px), -50%)`,
         transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none", zIndex: 2 }}>
         <div style={{ position: "absolute", inset: "3%", borderRadius: "50%", background: dark ? "#e9e7df" : "#f6f4ee", boxShadow: "0 8px 22px rgba(0,0,0,0.3)" }} />
-        <RealVinyl size={SIZE * 0.9} cover={vinylCover} vinylColor={vinylColor} />
+        <RealVinyl size={SIZE * 0.9} cover={vinylCover} vinylColor={vinylColor} pictureVinyl={pictureVinyl} />
       </div>
 
       <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3,
@@ -3680,6 +3691,7 @@ export function Aurae() {
         }}
         activeVinyl={activeVinyl}
         vinylColor={vinylColors[0] || vinylColor}
+        pictureVinyl={pictureVinyl}
         readImageFile={readImageFile}
         onBack={() => setView("home")}
         onEnterPlayer={(vinyl: number) => {
@@ -4258,3 +4270,4 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
