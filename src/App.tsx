@@ -24,7 +24,6 @@ function isEmailSyntaxValid(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
 }
 
-// Common throwaway / fake domains we never accept.
 const BLOCKED_EMAIL_DOMAINS = new Set([
   "example.com", "example.org", "example.net", "test.com", "test.test",
   "email.com", "domain.com", "fake.com", "fake.net", "mailinator.com",
@@ -33,19 +32,6 @@ const BLOCKED_EMAIL_DOMAINS = new Set([
   "dispostable.com", "maildrop.cc",
 ]);
 
-/**
- * Verifies that an email address can realistically receive mail.
- * Checks syntax, blocks known throwaway/fake domains, and confirms the
- * domain actually has MX (or A) DNS records via DNS-over-HTTPS.
- *
- * Note: a browser cannot fully guarantee a mailbox exists without sending
- * a real message — this is the strongest deliverability check possible
- * client-side. On a network/DNS failure it allows the address through so
- * legitimate users are never locked out while offline.
- *
- * @param email - the raw email address to verify
- * @returns true if the domain can receive mail, false otherwise
- */
 async function isEmailDomainReal(email: string): Promise<boolean> {
   const clean = normalizeEmail(email);
   if (!isEmailSyntaxValid(clean)) return false;
@@ -58,23 +44,20 @@ async function isEmailDomainReal(email: string): Promise<boolean> {
       `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`,
       { headers: { accept: "application/dns-json" } }
     );
-    if (!res.ok) return null; // network/service issue → unknown
+    if (!res.ok) return null;
     return res.json();
   };
 
   try {
     const mx = await dnsLookup("MX");
-    if (mx === null) return true; // DNS unreachable → don't block real users
-    // type 15 === MX record. NXDOMAIN (status 3) means the domain doesn't exist.
+    if (mx === null) return true;
     if (mx.Status === 3) return false;
     if (Array.isArray(mx.Answer) && mx.Answer.some((a: any) => a.type === 15)) return true;
-
-    // No MX — some domains still accept mail on their A record.
     const a = await dnsLookup("A");
     if (a === null) return true;
     return Array.isArray(a.Answer) && a.Answer.length > 0;
   } catch {
-    return true; // network failure → allow, never lock out offline users
+    return true;
   }
 }
 
@@ -96,7 +79,7 @@ function saveUsers(users: Record<string, UserRecord>): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  } catch { /* quota / storage blocked */ }
+  } catch {}
 }
 
 function isLegacyRecord(rec: UserRecord | undefined): rec is string {
@@ -175,7 +158,7 @@ function persistSession(email: string, remember: boolean): void {
       localStorage.removeItem(SESSION_KEY);
       localStorage.removeItem(REMEMBER_KEY);
     }
-  } catch { /* storage blocked */ }
+  } catch {}
 }
 
 function clearSession(): void {
@@ -184,7 +167,7 @@ function clearSession(): void {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(REMEMBER_KEY);
     sessionStorage.removeItem(SESSION_KEY);
-  } catch { /* storage blocked */ }
+  } catch {}
 }
 
 function getInitialUser(): string {
@@ -192,7 +175,7 @@ function getInitialUser(): string {
   try {
     const v = (localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || "").trim();
     if (v && v.includes("@")) return v;
-  } catch { /* storage blocked */ }
+  } catch {}
   return "";
 }
 
@@ -329,8 +312,6 @@ const SINGLE_TOTAL_TARGET = 10 * 60;
 const SINGLE_LONG_TRACK_OK = 6 * 60;
 const FLIP_DURATION = 1400;
 const FLIP_COVER_SWAP = 700;
-
-// Up to 4 vinyls → at most 8 sides.
 const MAX_SIDES = 8;
 
 function trackDuration(track: any) {
@@ -349,13 +330,11 @@ function computeSingleSideBoundaries(tracks: any[]) {
   if (total > SINGLE_TOTAL_TARGET) return null;
   if (tracks.some(track => trackDuration(track) > SINGLE_LONG_TRACK_OK)) return null;
   if (singleSideFits(tracks)) return [0];
-
   for (let split = 1; split < tracks.length; split++) {
     const sideA = tracks.slice(0, split);
     const sideB = tracks.slice(split);
     if (singleSideFits(sideA) && singleSideFits(sideB)) return [0, split];
   }
-
   return null;
 }
 
@@ -373,14 +352,11 @@ function computeSideBoundaries(tracks: any[], singleMode = false) {
     const singleBoundaries = computeSingleSideBoundaries(tracks);
     if (singleBoundaries) return singleBoundaries;
   }
-
   const boundaries = [0];
   let pos = 0;
-
   while (pos < tracks.length && boundaries.length < MAX_SIDES) {
     let elapsed = 0;
     let i = pos;
-
     while (i < tracks.length) {
       const dur = tracks[i].duration || 0;
       if (elapsed + dur > SIDE_TARGET && i > pos) {
@@ -392,13 +368,10 @@ function computeSideBoundaries(tracks: any[], singleMode = false) {
       elapsed += dur;
       i++;
     }
-
     if (i === pos) i = pos + 1;
-
     pos = i;
     if (pos < tracks.length) boundaries.push(pos);
   }
-
   return boundaries;
 }
 
@@ -460,15 +433,12 @@ const SPLATTER_STYLES = [
   { id: "drip", label: "drip" },
 ];
 
-// ──────────────────────────────────────────────────────────────────────
-// Equalizer config
-// ──────────────────────────────────────────────────────────────────────
 const EQ_SHAPES = [
   { id: "bars",     label: "bars"     },
-  { id: "mirror",  label: "mirror"   },
-  { id: "wave",    label: "wave"     },
-  { id: "circular",label: "circular" },
-  { id: "dots",    label: "dots"     },
+  { id: "mirror",   label: "mirror"   },
+  { id: "wave",     label: "wave"     },
+  { id: "circular", label: "circular" },
+  { id: "dots",     label: "dots"     },
 ];
 
 const STORAGE_WOODS = [
@@ -534,7 +504,6 @@ function normalizeStorageShelf(raw: any, projectNames: string[] = []) {
       items,
     };
   }
-
   if (raw?.name || raw?.wood) {
     const id = raw.id || "main-storage";
     return {
@@ -548,7 +517,6 @@ function normalizeStorageShelf(raw: any, projectNames: string[] = []) {
       }],
     };
   }
-
   return { activeId: null, items: [] };
 }
 
@@ -619,7 +587,6 @@ function vinylBackground(colors: string[], gradient: string) {
   const c2 = clean[1] || c1;
   const c3 = clean[2] || c2;
   const c4 = clean[3] || c3;
-
   if (gradient === "solid") {
     return `radial-gradient(circle at 42% 36%, ${lighten(c1, 28)} 0%, ${c1} 44%, ${darken(c1, 38)} 100%)`;
   }
@@ -741,64 +708,48 @@ function VinylDisc({
   const isPicture = Boolean(pictureVinyl && cover);
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        width: radius * 2,
-        height: radius * 2,
-        borderRadius: "50%",
-        background: isPicture ? "#000" : vinylBackground(colors, gradient),
-        opacity,
-        overflow: "hidden",
-        boxShadow:
-          "0 36px 80px rgba(0,0,0,0.72), 0 6px 18px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 0 60px rgba(0,0,0,0.6)",
-        animation: flipping
-          ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
-          : playing
-            ? "spin 1.8s linear infinite"
-            : "none",
-        transformOrigin: "50% 50%",
-      }}
-    >
+    <div style={{
+      position: "absolute",
+      width: radius * 2,
+      height: radius * 2,
+      borderRadius: "50%",
+      background: isPicture ? "#000" : vinylBackground(colors, gradient),
+      opacity,
+      overflow: "hidden",
+      boxShadow:
+        "0 36px 80px rgba(0,0,0,0.72), 0 6px 18px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 0 60px rgba(0,0,0,0.6)",
+      animation: flipping
+        ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
+        : playing
+          ? "spin 1.8s linear infinite"
+          : "none",
+      transformOrigin: "50% 50%",
+    }}>
       {isPicture && (
-        <img
-          src={cover}
-          alt=""
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            borderRadius: "50%",
-            objectFit: "cover",
-            display: "block",
-          }}
-        />
+        <img src={cover} alt="" style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          borderRadius: "50%", objectFit: "cover", display: "block",
+        }} />
       )}
-
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.10) 0 0.5px, rgba(0,0,0,0.20) 0.5px 1px, transparent 1px 2.5px)",
-        opacity: isPicture ? 0.12 : 0.92,
-        pointerEvents: "none",
+        opacity: isPicture ? 0.12 : 0.92, pointerEvents: "none",
       }} />
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, transparent 0 7px, rgba(255,255,255,0.035) 7px 8px, transparent 8px 16px)",
-        opacity: isPicture ? 0.08 : 0.7,
-        pointerEvents: "none",
+        opacity: isPicture ? 0.08 : 0.7, pointerEvents: "none",
       }} />
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 200deg, rgba(255,255,255,0.38) 0deg, rgba(200,160,255,0.14) 28deg, transparent 58deg, rgba(255,255,255,0.05) 130deg, transparent 195deg, rgba(255,255,255,0.30) 252deg, rgba(160,200,255,0.12) 280deg, transparent 320deg)",
-        mixBlendMode: isPicture ? "overlay" : "screen",
-        pointerEvents: "none",
+        mixBlendMode: isPicture ? "overlay" : "screen", pointerEvents: "none",
       }} />
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 42deg, transparent 0deg, rgba(255,210,170,0.11) 18deg, transparent 65deg, rgba(170,255,210,0.09) 198deg, transparent 260deg)",
-        mixBlendMode: "screen",
-        pointerEvents: "none",
+        mixBlendMode: "screen", pointerEvents: "none",
       }} />
       {!isPicture && (
         <div style={{
@@ -812,77 +763,53 @@ function VinylDisc({
         background: "radial-gradient(ellipse 55% 28% at 42% 20%, rgba(255,255,255,0.14) 0%, transparent 100%)",
         pointerEvents: "none",
       }} />
-
-      <div
-        style={{
-          position: "absolute",
-          inset: Math.round(radius * 0.08),
-          borderRadius: "50%",
-          border: "1px solid rgba(255,255,255,0.12)",
-          boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)",
-          pointerEvents: "none",
-        }}
-      />
-
+      <div style={{
+        position: "absolute",
+        inset: Math.round(radius * 0.08),
+        borderRadius: "50%",
+        border: "1px solid rgba(255,255,255,0.12)",
+        boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)",
+        pointerEvents: "none",
+      }} />
       {!isPicture && splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
-
       {!isPicture && (cover ? (
-        <img
-          src={cover}
-          alt=""
-          style={{
-            position: "absolute",
-            width: labelSize,
-            height: labelSize,
-            borderRadius: "50%",
-            objectFit: "cover",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)",
-          }}
-        />
+        <img src={cover} alt="" style={{
+          position: "absolute",
+          width: labelSize, height: labelSize,
+          borderRadius: "50%", objectFit: "cover",
+          top: "50%", left: "50%",
+          transform: "translate(-50%, -50%)",
+          boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)",
+        }} />
       ) : (
-        <div
-          style={{
-            position: "absolute",
-            width: labelSize,
-            height: labelSize,
-            borderRadius: "50%",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            background:
-              "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
-            color: textColor,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "Courier New, monospace",
-            fontSize: isSingle ? 10 : 14,
-            letterSpacing: 1,
-            boxShadow: "0 0 0 7px rgba(0,0,0,0.32)",
-          }}
-        >
+        <div style={{
+          position: "absolute",
+          width: labelSize, height: labelSize,
+          borderRadius: "50%",
+          top: "50%", left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
+          color: textColor,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "Courier New, monospace",
+          fontSize: isSingle ? 10 : 14,
+          letterSpacing: 1,
+          boxShadow: "0 0 0 7px rgba(0,0,0,0.32)",
+        }}>
           {isSingle ? "7 IN" : "AURAE"}
         </div>
       ))}
-
-      <div
-        style={{
-          position: "absolute",
-          width: centerHoleSize,
-          height: centerHoleSize,
-          borderRadius: "50%",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "rgba(8,8,8,0.78)",
-          boxShadow: isSingle
-            ? "inset 0 0 0 5px rgba(255,255,255,0.14), inset 0 0 22px rgba(0,0,0,0.82), 0 0 0 2px rgba(0,0,0,0.55)"
-            : "inset 0 0 0 2px rgba(255,255,255,0.12)",
-        }}
-      />
+      <div style={{
+        position: "absolute",
+        width: centerHoleSize, height: centerHoleSize,
+        borderRadius: "50%",
+        top: "50%", left: "50%",
+        transform: "translate(-50%, -50%)",
+        background: "rgba(8,8,8,0.78)",
+        boxShadow: isSingle
+          ? "inset 0 0 0 5px rgba(255,255,255,0.14), inset 0 0 22px rgba(0,0,0,0.82), 0 0 0 2px rgba(0,0,0,0.55)"
+          : "inset 0 0 0 2px rgba(255,255,255,0.12)",
+      }} />
     </div>
   );
 }
@@ -890,7 +817,6 @@ function VinylDisc({
 function DeckDefs({ id, style, color }: any) {
   const s = normalizeDeckStyle(style);
   const base = deckBase(s, color);
-
   return (
     <defs>
       <linearGradient id={`${id}-base`} x1="0" y1="0" x2="1" y2="1">
@@ -929,32 +855,27 @@ function DeckDefs({ id, style, color }: any) {
           </>
         )}
       </linearGradient>
-
       <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor="#f5f5f5" />
         <stop offset="45%" stopColor="#b9b9b9" />
         <stop offset="100%" stopColor="#6d6d6d" />
       </linearGradient>
-
       <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stopColor="#e9c96a" />
         <stop offset="44%" stopColor="#b88b2b" />
         <stop offset="100%" stopColor="#f4d984" />
       </linearGradient>
-
       <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
         <stop offset="0%" stopColor="#f0f0f0" />
         <stop offset="54%" stopColor="#888" />
         <stop offset="100%" stopColor="#333" />
       </radialGradient>
-
       <filter id={`${id}-shadow`}>
         <feDropShadow dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" />
       </filter>
       <filter id={`${id}-soft`}>
         <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
       </filter>
-
       <pattern id={`${id}-woodgrain`} x="0" y="0" width="560" height="12" patternUnits="userSpaceOnUse">
         <line x1="0" y1="2" x2="560" y2="2" stroke="rgba(0,0,0,0.09)" strokeWidth="1" />
         <line x1="0" y1="8" x2="560" y2="8" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
@@ -985,7 +906,6 @@ function Tonearm({ id, geometry, stylus, textColor }: any) {
   const s0 = { x: a0.x + px * (w0 - 1.2), y: a0.y + py * (w0 - 1.2) };
   const s1 = { x: a1.x + px * (w1 - 0.6), y: a1.y + py * (w1 - 0.6) };
   const counter = { x: geometry.pivotX - ux * 28, y: geometry.pivotY - uy * 28 };
-
   return (
     <g>
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="28"
@@ -993,19 +913,16 @@ function Tonearm({ id, geometry, stylus, textColor }: any) {
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="19" fill="rgba(0,0,0,0.45)" />
       <circle cx={geometry.pivotX} cy={geometry.pivotY} r="7" fill="rgba(30,30,30,0.9)" />
       <circle cx={geometry.pivotX - 4} cy={geometry.pivotY - 4} r="2.8" fill="rgba(255,255,255,0.72)" />
-
       <ellipse cx={counter.x} cy={counter.y} rx="14" ry="9"
         transform={`rotate(${angle} ${counter.x} ${counter.y})`}
         fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
       <ellipse cx={counter.x} cy={counter.y} rx="5" ry="3"
         transform={`rotate(${angle} ${counter.x} ${counter.y})`}
         fill="rgba(255,255,255,0.15)" />
-
       <polygon points={armPoly} fill={`url(#${id}-arm)`}
         stroke="rgba(0,0,0,0.32)" strokeWidth="0.6" strokeLinejoin="round" />
       <line x1={s0.x} y1={s0.y} x2={s1.x} y2={s1.y}
         stroke="rgba(255,255,255,0.52)" strokeWidth="1.2" strokeLinecap="round" />
-
       <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
         <path d="M -48 -10 L -15 -12 Q -8 -12 -5 -6 L -1 4 Q -4 12 -13 13 L -48 10 Z"
           fill="#c8c8c8" stroke="rgba(0,0,0,0.40)" strokeWidth="1" filter={`url(#${id}-soft)`} />
@@ -1016,7 +933,6 @@ function Tonearm({ id, geometry, stylus, textColor }: any) {
         <circle cx="0" cy="0" r="1.7" fill="rgba(140,220,255,0.78)" />
         <line x1="-44" y1="-8" x2="-8" y2="-7" stroke="rgba(255,255,255,0.38)" strokeWidth="1" strokeLinecap="round" />
       </g>
-
       <circle cx={stylus.x} cy={stylus.y} r="1.35" fill="rgba(0,0,0,0.52)" />
       <text x={geometry.pivotX} y={geometry.pivotY + 50} fill={textColor} opacity="0.65"
         fontSize="7" fontFamily="monospace" textAnchor="middle" letterSpacing="2">
@@ -1028,13 +944,10 @@ function Tonearm({ id, geometry, stylus, textColor }: any) {
 
 function StandardControls({ id, style, textColor }: any) {
   const s = normalizeDeckStyle(style);
-  const compact = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s);
-
   if (s === "realistic1" || s === "realistic2" || s === "dark" || s === "chrome" || s === "wood") {
     return null;
   }
-
-  if (!compact && s !== "minimal") {
+  if (s !== "minimal") {
     return (
       <g>
         <rect x="48" y="474" width="210" height="42" rx="10" fill="rgba(0,0,0,0.16)" stroke="rgba(255,255,255,0.15)" />
@@ -1050,35 +963,11 @@ function StandardControls({ id, style, textColor }: any) {
       </g>
     );
   }
-
-  if (s === "minimal") {
-    return (
-      <g>
-        <line x1="520" y1="82" x2="520" y2="232" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-        <circle cx="520" cy="152" r="5" fill={textColor} opacity="0.75" />
-        <text x="520" y="256" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">
-          VOL
-        </text>
-      </g>
-    );
-  }
-
   return (
     <g>
-      <rect x="430" y="58" width="96" height="150" rx={s === "dark" || s === "realistic1" ? 3 : 9}
-        fill={s === "wood" ? "rgba(0,0,0,0.24)" : "rgba(0,0,0,0.25)"}
-        stroke="rgba(255,255,255,0.14)" strokeWidth="1" filter={`url(#${id}-soft)`} />
-      <rect x="444" y="74" width="68" height="28" rx="5" fill="rgba(0,0,0,0.35)" />
-      <text x="478" y="92" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
-        {s === "wood" ? "CONTROL" : s === "realistic1" ? "QUARTZ" : "START"}
-      </text>
-      <circle cx="478" cy="142" r="22"
-        fill={s === "wood" ? "#241406" : `url(#${id}-knob)`}
-        stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
-      <line x1="478" y1="126" x2="478" y2="135" stroke={textColor} strokeWidth="2" />
-      <text x="478" y="182" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle">
-        {s === "dark" || s === "realistic1" ? "RPM" : "LEVEL"}
-      </text>
+      <line x1="520" y1="82" x2="520" y2="232" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+      <circle cx="520" cy="152" r="5" fill={textColor} opacity="0.75" />
+      <text x="520" y="256" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">VOL</text>
     </g>
   );
 }
@@ -1091,16 +980,13 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
   const holeR = (platterRadius ?? vinylRadius) + 8;
   const hole = holePath(g.cx, g.cy, holeR);
   const board = boardPath(s);
-
   return (
     <svg viewBox="0 0 560 560"
       style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
       <DeckDefs id={id} style={s} color={color} />
       <path d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
-
       {s === "wood" && <path d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
       {s === "chrome" && <path d={`${board} ${hole}`} fill={`url(#${id}-brushed)`} fillRule="evenodd" opacity="0.7" />}
-
       {s === "chrome" && (
         <>
           <path d="M20 70 L70 20 L132 20 L20 132 Z" fill="rgba(80,180,220,0.42)" />
@@ -1120,7 +1006,6 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
           <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
         </>
       )}
-
       {s === "realistic1" && (
         <>
           <rect x="38" y="38" width="484" height="484" rx="8" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2" />
@@ -1143,15 +1028,12 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
           <text x="154" y="473" fill={textColor} opacity="0.62" fontSize="8" fontFamily="monospace" textAnchor="middle">AUTO STOP</text>
         </>
       )}
-
       <circle cx={g.cx} cy={g.cy} r={holeR + 20} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="9" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 14} fill="none" stroke="rgba(255,255,255,0.20)" strokeWidth="2.5" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3.5" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
-
       <StandardControls id={id} style={s} textColor={textColor} />
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
-
       <circle cx={g.cx} cy={g.cy} r="7" fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
       <circle cx={g.cx} cy={g.cy} r="3" fill="rgba(255,255,255,0.55)" />
       <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.2" fill="rgba(255,255,255,0.85)" />
@@ -1165,7 +1047,6 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
   const stylus = groovePoint(g, vinylRadius, progress);
   const holeR = (platterRadius ?? vinylRadius) + 7;
   const hole = holePath(g.cx, g.cy, holeR);
-
   return (
     <svg viewBox="0 0 760 560"
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
@@ -1193,26 +1074,20 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
           <stop offset="100%" stopColor="#565656" />
         </radialGradient>
       </defs>
-
       <path d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`} fill="#1a1612" fillRule="evenodd" stroke="#090806" strokeWidth="2" />
       <path d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
-
       <rect x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
       <rect x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
-
       <circle cx={g.cx} cy={g.cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="10" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="3" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 12} fill="none" stroke="rgba(0,0,0,0.45)" strokeWidth="4" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 6} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" />
-
       <rect x="502" y="20" width="108" height="70" rx="6" fill="rgba(0,0,0,0.42)" stroke="rgba(255,255,255,0.07)" />
       <text x="556" y="42" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle" letterSpacing="1">POWER</text>
       <circle cx="543" cy="60" r="5" fill="#22dd44" opacity="0.85" />
       <circle cx="543" cy="60" r="3" fill="rgba(180,255,200,0.6)" />
-
       <rect x="622" y="20" width="120" height="70" rx="6" fill="rgba(0,0,0,0.42)" stroke="rgba(255,255,255,0.07)" />
       <text x="682" y="42" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle" letterSpacing="1">SELECTOR</text>
-
       {["BASS", "TREBLE", "VOL L", "VOL R"].map((label, i) => (
         <g key={label}>
           <rect x={502 + i * 60} y="104" width="52" height="312" rx="5" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)" />
@@ -1221,12 +1096,9 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
           <rect x={508 + i * 60} y={230 + i * 8} width="16" height="21" rx="3" fill="#d0d0d0" />
         </g>
       ))}
-
       <rect x="326" y="462" width="72" height="52" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
       <text x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">LIFT</text>
-
       <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
-
       <circle cx={g.cx} cy={g.cy} r="7.5" fill="#d8d2c8" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
       <circle cx={g.cx} cy={g.cy} r="3.5" fill="#f5f2ec" />
       <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.4" fill="rgba(255,255,255,0.9)" />
@@ -1242,9 +1114,6 @@ function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, pr
   return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// EqualizerVisualizer
-// ──────────────────────────────────────────────────────────────────────
 function EqualizerVisualizer({
   analyserRef, shape, color, color2, bars, glow, bgColor, playing, width, height,
 }: any) {
@@ -1261,18 +1130,14 @@ function EqualizerVisualizer({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(dpr, dpr);
-
     const dataLen = 512;
     const freqData = new Uint8Array(dataLen);
-
     const draw = () => {
       const analyser = analyserRef.current;
       const w = width;
       const h = height;
-
       ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, w, h);
-
       const values = new Array(bars).fill(0);
       let energy = 0;
       if (analyser && playing) {
@@ -1286,7 +1151,6 @@ function EqualizerVisualizer({
           values[i] = Math.min(1, Math.pow(raw, 0.72) * 1.35);
         }
       }
-
       if (!analyser || !playing || energy < 0.01) {
         idleTimeRef.current += playing ? 0.075 : 0.035;
         for (let i = 0; i < bars; i++) {
@@ -1294,16 +1158,12 @@ function EqualizerVisualizer({
           values[i] = (Math.sin(idleTimeRef.current + t * 7) * 0.5 + 0.5) * (playing ? 0.34 : 0.18);
         }
       }
-
       const grad = ctx.createLinearGradient(0, h, 0, 0);
       grad.addColorStop(0, color);
       grad.addColorStop(1, color2);
-
       ctx.shadowBlur = glow * 26;
       ctx.shadowColor = color;
-
       if (shape === "mirror") {
-        const cx = w / 2;
         const colW = w / bars * 0.85;
         const gap = w / bars - colW;
         const maxH = h * 0.42;
@@ -1312,7 +1172,7 @@ function EqualizerVisualizer({
           const bh = Math.max(2, v * maxH);
           const x = i * (colW + gap) + gap / 2;
           ctx.fillStyle = grad;
-          ctx.fillRect(x, cx === 0 ? 0 : h / 2 - bh, colW, bh);
+          ctx.fillRect(x, h / 2 - bh, colW, bh);
           ctx.fillRect(x, h / 2, colW, bh);
         }
       } else if (shape === "wave") {
@@ -1370,8 +1230,7 @@ function EqualizerVisualizer({
             ctx.arc(i * colW + colW / 2, y, Math.max(1.5, colW * 0.18), 0, Math.PI * 2);
             if (isOn) {
               const tCol = d / maxDots;
-              const fillCol = tCol < 0.5 ? color : color2;
-              ctx.fillStyle = fillCol;
+              ctx.fillStyle = tCol < 0.5 ? color : color2;
               ctx.globalAlpha = 1;
             } else {
               ctx.fillStyle = color;
@@ -1403,35 +1262,22 @@ function EqualizerVisualizer({
           ctx.fill();
         }
       }
-
       ctx.shadowBlur = 0;
       rafRef.current = requestAnimationFrame(draw);
     };
-
     rafRef.current = requestAnimationFrame(draw);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [shape, color, color2, bars, glow, bgColor, width, height, playing, analyserRef]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        width, height,
-        borderRadius: 22,
-        display: "block",
-        boxShadow:
-          "0 30px 80px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.06)",
-        background: bgColor,
-      }}
-    />
+    <canvas ref={canvasRef} style={{
+      width, height, borderRadius: 22, display: "block",
+      boxShadow: "0 30px 80px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.06)",
+      background: bgColor,
+    }} />
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Color picker
-// ──────────────────────────────────────────────────────────────────────
 function rgbToHex(r: number, g: number, b: number) {
   const h = (n: number) => clamp(Math.round(n)).toString(16).padStart(2, "0");
   return `#${h(r)}${h(g)}${h(b)}`;
@@ -1458,28 +1304,22 @@ function hsvToHex(h: number, s: number, v: number) {
   const x = c * (1 - Math.abs((hh % 2) - 1));
   let r1 = 0, g1 = 0, b1 = 0;
   if (hh >= 0 && hh < 1) { r1 = c; g1 = x; }
-  else if (hh < 2)        { r1 = x; g1 = c; }
-  else if (hh < 3)        { g1 = c; b1 = x; }
-  else if (hh < 4)        { g1 = x; b1 = c; }
-  else if (hh < 5)        { r1 = x; b1 = c; }
-  else                    { r1 = c; b1 = x; }
+  else if (hh < 2) { r1 = x; g1 = c; }
+  else if (hh < 3) { g1 = c; b1 = x; }
+  else if (hh < 4) { g1 = x; b1 = c; }
+  else if (hh < 5) { r1 = x; b1 = c; }
+  else { r1 = c; b1 = x; }
   const m = v - c;
   return rgbToHex((r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255);
 }
 
-function ColorPicker({
-  value, onChange, onClose, dark, anchorRect,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onClose: () => void;
-  dark: boolean;
-  anchorRect: { top: number; left: number; width: number; height: number } | null;
+function ColorPicker({ value, onChange, onClose, dark, anchorRect }: {
+  value: string; onChange: (v: string) => void; onClose: () => void;
+  dark: boolean; anchorRect: { top: number; left: number; width: number; height: number } | null;
 }) {
   const text = dark ? "#fff" : "#111";
   const panelBg = dark ? "rgba(22,22,24,0.96)" : "rgba(255,255,255,0.98)";
   const border = dark ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(0,0,0,0.10)";
-
   const [hsv, setHsv] = useState(() => hexToHsv(value));
   const [hexInput, setHexInput] = useState(normalizeHex(value).toUpperCase());
   const padRef = useRef<HTMLDivElement | null>(null);
@@ -1545,34 +1385,25 @@ function ColorPicker({
     if (top + PANEL_H > window.innerHeight - 8) top = (anchorRect?.top ?? 0) - PANEL_H - pad;
     left = Math.max(8, Math.min(left, window.innerWidth - PANEL_W - 8));
   }
-
   const hueColor = hsvToHex(hsv.h, 1, 1);
 
   return (
-    <div
-      ref={panelRef}
-      style={{
-        position: "fixed", top, left, width: PANEL_W, zIndex: 2000,
-        padding: 12, borderRadius: 16, border, background: panelBg, color: text,
-        boxShadow: "0 20px 50px rgba(0,0,0,0.40)",
-        backdropFilter: "blur(22px) saturate(1.25)",
-        display: "flex", flexDirection: "column", gap: 10,
-        fontFamily: "Courier New, monospace",
-      }}
-      onMouseDown={e => e.stopPropagation()}
-    >
+    <div ref={panelRef} style={{
+      position: "fixed", top, left, width: PANEL_W, zIndex: 2000,
+      padding: 12, borderRadius: 16, border, background: panelBg, color: text,
+      boxShadow: "0 20px 50px rgba(0,0,0,0.40)",
+      backdropFilter: "blur(22px) saturate(1.25)",
+      display: "flex", flexDirection: "column", gap: 10,
+      fontFamily: "Courier New, monospace",
+    }} onMouseDown={e => e.stopPropagation()}>
       <div style={{ display: "flex", gap: 10 }}>
-        <div
-          ref={padRef}
+        <div ref={padRef}
           onPointerDown={e => { padDragging.current = true; handlePadEvent(e); }}
           style={{
             position: "relative", flex: 1, height: 160, borderRadius: 10, cursor: "crosshair",
-            background:
-              `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueColor})`,
-            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)",
-            touchAction: "none",
-          }}
-        >
+            background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueColor})`,
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)", touchAction: "none",
+          }}>
           <div style={{
             position: "absolute",
             left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`,
@@ -1583,20 +1414,15 @@ function ColorPicker({
             pointerEvents: "none",
           }} />
         </div>
-        <div
-          ref={hueRef}
+        <div ref={hueRef}
           onPointerDown={e => { hueDragging.current = true; handleHueEvent(e); }}
           style={{
             position: "relative", width: 18, height: 160, borderRadius: 10, cursor: "ns-resize",
-            background:
-              "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
-            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)",
-            touchAction: "none",
-          }}
-        >
+            background: "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)", touchAction: "none",
+          }}>
           <div style={{
-            position: "absolute",
-            left: "50%", top: `${(hsv.h / 360) * 100}%`,
+            position: "absolute", left: "50%", top: `${(hsv.h / 360) * 100}%`,
             width: 22, height: 8, borderRadius: 3,
             transform: "translate(-50%, -50%)",
             background: "#fff",
@@ -1605,12 +1431,10 @@ function ColorPicker({
           }} />
         </div>
       </div>
-
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{
           width: 36, height: 30, borderRadius: 8, background: hsvToHex(hsv.h, hsv.s, hsv.v),
-          boxShadow: "0 0 0 1px rgba(0,0,0,0.20), inset 0 0 0 1px rgba(255,255,255,0.10)",
-          flexShrink: 0,
+          boxShadow: "0 0 0 1px rgba(0,0,0,0.20), inset 0 0 0 1px rgba(255,255,255,0.10)", flexShrink: 0,
         }} />
         <span style={{ fontSize: 11, opacity: 0.7 }}>#</span>
         <input
@@ -1633,120 +1457,63 @@ function ColorPicker({
             outline: "none", letterSpacing: 1, textTransform: "uppercase",
           }}
         />
-        <button
-          onClick={onClose}
-          style={{
-            padding: "6px 10px", borderRadius: 8,
-            border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
-            background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
-            color: text, cursor: "pointer", fontFamily: "Courier New, monospace", fontSize: 11,
-          }}
-        >
-          done
-        </button>
+        <button onClick={onClose} style={{
+          padding: "6px 10px", borderRadius: 8,
+          border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
+          background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+          color: text, cursor: "pointer", fontFamily: "Courier New, monospace", fontSize: 11,
+        }}>done</button>
       </div>
     </div>
   );
 }
 
-function ColorSwatch({
-  value, onChange, label, dark,
-}: { value: string; onChange: (v: string) => void; label?: string; dark: boolean }) {
+function ColorSwatch({ value, onChange, label, dark }: {
+  value: string; onChange: (v: string) => void; label?: string; dark: boolean;
+}) {
   const text = dark ? "#fff" : "#111";
   const hex = normalizeHex(value).toUpperCase();
   const [open, setOpen] = useState(false);
   const swatchRef = useRef<HTMLButtonElement | null>(null);
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
-
   const handleOpen = () => {
     const r = swatchRef.current?.getBoundingClientRect();
     if (r) setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
     setOpen(true);
   };
-
   return (
-    <div
-      style={{
-        position: "relative",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 6,
-        userSelect: "none",
-      }}
-    >
-      <button
-        ref={swatchRef}
-        onClick={handleOpen}
-        aria-label={label || "pick color"}
-        style={{
-          position: "relative",
-          width: "100%",
-          aspectRatio: "1 / 1",
-          minWidth: 40,
-          borderRadius: 14,
-          background: value,
-          boxShadow:
-            "0 4px 10px rgba(0,0,0,0.18), 0 0 0 1px " + (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
-          transition: "transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease",
-          cursor: "pointer",
-          padding: 0,
-          border: "none",
-        }}
-      />
-      {label && (
-        <span style={{ fontSize: 9, opacity: 0.7, color: text, letterSpacing: 0.5, textTransform: "uppercase" }}>
-          {label}
-        </span>
-      )}
-      <span style={{
-        fontSize: 10, fontFamily: "Courier New, monospace", color: text, opacity: 0.85, letterSpacing: 0.5,
-      }}>
-        {hex}
-      </span>
-      {open && (
-        <ColorPicker
-          value={value}
-          onChange={onChange}
-          onClose={() => setOpen(false)}
-          dark={dark}
-          anchorRect={rect}
-        />
-      )}
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, userSelect: "none" }}>
+      <button ref={swatchRef} onClick={handleOpen} aria-label={label || "pick color"} style={{
+        position: "relative", width: "100%", aspectRatio: "1 / 1", minWidth: 40,
+        borderRadius: 14, background: value,
+        boxShadow: "0 4px 10px rgba(0,0,0,0.18), 0 0 0 1px " + (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
+        transition: "transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease",
+        cursor: "pointer", padding: 0, border: "none",
+      }} />
+      {label && <span style={{ fontSize: 9, opacity: 0.7, color: text, letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</span>}
+      <span style={{ fontSize: 10, fontFamily: "Courier New, monospace", color: text, opacity: 0.85, letterSpacing: 0.5 }}>{hex}</span>
+      {open && <ColorPicker value={value} onChange={onChange} onClose={() => setOpen(false)} dark={dark} anchorRect={rect} />}
     </div>
   );
 }
 
-// Modal helpers
-
 const OVL: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.58)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 1000,
-  backdropFilter: "blur(22px)",
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.58)",
+  display: "flex", justifyContent: "center", alignItems: "center",
+  zIndex: 1000, backdropFilter: "blur(22px)",
 };
-
 const MOD = (dark: boolean, text: string): React.CSSProperties => ({
-  width: 340,
-  padding: 20,
-  borderRadius: 22,
+  width: 340, padding: 20, borderRadius: 22,
   background: dark ? "rgba(18,18,18,0.82)" : "rgba(255,255,255,0.82)",
   color: text,
   border: dark ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(0,0,0,0.08)",
   boxShadow: "0 26px 80px rgba(0,0,0,0.34)",
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
+  display: "flex", flexDirection: "column", gap: 12,
 });
 
-// Vinyl-crate constants
 const SLEEVE_SIZE = 220;
-const SPINE_W     = 16;
-const HOVER_LIFT  = 28;
+const SPINE_W = 16;
+const HOVER_LIFT = 28;
 
 function nameHue(name: string) {
   let h = 0;
@@ -1763,27 +1530,17 @@ const StorageRecord = React.memo(function StorageRecord({
   const spineBg = spineColor
     ? spineColor
     : cover ? "#111"
-    : `linear-gradient(175deg,hsl(${hue} 52% 28%) 0%,hsl(${(hue+48)%360} 42% 14%) 100%)`;
-
+    : `linear-gradient(175deg,hsl(${hue} 52% 28%) 0%,hsl(${(hue + 48) % 360} 42% 14%) 100%)`;
   const lifted = isHovered || isFocused;
-
   return (
     <button
       draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
+      onDragStart={onDragStart} onDragOver={onDragOver}
+      onDragLeave={onDragLeave} onDrop={onDrop} onDragEnd={onDragEnd}
       style={{
-        ...S.storageRecord,
-        width: SPINE_W,
-        height: SLEEVE_SIZE,
-        background: spineBg,
-        borderRadius: 2,
-        overflow: "hidden",
-        border: "none",
-        borderRight: "1px solid rgba(0,0,0,0.48)",
+        ...S.storageRecord, width: SPINE_W, height: SLEEVE_SIZE,
+        background: spineBg, borderRadius: 2, overflow: "hidden",
+        border: "none", borderRight: "1px solid rgba(0,0,0,0.48)",
         transform: lifted ? `translateY(-${HOVER_LIFT}px)` : "translateY(0)",
         transition: "transform 0.20s cubic-bezier(0.22,1,0.36,1), filter 0.14s ease, opacity 0.14s ease",
         filter: lifted ? "brightness(1.35) saturate(1.15)" : "brightness(1)",
@@ -1794,80 +1551,96 @@ const StorageRecord = React.memo(function StorageRecord({
           : undefined,
         cursor: isDragging ? "grabbing" : "grab",
       }}
-      onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      title={name}
+      onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}
+      onClick={onClick} onContextMenu={onContextMenu} title={name}
     >
-      {cover && (
-        <img src={cover} alt="" style={{ ...S.cover, objectPosition: "left center", opacity: 0.82 }} />
-      )}
-      <span style={{ position:"absolute", top:0, bottom:0, right:0, width:4,
-        background:"linear-gradient(90deg,transparent,rgba(0,0,0,0.52))",
-        pointerEvents:"none" }} />
-      <span style={{ position:"absolute", top:0, bottom:0, left:0, width:2,
-        background:"rgba(255,255,255,0.16)", pointerEvents:"none" }} />
+      {cover && <img src={cover} alt="" style={{ ...S.cover, objectPosition: "left center", opacity: 0.82 }} />}
+      <span style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 4, background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.52))", pointerEvents: "none" }} />
+      <span style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 2, background: "rgba(255,255,255,0.16)", pointerEvents: "none" }} />
     </button>
   );
 });
 
-// A realistic vinyl disc
+// ── CHANGE 1: RealVinyl now accepts pictureVinyl prop ──────────────────────
 function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a", pictureVinyl = false }: any) {
   const isPicture = Boolean(pictureVinyl && cover);
   return (
-    <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
-      background: isPicture ? "#000" : vinylColor,
+    <div style={{
+      position: "absolute", inset: 0, borderRadius: "50%",
+      background: vinylColor,
       boxShadow: "0 20px 52px rgba(0,0,0,0.72), 0 4px 12px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07)",
-      overflow: "hidden" }}>
+      overflow: "hidden",
+    }}>
+      {/* Full-cover image when picture vinyl is active */}
       {isPicture && (
         <img src={cover} alt="" style={{
           position: "absolute", inset: 0, width: "100%", height: "100%",
-          borderRadius: "50%", objectFit: "cover", display: "block",
+          borderRadius: "50%", objectFit: "cover", display: "block", zIndex: 1,
         }} />
       )}
-      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.11) 0 0.5px, rgba(0,0,0,0.22) 0.5px 1px, transparent 1px 2.5px)",
-        opacity: isPicture ? 0.12 : 0.9, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        opacity: isPicture ? 0.12 : 0.9, pointerEvents: "none", zIndex: 2,
+      }} />
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, transparent 0 6px, rgba(255,255,255,0.04) 6px 7px, transparent 7px 14px)",
-        opacity: isPicture ? 0.08 : 0.6, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        opacity: isPicture ? 0.08 : 0.6, pointerEvents: "none", zIndex: 2,
+      }} />
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 200deg, rgba(255,255,255,0.32) 0deg, rgba(200,160,255,0.12) 30deg, transparent 60deg, rgba(255,255,255,0.06) 130deg, transparent 190deg, rgba(255,255,255,0.28) 250deg, rgba(160,200,255,0.10) 280deg, transparent 320deg)",
-        mixBlendMode: isPicture ? "overlay" : "screen", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        mixBlendMode: isPicture ? "overlay" : "screen", pointerEvents: "none", zIndex: 3,
+      }} />
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 40deg, transparent 0deg, rgba(255,220,180,0.10) 20deg, transparent 70deg, rgba(180,255,220,0.08) 200deg, transparent 260deg)",
-        mixBlendMode: "screen", pointerEvents: "none" }} />
-      {!isPicture && (
-        <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
-          background: "radial-gradient(circle, transparent 44%, rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.82) 100%)",
-          pointerEvents: "none" }} />
-      )}
-      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        mixBlendMode: "screen", pointerEvents: "none", zIndex: 3,
+      }} />
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
+        background: "radial-gradient(circle, transparent 44%, rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.82) 100%)",
+        pointerEvents: "none", zIndex: 4,
+      }} />
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
         background: "radial-gradient(ellipse 60% 30% at 42% 22%, rgba(255,255,255,0.13) 0%, transparent 100%)",
-        pointerEvents: "none" }} />
+        pointerEvents: "none", zIndex: 5,
+      }} />
+      {/* Label circle only when NOT picture vinyl */}
       {!isPicture && (
-        <div style={{ position: "absolute", top: "50%", left: "50%",
+        <div style={{
+          position: "absolute", top: "50%", left: "50%",
           width: size * 0.38, height: size * 0.38, borderRadius: "50%",
           transform: "translate(-50%,-50%)", overflow: "hidden",
           background: cover ? "#000" : `radial-gradient(circle at 36% 28%, ${labelColor}, #b8b0a0 55%, #8a8070 100%)`,
-          boxShadow: "0 0 0 4px rgba(0,0,0,0.55), 0 0 0 5px rgba(255,255,255,0.06), inset 0 0 12px rgba(0,0,0,0.35)" }}>
+          boxShadow: "0 0 0 4px rgba(0,0,0,0.55), 0 0 0 5px rgba(255,255,255,0.06), inset 0 0 12px rgba(0,0,0,0.35)",
+          zIndex: 6,
+        }}>
           {cover && <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
         </div>
       )}
-      <div style={{ position: "absolute", top: "50%", left: "50%",
+      {/* Spindle hole always visible */}
+      <div style={{
+        position: "absolute", top: "50%", left: "50%",
         width: size * 0.034, height: size * 0.034, borderRadius: "50%",
         transform: "translate(-50%,-50%)",
         background: "radial-gradient(circle at 38% 30%, #2a2a2a, #000)",
-        boxShadow: "inset 0 0 4px rgba(255,255,255,0.28), 0 0 0 1.5px rgba(255,255,255,0.08)" }} />
+        boxShadow: "inset 0 0 4px rgba(255,255,255,0.28), 0 0 0 1.5px rgba(255,255,255,0.08)",
+        zIndex: 7,
+      }} />
     </div>
   );
 }
 
 function PanelCtxMenu({ dark, text, border, panelBg, mono, onSet, onClear, readImageFile }: any) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const btn: any = { padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent",
-    color: text, cursor: "pointer", textAlign: "left", fontFamily: mono, fontSize: 11, whiteSpace: "nowrap", display: "block" };
+  const btn: any = {
+    padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent",
+    color: text, cursor: "pointer", textAlign: "left", fontFamily: mono,
+    fontSize: 11, whiteSpace: "nowrap", display: "block",
+  };
   return (
     <>
       <div style={{ position: "absolute", inset: 0, zIndex: 7 }}
@@ -1875,10 +1648,12 @@ function PanelCtxMenu({ dark, text, border, panelBg, mono, onSet, onClear, readI
       {menu && (
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setMenu(null)} />
-          <div style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 101,
+          <div style={{
+            position: "fixed", left: menu.x, top: menu.y, zIndex: 101,
             background: panelBg, border, borderRadius: 10, padding: 6,
             display: "flex", flexDirection: "column", gap: 2,
-            boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)" }}>
+            boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)",
+          }}>
             <label style={{ ...btn, cursor: "pointer" }} onClick={() => setMenu(null)}>
               change art
               <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
@@ -1922,14 +1697,16 @@ function Crease({ vertical = true }: { vertical?: boolean }) {
   );
 }
 
+// ── CHANGE 2: SleevePresentation accepts pictureVinyl prop ────────────────
 function SleevePresentation({
   dark, text, title, cover, sideCovers, repeatSideCovers,
   totalVinyls, isGatefold, gatefoldOpen, setGatefoldOpen,
   gatefoldPanelArts, onSetGatefoldPanelArt, onClearGatefoldPanelArt,
   gatefoldCover, gatefoldLeft, gatefoldRight,
   onSetGatefoldBoth, onSetGatefoldSide, onClearGatefoldBoth, onClearGatefoldSide,
-  readImageFile, vinylColor, pictureVinyl,
+  readImageFile, vinylColor,
   onBack, onEnterPlayer, activeVinyl,
+  pictureVinyl, // ← NEW prop
 }: any) {
   const [pulling, setPulling] = useState<null | number>(null);
   const [fading, setFading] = useState(false);
@@ -1955,19 +1732,27 @@ function SleevePresentation({
   const mono = "Courier New, monospace";
 
   const headerBar = (
-    <div style={{ position: "absolute", top: 26, left: 0, right: 0, display: "flex",
-      justifyContent: "center", gap: 12, alignItems: "center", zIndex: 20 }}>
-      <button onClick={onBack} style={{ padding: "9px 14px", borderRadius: 12, border,
+    <div style={{
+      position: "absolute", top: 26, left: 0, right: 0,
+      display: "flex", justifyContent: "center", gap: 12, alignItems: "center", zIndex: 20,
+    }}>
+      <button onClick={onBack} style={{
+        padding: "9px 14px", borderRadius: 12, border,
         background: panelBg, color: text, cursor: "pointer", fontFamily: mono, fontSize: 12,
-        backdropFilter: "blur(20px)" }}>back</button>
+        backdropFilter: "blur(20px)",
+      }}>back</button>
       <div style={{ color: text, fontFamily: mono, letterSpacing: 2, fontSize: 15, opacity: 0.85 }}>{title}</div>
     </div>
   );
+
   const fadeOverlay = (
-    <div style={{ position: "fixed", inset: 0, background: pageBg, opacity: fading ? 1 : 0,
-      transition: "opacity 0.45s ease", pointerEvents: "none", zIndex: 60 }} />
+    <div style={{
+      position: "fixed", inset: 0, background: pageBg, opacity: fading ? 1 : 0,
+      transition: "opacity 0.45s ease", pointerEvents: "none", zIndex: 60,
+    }} />
   );
 
+  // ── CHANGE 2b: pass pictureVinyl to RealVinyl inside CardPanel ────────
   const CardPanel = ({ panelIdx, discSide, vinylNum, sharedArtSrc, totalHorizPanels, panelHorizIdx }: any) => {
     const art = panelArt[panelIdx] || null;
     const hasArt = Boolean(art || sharedArtSrc);
@@ -1984,102 +1769,156 @@ function SleevePresentation({
       : { bottom: 8, left: "50%", transform: "translateX(-50%)" };
     return (
       <div onClick={() => pullVinyl(vinylNum)}
-        style={{ position: "relative", width: SIZE, height: SIZE, cursor: isPulling ? "default" : "pointer",
-        background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
-        boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
-        overflow: "visible" }}>
-        <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE * 0.9, height: SIZE * 0.9,
-            transform: `translate(calc(-50% + ${dX}px), calc(-50% + ${dY}px))`,
-            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)",
-            pointerEvents: "none",
-            zIndex: 2 }}>
-          <div style={{ position: "absolute", inset: "3%", borderRadius: "50%",
-            background: "#f0ede6", boxShadow: "0 8px 22px rgba(0,0,0,0.22)" }} />
+        style={{
+          position: "relative", width: SIZE, height: SIZE,
+          cursor: isPulling ? "default" : "pointer",
+          background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
+          boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
+          overflow: "visible",
+        }}>
+        <div style={{
+          position: "absolute", top: "50%", left: "50%",
+          width: SIZE * 0.9, height: SIZE * 0.9,
+          transform: `translate(calc(-50% + ${dX}px), calc(-50% + ${dY}px))`,
+          transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)",
+          pointerEvents: "none", zIndex: 2,
+        }}>
+          <div style={{
+            position: "absolute", inset: "3%", borderRadius: "50%",
+            background: "#f0ede6", boxShadow: "0 8px 22px rgba(0,0,0,0.22)",
+          }} />
+          {/* pictureVinyl forwarded here */}
           <RealVinyl size={SIZE * 0.9} cover={vinylCovers[vinylNum - 1]} vinylColor={vc} pictureVinyl={pictureVinyl} />
         </div>
         <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
           {sharedArtSrc && totalHorizPanels > 0 ? (
-            <img src={sharedArtSrc} alt="" style={{ position: "absolute", top: 0, height: "100%",
-              width: totalHorizPanels * SIZE, objectFit: "cover", left: -(panelHorizIdx ?? 0) * SIZE }} />
+            <img src={sharedArtSrc} alt="" style={{
+              position: "absolute", top: 0, height: "100%",
+              width: totalHorizPanels * SIZE, objectFit: "cover",
+              left: -(panelHorizIdx ?? 0) * SIZE,
+            }} />
           ) : art ? (
             <img src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
           ) : null}
         </div>
         {["left", "right"].map(dir => (
-          <div key={dir} style={{ position: "absolute", top: 0, bottom: 0, [dir]: 0, width: 28,
+          <div key={dir} style={{
+            position: "absolute", top: 0, bottom: 0, [dir]: 0, width: 28,
             pointerEvents: "none", zIndex: 4,
-            background: `linear-gradient(${dir === "left" ? "270deg" : "90deg"}, transparent, rgba(0,0,0,0.28))` }} />
+            background: `linear-gradient(${dir === "left" ? "270deg" : "90deg"}, transparent, rgba(0,0,0,0.28))`,
+          }} />
         ))}
         {!hasArt && (
-          <label onClick={e => e.stopPropagation()}
-            style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
+          <label onClick={e => e.stopPropagation()} style={{
+            position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
             zIndex: 8, padding: "6px 12px", borderRadius: 10, border,
             background: "rgba(255,255,255,0.85)", color: "#333",
             cursor: "pointer", fontFamily: mono, fontSize: 10, textAlign: "center",
-            backdropFilter: "blur(12px)", boxShadow: "0 2px 12px rgba(0,0,0,0.12)" }}>
+            backdropFilter: "blur(12px)", boxShadow: "0 2px 12px rgba(0,0,0,0.12)",
+          }}>
             + art
             <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
               onChange={e => readImageFile(e, (d: string) => onSetGatefoldPanelArt(panelIdx, d))} />
           </label>
         )}
-        {hasArt && <PanelCtxMenu dark={dark} text={text} border={border} panelBg={panelBg} mono={mono}
-          onSet={(d: string) => onSetGatefoldPanelArt(panelIdx, d)}
-          onClear={() => onClearGatefoldPanelArt(panelIdx)} readImageFile={readImageFile} />}
-        <div style={{ position: "absolute", ...arrowPos, zIndex: 5, fontSize: 22,
+        {hasArt && (
+          <PanelCtxMenu dark={dark} text={text} border={border} panelBg={panelBg} mono={mono}
+            onSet={(d: string) => onSetGatefoldPanelArt(panelIdx, d)}
+            onClear={() => onClearGatefoldPanelArt(panelIdx)} readImageFile={readImageFile} />
+        )}
+        <div style={{
+          position: "absolute", ...arrowPos, zIndex: 5, fontSize: 22,
           color: hasArt ? "#fff" : "#888",
           opacity: isPulling ? 0 : 0.6, animation: "sleeveArrow 1.4s ease-in-out infinite",
-          textShadow: hasArt ? "0 1px 4px rgba(0,0,0,0.8)" : "none" }}>{arrowChar}</div>
+          textShadow: hasArt ? "0 1px 4px rgba(0,0,0,0.8)" : "none",
+        }}>{arrowChar}</div>
       </div>
     );
   };
 
+  // ── CHANGE 2c: pass pictureVinyl to RealVinyl inside closedCover ──────
   const closedCover = (
     <div onClick={() => setGatefoldOpen(true)}
       style={{ position: "relative", width: SIZE, height: SIZE, cursor: "pointer" }} title="tap to open">
-      <div style={{ position: "absolute", top: "50%", right: -SIZE * 0.12, width: SIZE * 0.9, height: SIZE * 0.9,
-        transform: "translateY(-50%)", zIndex: 0 }}>
+      <div style={{
+        position: "absolute", top: "50%", right: -SIZE * 0.12,
+        width: SIZE * 0.9, height: SIZE * 0.9,
+        transform: "translateY(-50%)", zIndex: 0,
+      }}>
+        {/* pictureVinyl forwarded here */}
         <RealVinyl size={SIZE * 0.9} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
       </div>
-      <div style={{ position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
         background: frontCover ? "#111" : (dark ? "#15151a" : "#e7e9ee"), border,
-        boxShadow: "0 34px 80px rgba(0,0,0,0.55)", zIndex: 1 }}>
-        {frontCover ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center",
-            justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.5 }}>{title || "AURAE"}</div>}
+        boxShadow: "0 34px 80px rgba(0,0,0,0.55)", zIndex: 1,
+      }}>
+        {frontCover
+          ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : <div style={{
+            width: "100%", height: "100%", display: "flex", alignItems: "center",
+            justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.5,
+          }}>{title || "AURAE"}</div>}
       </div>
-      <div style={{ position: "absolute", bottom: -34, left: 0, right: 0, textAlign: "center", fontFamily: mono, fontSize: 12, opacity: 0.7 }}>tap to open</div>
+      <div style={{
+        position: "absolute", bottom: -34, left: 0, right: 0,
+        textAlign: "center", fontFamily: mono, fontSize: 12, opacity: 0.7,
+      }}>tap to open</div>
     </div>
   );
 
+  // ── CHANGE 2d: pass pictureVinyl to RealVinyl in single-vinyl view ────
   if (!isGatefold) {
     const pull = pulling === 1;
     return (
-      <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
+      <div style={{
+        position: "fixed", inset: 0, background: pageBg,
+        display: "flex", alignItems: "center", justifyContent: "center", color: text,
+      }}>
         {headerBar}
         <div onClick={() => pullVinyl(1)}
-          style={{ position: "relative", width: SIZE * 1.7, height: SIZE * 1.18, cursor: pulling ? "default" : "pointer",
-            overflow: "visible" }}
-          title="tap to play">
-          <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE * 0.96, height: SIZE * 0.96,
+          style={{
+            position: "relative", width: SIZE * 1.7, height: SIZE * 1.18,
+            cursor: pulling ? "default" : "pointer", overflow: "visible",
+          }} title="tap to play">
+          <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            width: SIZE * 0.96, height: SIZE * 0.96,
             transform: `translate(calc(-50% + ${pull ? SIZE * 1.1 : SIZE * 0.08}px), -50%)`,
-            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", zIndex: 2 }}>
-            <div style={{ position: "absolute", inset: "3%", borderRadius: "50%",
-              background: dark ? "#e9e7df" : "#f6f4ee", boxShadow: "0 8px 22px rgba(0,0,0,0.3)" }} />
+            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", zIndex: 2,
+          }}>
+            <div style={{
+              position: "absolute", inset: "3%", borderRadius: "50%",
+              background: dark ? "#e9e7df" : "#f6f4ee",
+              boxShadow: "0 8px 22px rgba(0,0,0,0.3)",
+            }} />
+            {/* pictureVinyl forwarded here */}
             <RealVinyl size={SIZE * 0.96} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
           </div>
-          <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE, height: SIZE,
+          <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            width: SIZE, height: SIZE,
             transform: "translate(-50%, -50%)", borderRadius: 4, overflow: "hidden", zIndex: 3,
             background: frontCover ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
-            border, boxShadow: "0 34px 80px rgba(0,0,0,0.55)" }}>
-            {frontCover ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center",
-                justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.35 }}>{title || "AURAE"}</div>}
-            <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 6,
-              background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))" }} />
+            border, boxShadow: "0 34px 80px rgba(0,0,0,0.55)",
+          }}>
+            {frontCover
+              ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <div style={{
+                width: "100%", height: "100%", display: "flex", alignItems: "center",
+                justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.35,
+              }}>{title || "AURAE"}</div>}
+            <div style={{
+              position: "absolute", top: 0, bottom: 0, right: 0, width: 6,
+              background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))",
+            }} />
           </div>
-          <div style={{ position: "absolute", top: "50%", right: SIZE * 0.18, transform: "translateY(-50%)",
-            zIndex: 3, fontSize: 28, color: text, opacity: pulling ? 0 : 0.7, transition: "opacity 0.3s",
-            animation: "sleeveArrow 1.4s ease-in-out infinite" }}>›</div>
+          <div style={{
+            position: "absolute", top: "50%", right: SIZE * 0.18,
+            transform: "translateY(-50%)", zIndex: 3, fontSize: 28, color: text,
+            opacity: pulling ? 0 : 0.7, transition: "opacity 0.3s",
+            animation: "sleeveArrow 1.4s ease-in-out infinite",
+          }}>›</div>
         </div>
         {fadeOverlay}
       </div>
@@ -2089,11 +1928,17 @@ function SleevePresentation({
   if (totalVinyls === 2) {
     const sharedArt = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
     return (
-      <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
+      <div style={{
+        position: "fixed", inset: 0, background: pageBg,
+        display: "flex", alignItems: "center", justifyContent: "center", color: text,
+      }}>
         {headerBar}
         {!gatefoldOpen ? closedCover : (
-          <div style={{ display: "flex", alignItems: "stretch", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)",
-            boxShadow: "0 40px 90px rgba(0,0,0,0.6)" }}>
+          <div style={{
+            display: "flex", alignItems: "stretch",
+            animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)",
+            boxShadow: "0 40px 90px rgba(0,0,0,0.6)",
+          }}>
             {CardPanel({ panelIdx: 0, discSide: "left", vinylNum: 1, sharedArtSrc: sharedArt, totalHorizPanels: 2, panelHorizIdx: 0 })}
             <Crease />
             {CardPanel({ panelIdx: 1, discSide: "right", vinylNum: 2, sharedArtSrc: sharedArt, totalHorizPanels: 2, panelHorizIdx: 1 })}
@@ -2107,11 +1952,13 @@ function SleevePresentation({
   if (totalVinyls === 3) {
     const sharedHoriz = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
     return (
-      <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
+      <div style={{
+        position: "fixed", inset: 0, background: pageBg,
+        display: "flex", alignItems: "center", justifyContent: "center", color: text,
+      }}>
         {headerBar}
         {!gatefoldOpen ? closedCover : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
-            animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
             <div style={{ display: "flex", alignItems: "stretch" }}>
               <div style={{ width: SIZE }} /><Crease />
               {CardPanel({ panelIdx: 2, discSide: "top", vinylNum: 3 })}
@@ -2132,11 +1979,13 @@ function SleevePresentation({
 
   const sharedLR = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
   return (
-    <div style={{ position: "fixed", inset: 0, background: pageBg, display: "flex", alignItems: "center", justifyContent: "center", color: text }}>
+    <div style={{
+      position: "fixed", inset: 0, background: pageBg,
+      display: "flex", alignItems: "center", justifyContent: "center", color: text,
+    }}>
       {headerBar}
       {!gatefoldOpen ? closedCover : (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
-          animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
           <div style={{ display: "flex", alignItems: "stretch" }}>
             <div style={{ width: SIZE + 20 }} />
             {CardPanel({ panelIdx: 2, discSide: "top", vinylNum: 3 })}
@@ -2173,144 +2022,129 @@ function GatefoldPanel({
   const pullOffset = isLeft ? -SIZE * 1.12 : SIZE * 1.12;
   const menuFont: any = { fontFamily: "Courier New, monospace", fontSize: 11 };
   const panelBg = dark ? "rgba(18,18,22,0.96)" : "rgba(255,255,255,0.96)";
-
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
-
   const noArtHere = !art;
   const hasArt = Boolean(art);
 
   return (
-    <div
-      style={{ position: "relative", width: SIZE, height: SIZE,
-        background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
-        boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
-        borderTop: border, borderBottom: border,
-        borderLeft: isLeft ? border : "none",
-        borderRight: !isLeft ? border : "none",
-        borderTopLeftRadius: isLeft ? 4 : 0, borderBottomLeftRadius: isLeft ? 4 : 0,
-        borderTopRightRadius: !isLeft ? 4 : 0, borderBottomRightRadius: !isLeft ? 4 : 0,
-        overflow: "visible",
-      }}
-      onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
-    >
-      <div onClick={onPull} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-        cursor: "pointer", zIndex: 5 }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", width: SIZE * 0.9, height: SIZE * 0.9,
+    <div style={{
+      position: "relative", width: SIZE, height: SIZE,
+      background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
+      boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
+      borderTop: border, borderBottom: border,
+      borderLeft: isLeft ? border : "none",
+      borderRight: !isLeft ? border : "none",
+      borderTopLeftRadius: isLeft ? 4 : 0, borderBottomLeftRadius: isLeft ? 4 : 0,
+      borderTopRightRadius: !isLeft ? 4 : 0, borderBottomRightRadius: !isLeft ? 4 : 0,
+      overflow: "visible",
+    }}
+      onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}>
+      <div onClick={onPull} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, cursor: "pointer", zIndex: 5 }} />
+      <div style={{
+        position: "absolute", top: "50%", left: "50%",
+        width: SIZE * 0.9, height: SIZE * 0.9,
         transform: `translate(calc(-50% + ${pulling ? pullOffset : restOffset}px), -50%)`,
-        transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none", zIndex: 2 }}>
+        transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none", zIndex: 2,
+      }}>
         <div style={{ position: "absolute", inset: "3%", borderRadius: "50%", background: dark ? "#e9e7df" : "#f6f4ee", boxShadow: "0 8px 22px rgba(0,0,0,0.3)" }} />
-        <RealVinyl size={SIZE * 0.9} cover={vinylCover} vinylColor={vinylColor} pictureVinyl={pictureVinyl} />
+        <RealVinyl size={SIZE * 0.9} cover={vinylCover} vinylColor={vinylColor} />
       </div>
-
-      <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3,
+      <div style={{
+        position: "absolute", inset: 0, overflow: "hidden", zIndex: 3,
         borderTopLeftRadius: isLeft ? 4 : 0, borderBottomLeftRadius: isLeft ? 4 : 0,
         borderTopRightRadius: !isLeft ? 4 : 0, borderBottomRightRadius: !isLeft ? 4 : 0,
-        pointerEvents: "none" }}>
+        pointerEvents: "none",
+      }}>
         {hasArt && <img src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: isLeft ? "left" : "right" }} />}
       </div>
-
-      <div style={{ position: "absolute", top: 0, bottom: 0, [isLeft ? "right" : "left"]: 0, width: 28,
+      <div style={{
+        position: "absolute", top: 0, bottom: 0, [isLeft ? "right" : "left"]: 0, width: 28,
         background: `linear-gradient(${isLeft ? "90deg" : "270deg"}, transparent, rgba(0,0,0,0.38))`,
-        pointerEvents: "none", zIndex: 4 } as any} />
-
-      <div style={{ position: "absolute", top: "50%", [isLeft ? "left" : "right"]: 10,
+        pointerEvents: "none", zIndex: 4,
+      } as any} />
+      <div style={{
+        position: "absolute", top: "50%", [isLeft ? "left" : "right"]: 10,
         transform: "translateY(-50%)", zIndex: 5, fontSize: 24, color: text,
         opacity: pulling ? 0 : (hasArt ? 0.55 : 0.7),
         animation: "sleeveArrow 1.4s ease-in-out infinite",
-        textShadow: "0 1px 4px rgba(0,0,0,0.8)" } as any}>{isLeft ? "‹" : "›"}</div>
-
+        textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+      } as any}>{isLeft ? "‹" : "›"}</div>
       {!hasBothArt && !hasPerSideArt && isLeft && (
-        <div style={{ position: "absolute", top: "50%", left: "50%",
+        <div style={{
+          position: "absolute", top: "50%", left: "50%",
           transform: "translate(-10%, -50%)", zIndex: 8,
-          display: "flex", flexDirection: "column", gap: 8, width: 160 }}>
+          display: "flex", flexDirection: "column", gap: 8, width: 160,
+        }}>
           <div style={{ ...menuFont, color: text, opacity: 0.5, marginBottom: 2, textAlign: "center" }}>add gatefold art</div>
-          <label style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text,
-            cursor: "pointer", textAlign: "center", ...menuFont }}>
+          <label style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text, cursor: "pointer", textAlign: "center", ...menuFont }}>
             one image (both)
             <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetBoth)} />
           </label>
-          <label style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text,
-            cursor: "pointer", textAlign: "center", ...menuFont }}>
+          <label style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text, cursor: "pointer", textAlign: "center", ...menuFont }}>
             image per side
             <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetSide)} />
           </label>
         </div>
       )}
-
       {hasPerSideArt && noArtHere && (
-        <label style={{ position: "absolute", top: "50%", left: "50%",
+        <label style={{
+          position: "absolute", top: "50%", left: "50%",
           transform: "translate(-50%,-50%)", zIndex: 8,
           padding: "9px 14px", borderRadius: 10, border, background: panelBg,
-          color: text, cursor: "pointer", ...menuFont }}>
+          color: text, cursor: "pointer", ...menuFont,
+        }}>
           add image
           <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetSide)} />
         </label>
       )}
-
       {ctxMenu && (
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setCtxMenu(null)} />
-          <div style={{ position: "fixed", left: ctxMenu.x, top: ctxMenu.y, zIndex: 101,
+          <div style={{
+            position: "fixed", left: ctxMenu.x, top: ctxMenu.y, zIndex: 101,
             background: panelBg, border, borderRadius: 10, padding: 6,
             display: "flex", flexDirection: "column", gap: 4,
-            boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)" }}>
+            boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)",
+          }}>
             {hasBothArt && (
               <>
-                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
-                  background: "transparent", color: text, ...menuFont,
-                  display: "block", whiteSpace: "nowrap" }}
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
                   onClick={() => setCtxMenu(null)}>
                   change both sides
                   <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetBoth); }} />
                 </label>
-                <button style={{ padding: "8px 12px", borderRadius: 8, border: "none",
-                  background: "transparent", color: dark ? "#ff8a8a" : "#b13030",
-                  cursor: "pointer", textAlign: "left", ...menuFont }}
-                  onClick={() => { setCtxMenu(null); onClearBoth(); }}>
-                  remove
-                </button>
+                <button style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: dark ? "#ff8a8a" : "#b13030", cursor: "pointer", textAlign: "left", ...menuFont }}
+                  onClick={() => { setCtxMenu(null); onClearBoth(); }}>remove</button>
               </>
             )}
             {hasPerSideArt && (
               <>
-                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
-                  background: "transparent", color: text, ...menuFont,
-                  display: "block", whiteSpace: "nowrap" }}
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
                   onClick={() => setCtxMenu(null)}>
                   change this side
                   <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetSide); }} />
                 </label>
                 {hasArt && (
-                  <button style={{ padding: "8px 12px", borderRadius: 8, border: "none",
-                    background: "transparent", color: dark ? "#ff8a8a" : "#b13030",
-                    cursor: "pointer", textAlign: "left", ...menuFont }}
-                    onClick={() => { setCtxMenu(null); onClearSide(); }}>
-                    remove this side
-                  </button>
+                  <button style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: dark ? "#ff8a8a" : "#b13030", cursor: "pointer", textAlign: "left", ...menuFont }}
+                    onClick={() => { setCtxMenu(null); onClearSide(); }}>remove this side</button>
                 )}
               </>
             )}
             {!hasBothArt && !hasPerSideArt && (
               <>
-                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
-                  background: "transparent", color: text, ...menuFont,
-                  display: "block", whiteSpace: "nowrap" }}
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
                   onClick={() => setCtxMenu(null)}>
                   add image (both)
                   <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetBoth); }} />
                 </label>
-                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer",
-                  background: "transparent", color: text, ...menuFont,
-                  display: "block", whiteSpace: "nowrap" }}
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
                   onClick={() => setCtxMenu(null)}>
                   add image (this side)
                   <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetSide); }} />
                 </label>
               </>
             )}
-            <button style={{ padding: "8px 12px", borderRadius: 8, border: "none",
-              background: "transparent", color: text, cursor: "pointer",
-              textAlign: "left", opacity: 0.5, ...menuFont }}
+            <button style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: text, cursor: "pointer", textAlign: "left", opacity: 0.5, ...menuFont }}
               onClick={() => setCtxMenu(null)}>close</button>
           </div>
         </>
@@ -2335,7 +2169,6 @@ export function Aurae() {
   const [showStorageCreate, setShowStorageCreate] = useState(false);
   const [newStorageName, setNewStorageName] = useState("New Storage");
   const [newStorageWood, setNewStorageWood] = useState("walnut");
-  const [storageCtxMenu, setStorageCtxMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
   const [dragOverTrack, setDragOverTrack] = useState<number | null>(null);
 
@@ -2498,7 +2331,6 @@ export function Aurae() {
           };
         }
       }
-
       try {
         const legacy = JSON.parse(localStorage.getItem("aurae_projects") || "{}");
         for (const [name, p] of Object.entries<any>(legacy)) {
@@ -2519,7 +2351,6 @@ export function Aurae() {
         }
         localStorage.removeItem("aurae_projects");
       } catch {}
-
       setProjectsMeta(meta);
       setProjectsLoaded(true);
     }
@@ -2534,17 +2365,14 @@ export function Aurae() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-
     const update = () => {
       const knownDuration = trackDuration(tracks[index]);
       const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : knownDuration;
       setCurrentTime(audio.currentTime || 0);
       setDuration(audioDuration || 0);
     };
-
     const end = () => {
       const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
-
       if (index === lastOfSide && vinylSide < totalSides) {
         setPlaying(false);
         if (vinylSide % 2 === 0) {
@@ -2559,7 +2387,6 @@ export function Aurae() {
         setPlaying(false);
       }
     };
-
     audio.addEventListener("timeupdate", update);
     audio.addEventListener("loadedmetadata", update);
     audio.addEventListener("durationchange", update);
@@ -2579,7 +2406,6 @@ export function Aurae() {
     const safe = Number.isFinite(s) ? s : 0;
     return `${Math.floor(safe / 60)}:${Math.floor(safe % 60).toString().padStart(2, "0")}`;
   };
-
   const totalDur = (list: any[]) => fmt(list.reduce((sum, t) => sum + (t.duration || 0), 0));
 
   function finishAuth(cleanEmail: string) {
@@ -2603,22 +2429,18 @@ export function Aurae() {
     if (authLoading) return;
     setAuthLoading(true);
     setAuthError("");
-
     const cleanEmail = normalizeEmail(email);
     if (!isEmailSyntaxValid(cleanEmail)) {
       setAuthError("Enter a valid email address.");
       setAuthLoading(false);
       return;
     }
-
-    // The email must be real and able to receive mail — not just valid syntax.
     const deliverable = await isEmailDomainReal(cleanEmail);
     if (!deliverable) {
       setAuthError("This email isn't real or can't receive mail. Use a working address.");
       setAuthLoading(false);
       return;
     }
-
     const store = loadUsers();
     const record = store[cleanEmail];
     const ok = await verifyPassword(password, record);
@@ -2627,7 +2449,6 @@ export function Aurae() {
       setAuthLoading(false);
       return;
     }
-
     let nextUsers = store;
     if (isLegacyRecord(record)) {
       nextUsers = { ...store, [cleanEmail]: await hashPassword(password) };
@@ -2642,7 +2463,6 @@ export function Aurae() {
     if (authLoading) return;
     setAuthLoading(true);
     setAuthError("");
-
     const verified = await verifyEmailForSignup(email);
     if (!verified.ok) {
       setAuthError(verified.error);
@@ -2654,14 +2474,12 @@ export function Aurae() {
       setAuthLoading(false);
       return;
     }
-
     const store = loadUsers();
     if (store[verified.email]) {
       setAuthError("This account already exists. Log in instead.");
       setAuthLoading(false);
       return;
     }
-
     const next = { ...store, [verified.email]: await hashPassword(password) };
     setUsers(next);
     saveUsers(next);
@@ -2677,13 +2495,7 @@ export function Aurae() {
       ...prev,
       [currentUser]: {
         activeId: id,
-        items: [{
-          id,
-          name: cleanName,
-          wood: storageDraftWood,
-          projects: Object.keys(projectsMeta),
-          createdAt: Date.now(),
-        }],
+        items: [{ id, name: cleanName, wood: storageDraftWood, projects: Object.keys(projectsMeta), createdAt: Date.now() }],
       },
     }));
   }
@@ -2692,10 +2504,7 @@ export function Aurae() {
     if (!currentUser) return;
     setStorageConfigs((prev: any) => ({
       ...prev,
-      [currentUser]: {
-        ...normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta)),
-        activeId: storageId,
-      },
+      [currentUser]: { ...normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta)), activeId: storageId },
     }));
     setHoveredProject(null);
   }
@@ -2708,9 +2517,7 @@ export function Aurae() {
         ...prev,
         [currentUser]: {
           ...shelf,
-          items: shelf.items.map((item: any) =>
-            item.id === shelf.activeId ? { ...item, [key]: value } : item
-          ),
+          items: shelf.items.map((item: any) => item.id === shelf.activeId ? { ...item, [key]: value } : item),
         },
       };
     });
@@ -2726,10 +2533,7 @@ export function Aurae() {
         ...prev,
         [currentUser]: {
           activeId: id,
-          items: [
-            ...shelf.items,
-            { id, name: cleanName, wood: newStorageWood, projects: [], createdAt: Date.now() },
-          ],
+          items: [...shelf.items, { id, name: cleanName, wood: newStorageWood, projects: [], createdAt: Date.now() }],
         },
       };
     });
@@ -2738,57 +2542,19 @@ export function Aurae() {
     setShowStorageCreate(false);
   }
 
-  function deleteStorage(storageId: string) {
-    if (!currentUser) return;
-    setStorageConfigs((prev: any) => {
-      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
-      const remaining = shelf.items.filter((item: any) => item.id !== storageId);
-      if (remaining.length === 0) return prev; // Don't delete last storage
-      const deletedItem = shelf.items.find((item: any) => item.id === storageId);
-      const orphanedProjects = deletedItem?.projects || [];
-      // Move orphaned projects to first remaining storage
-      if (orphanedProjects.length && remaining[0]) {
-        remaining[0] = { ...remaining[0], projects: [...remaining[0].projects, ...orphanedProjects] };
-      }
-      return {
-        ...prev,
-        [currentUser]: {
-          activeId: shelf.activeId === storageId ? remaining[0]?.id : shelf.activeId,
-          items: remaining,
-        },
-      };
-    });
-    setStorageCtxMenu(null);
-  }
-
   async function createProject(name = projectName) {
     const clean = name.trim();
     if (!clean || projectsMeta[clean]) return;
     const p = {
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      tracks: [],
-      cover: null,
-      sideCovers: [],
-      side1Cover: null,
-      side2Cover: null,
-      repeatSideCovers: false,
-      homeCover: null,
-      gatefoldCover: null,
-      gatefoldLeft: null,
-      gatefoldRight: null,
-      gatefoldPerSide: false,
-      gatefoldPanelArts: [null, null, null, null],
-      vinylColor: "#111111",
-      vinylColors: DEFAULT_VINYL_COLORS,
-      vinylGradient: "solid",
-      vinylOpacity: 1,
-      splatterColor: "#3a7bd5",
-      splatterOn: false,
-      splatterStyle: "burst",
-      deckStyle: "classic",
-      deckColor: "#1a1a1a",
-      pictureVinyl: false,
+      createdAt: Date.now(), updatedAt: Date.now(),
+      tracks: [], cover: null, sideCovers: [],
+      side1Cover: null, side2Cover: null, repeatSideCovers: false,
+      homeCover: null, gatefoldCover: null, gatefoldLeft: null, gatefoldRight: null,
+      gatefoldPerSide: false, gatefoldPanelArts: [null, null, null, null],
+      vinylColor: "#111111", vinylColors: DEFAULT_VINYL_COLORS,
+      vinylGradient: "solid", vinylOpacity: 1,
+      splatterColor: "#3a7bd5", splatterOn: false, splatterStyle: "burst",
+      deckStyle: "classic", deckColor: "#1a1a1a", pictureVinyl: false,
     };
     setProjectsMeta((prev: any) => ({ ...prev, [clean]: p }));
     if (currentUser) {
@@ -2866,9 +2632,7 @@ export function Aurae() {
     next[slot] = value;
     setVinylColors(next);
     if (slot === 0) setVinylColor(value);
-    if (activeProject) {
-      saveCurrentProject(tracks, albumCover, { vinylColors: next, vinylColor: next[0] });
-    }
+    if (activeProject) saveCurrentProject(tracks, albumCover, { vinylColors: next, vinylColor: next[0] });
   }
 
   function setRepeatCovers(value: boolean) {
@@ -2879,13 +2643,10 @@ export function Aurae() {
   async function openProject(name: string, target: "studio" | "sleeve" = "studio") {
     const p: any = await loadProjectFromDB(name);
     if (!p) return;
-
     const style = normalizeDeckStyle(p.deckStyle || "classic");
     const restoredColors = Array.isArray(p.vinylColors) && p.vinylColors.length
-      ? p.vinylColors
-      : [p.vinylColor || "#111111", ...DEFAULT_VINYL_COLORS.slice(1)];
+      ? p.vinylColors : [p.vinylColor || "#111111", ...DEFAULT_VINYL_COLORS.slice(1)];
     const restoredSideCovers = normalizeSideCovers(p);
-
     setActiveProject(name);
     setAlbumCover(p.cover || null);
     setSideCovers(restoredSideCovers);
@@ -2920,7 +2681,6 @@ export function Aurae() {
     setCurrentTime(0);
     setDuration(0);
     setSidebarMode("songs");
-
     const restored = await Promise.all(
       (p.tracks || []).map(async (track: any) => {
         if (!track.id) return track;
@@ -2934,10 +2694,7 @@ export function Aurae() {
 
   async function applyRenameProject(oldName: string, nextName: string) {
     const clean = nextName.trim();
-    if (!clean || clean === oldName) {
-      setRenameModal(null);
-      return;
-    }
+    if (!clean || clean === oldName) { setRenameModal(null); return; }
     const data: any = await loadProjectFromDB(oldName);
     await saveProjectToDB(clean, data || {});
     await deleteProjectFromDB(oldName);
@@ -2947,10 +2704,7 @@ export function Aurae() {
       delete c[oldName];
       return c;
     });
-    setFolders(prev => prev.map(f => ({
-      ...f,
-      projects: f.projects.map((p: string) => p === oldName ? clean : p),
-    })));
+    setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.map((p: string) => p === oldName ? clean : p) })));
     setProjectOrder(prev => prev.map(p => p === oldName ? clean : p));
     setStorageConfigs((prev: any) => {
       if (!currentUser) return prev;
@@ -2973,11 +2727,7 @@ export function Aurae() {
 
   async function deleteProject(name: string) {
     await deleteProjectFromDB(name);
-    setProjectsMeta((prev: any) => {
-      const c = { ...prev };
-      delete c[name];
-      return c;
-    });
+    setProjectsMeta((prev: any) => { const c = { ...prev }; delete c[name]; return c; });
     setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.filter((p: string) => p !== name) })));
     setProjectOrder(prev => prev.filter(p => p !== name));
     setStorageConfigs((prev: any) => {
@@ -2988,10 +2738,7 @@ export function Aurae() {
         ...prev,
         [currentUser]: {
           ...shelf,
-          items: shelf.items.map((item: any) => ({
-            ...item,
-            projects: item.projects.filter((project: string) => project !== name),
-          })),
+          items: shelf.items.map((item: any) => ({ ...item, projects: item.projects.filter((project: string) => project !== name) })),
         },
       };
     });
@@ -3002,7 +2749,6 @@ export function Aurae() {
   async function addTracks(e: React.ChangeEvent<HTMLInputElement>) {
     const files: File[] = Array.from(e.target.files || []);
     if (!files.length) return;
-
     const loaded = await Promise.all(
       files.map(file => new Promise<any>(resolve => {
         const probeUrl = URL.createObjectURL(file);
@@ -3011,18 +2757,12 @@ export function Aurae() {
           const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
           await saveBlob(id, file);
           URL.revokeObjectURL(probeUrl);
-          resolve({
-            id,
-            name: file.name.replace(/\.[^/.]+$/, ""),
-            url: URL.createObjectURL(file),
-            duration: dur || 0,
-          });
+          resolve({ id, name: file.name.replace(/\.[^/.]+$/, ""), url: URL.createObjectURL(file), duration: dur || 0 });
         };
         probe.onloadedmetadata = () => finish(probe.duration || 0);
         probe.onerror = () => finish(0);
       }))
     );
-
     saveCurrentProject([...tracks, ...loaded]);
     e.target.value = "";
   }
@@ -3058,12 +2798,7 @@ export function Aurae() {
     const nextCovers = [...currentCovers];
     while (nextCovers.length < side) nextCovers.push(null);
     nextCovers[side - 1] = dataUrl;
-    const next = {
-      ...existing,
-      sideCovers: nextCovers,
-      side1Cover: nextCovers[0] || null,
-      side2Cover: nextCovers[1] || null,
-    };
+    const next = { ...existing, sideCovers: nextCovers, side1Cover: nextCovers[0] || null, side2Cover: nextCovers[1] || null };
     await saveProjectToDB(projectNameForCover, next);
     setProjectsMeta((prev: any) => ({ ...prev, [projectNameForCover]: next }));
     if (activeProject === projectNameForCover) setSideCovers(nextCovers);
@@ -3074,11 +2809,7 @@ export function Aurae() {
     setGatefoldLeft(null);
     setGatefoldRight(null);
     setGatefoldPerSide(false);
-    if (activeProject) {
-      saveCurrentProject(tracks, albumCover, {
-        gatefoldCover: dataUrl, gatefoldLeft: null, gatefoldRight: null, gatefoldPerSide: false,
-      });
-    }
+    if (activeProject) saveCurrentProject(tracks, albumCover, { gatefoldCover: dataUrl, gatefoldLeft: null, gatefoldRight: null, gatefoldPerSide: false });
   }
   function setGatefoldArtSide(side: "left" | "right", dataUrl: string) {
     const nextLeft = side === "left" ? dataUrl : gatefoldLeft;
@@ -3087,22 +2818,11 @@ export function Aurae() {
     setGatefoldRight(nextRight);
     setGatefoldCover(null);
     setGatefoldPerSide(true);
-    if (activeProject) {
-      saveCurrentProject(tracks, albumCover, {
-        gatefoldCover: null, gatefoldLeft: nextLeft, gatefoldRight: nextRight, gatefoldPerSide: true,
-      });
-    }
+    if (activeProject) saveCurrentProject(tracks, albumCover, { gatefoldCover: null, gatefoldLeft: nextLeft, gatefoldRight: nextRight, gatefoldPerSide: true });
   }
   function clearGatefoldBoth() {
-    setGatefoldCover(null);
-    setGatefoldLeft(null);
-    setGatefoldRight(null);
-    setGatefoldPerSide(false);
-    if (activeProject) {
-      saveCurrentProject(tracks, albumCover, {
-        gatefoldCover: null, gatefoldLeft: null, gatefoldRight: null, gatefoldPerSide: false,
-      });
-    }
+    setGatefoldCover(null); setGatefoldLeft(null); setGatefoldRight(null); setGatefoldPerSide(false);
+    if (activeProject) saveCurrentProject(tracks, albumCover, { gatefoldCover: null, gatefoldLeft: null, gatefoldRight: null, gatefoldPerSide: false });
   }
   function clearGatefoldSide(side: "left" | "right") {
     const nextLeft = side === "left" ? null : gatefoldLeft;
@@ -3110,12 +2830,7 @@ export function Aurae() {
     setGatefoldLeft(nextLeft);
     setGatefoldRight(nextRight);
     if (!nextLeft && !nextRight) setGatefoldPerSide(false);
-    if (activeProject) {
-      saveCurrentProject(tracks, albumCover, {
-        gatefoldCover: null, gatefoldLeft: nextLeft, gatefoldRight: nextRight,
-        gatefoldPerSide: Boolean(nextLeft || nextRight),
-      });
-    }
+    if (activeProject) saveCurrentProject(tracks, albumCover, { gatefoldCover: null, gatefoldLeft: nextLeft, gatefoldRight: nextRight, gatefoldPerSide: Boolean(nextLeft || nextRight) });
   }
 
   function addHomeCover(e: React.ChangeEvent<HTMLInputElement>, projectNameForCover: string) {
@@ -3129,8 +2844,9 @@ export function Aurae() {
     });
   }
 
-  // Set the MAIN album cover (used on the sleeve & player) for a project from
-  // the home crate's focus panel — NOT the spine/home cover.
+  // ── CHANGE 3: addMainCoverFor sets the main album cover (cover field) ──
+  // Used by the "cover art" button in the focus panel on the home screen.
+  // Updates project.cover so the sleeve and player both show the new image.
   function addMainCoverFor(e: React.ChangeEvent<HTMLInputElement>, projectNameForCover: string) {
     e.stopPropagation();
     readImageFile(e, async result => {
@@ -3169,9 +2885,7 @@ export function Aurae() {
         audioCtxRef.current = ctx;
         analyserRef.current = analyser;
         audioSrcRef.current = src;
-      } catch {
-        // Fail silently — EQ just won't react.
-      }
+      } catch {}
     }
     audioCtxRef.current?.resume?.().catch(() => {});
     if (analyserRef.current) analyserRef.current.smoothingTimeConstant = eqSmoothing;
@@ -3185,18 +2899,15 @@ export function Aurae() {
   function playTrack(trackIndex: number) {
     const track = tracks[trackIndex];
     if (!track?.url) return;
-
     const trackSide = getSideForTrack(sideBoundaries, trackIndex);
     if (trackSide !== vinylSide) setVinylSide(trackSide);
     setActiveVinyl(Math.ceil(trackSide / 2));
-
     setAwaitingFlip(false);
     setAwaitingVinylChange(false);
     setIndex(trackIndex);
     setPlaying(true);
     setCurrentTime(0);
     setDuration(trackDuration(track));
-
     setTimeout(() => {
       const audio = audioRef.current;
       if (!audio) return;
@@ -3212,16 +2923,12 @@ export function Aurae() {
     if (flipping || !awaitingFlip || vinylSide >= totalSides) return;
     const audio = audioRef.current;
     if (audio) audio.pause();
-
     const nextSide = vinylSide + 1;
     const firstOfNextSide = sideBoundaries[nextSide - 1] ?? 0;
-
     setPlaying(false);
     setAwaitingFlip(false);
     setFlipping(true);
-
     setTimeout(() => setVinylSide(nextSide), FLIP_COVER_SWAP);
-
     setTimeout(() => {
       setFlipping(false);
       setTimeout(() => playTrack(firstOfNextSide), 80);
@@ -3238,47 +2945,22 @@ export function Aurae() {
     setPlaying(false);
     setAwaitingVinylChange(false);
     setFlipping(true);
-    setTimeout(() => {
-      setVinylSide(nextSide);
-      setActiveVinyl(Math.ceil(nextSide / 2));
-    }, FLIP_COVER_SWAP);
-    setTimeout(() => {
-      setFlipping(false);
-      setTimeout(() => playTrack(firstTrack), 80);
-    }, FLIP_DURATION);
+    setTimeout(() => { setVinylSide(nextSide); setActiveVinyl(Math.ceil(nextSide / 2)); }, FLIP_COVER_SWAP);
+    setTimeout(() => { setFlipping(false); setTimeout(() => playTrack(firstTrack), 80); }, FLIP_DURATION);
   }
 
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (awaitingVinylChange) {
-      changeVinyl();
-      return;
-    }
-    if (awaitingFlip) {
-      flipVinyl();
-      return;
-    }
-    if (!audio.src && tracks[0]) {
-      playTrack(0);
-      return;
-    }
-    if (playing) {
-      audio.pause();
-      setPlaying(false);
-    } else {
-      ensureAudioGraph();
-      audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-    }
+    if (awaitingVinylChange) { changeVinyl(); return; }
+    if (awaitingFlip) { flipVinyl(); return; }
+    if (!audio.src && tracks[0]) { playTrack(0); return; }
+    if (playing) { audio.pause(); setPlaying(false); }
+    else { ensureAudioGraph(); audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
   }
 
-  function prevTrack() {
-    if (index > 0) playTrack(index - 1);
-  }
-
-  function nextTrack() {
-    if (index < tracks.length - 1) playTrack(index + 1);
-  }
+  function prevTrack() { if (index > 0) playTrack(index - 1); }
+  function nextTrack() { if (index < tracks.length - 1) playTrack(index + 1); }
 
   function seek(e: React.ChangeEvent<HTMLInputElement>) {
     const value = Number(e.target.value);
@@ -3303,28 +2985,14 @@ export function Aurae() {
       <div style={S.auth}>
         <div style={S.panel}>
           <div style={S.logo}>AURAE</div>
-          <input
-            style={S.input}
-            placeholder="email"
-            value={email}
+          <input style={S.input} placeholder="email" value={email}
             onChange={e => { setEmail(e.target.value); setAuthError(""); }}
-            onKeyDown={e => { if (e.key === "Enter") login(); }}
-          />
-          <input
-            style={S.input}
-            placeholder="password"
-            type="password"
-            value={password}
+            onKeyDown={e => { if (e.key === "Enter") login(); }} />
+          <input style={S.input} placeholder="password" type="password" value={password}
             onChange={e => { setPassword(e.target.value); setAuthError(""); }}
-            onKeyDown={e => { if (e.key === "Enter") login(); }}
-          />
+            onKeyDown={e => { if (e.key === "Enter") login(); }} />
           <label style={S.rememberRow}>
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={e => setRememberMe(e.target.checked)}
-              style={S.checkbox}
-            />
+            <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={S.checkbox} />
             remember me
           </label>
           {authError && <div style={S.authError}>{authError}</div>}
@@ -3345,13 +3013,10 @@ export function Aurae() {
     const storageConfig = storageShelf.items.find((item: any) => item.id === storageShelf.activeId) || storageShelf.items[0] || null;
     const wood = getWoodTheme(storageConfig?.wood || storageDraftWood);
     const storageProjects = (storageConfig?.projects || []).filter((name: string) => projectsMeta[name]);
-    const stickyFocus = focusedProjectName && storageProjects.includes(focusedProjectName)
-      ? focusedProjectName : null;
+    const stickyFocus = focusedProjectName && storageProjects.includes(focusedProjectName) ? focusedProjectName : null;
     const focusedProject =
       (hoveredProject && storageProjects.includes(hoveredProject) ? hoveredProject : null)
-      || stickyFocus
-      || storageProjects[0]
-      || null;
+      || stickyFocus || storageProjects[0] || null;
     const focusedMeta = focusedProject ? projectsMeta[focusedProject] || {} : {};
     const focusedCovers = focusedProject ? normalizeSideCovers(focusedMeta) : [];
     const focusedCover = focusedMeta.cover || focusedCovers[0] || null;
@@ -3363,27 +3028,12 @@ export function Aurae() {
             <div style={S.logo}>AURAE OS</div>
             <div style={S.storageSetupPanel}>
               <div style={S.storageSetupTitle}>Create your vinyl storage</div>
-              <div style={S.storageSetupCopy}>
-                Choose a cabinet style first. Your projects will live here as records.
-              </div>
-              <input
-                style={S.input}
-                value={storageDraftName}
-                onChange={e => setStorageDraftName(e.target.value)}
-                placeholder="storage name"
-              />
+              <div style={S.storageSetupCopy}>Choose a cabinet style first. Your projects will live here as records.</div>
+              <input style={S.input} value={storageDraftName} onChange={e => setStorageDraftName(e.target.value)} placeholder="storage name" />
               <div style={S.woodGrid}>
                 {STORAGE_WOODS.map(item => (
-                  <button
-                    key={item.id}
-                    style={{
-                      ...S.woodChoice,
-                      ...(storageDraftWood === item.id ? S.woodChoiceActive : {}),
-                    }}
-                    onClick={() => setStorageDraftWood(item.id)}
-                  >
-                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
-                    {item.label}
+                  <button key={item.id} style={{ ...S.woodChoice, ...(storageDraftWood === item.id ? S.woodChoiceActive : {}) }} onClick={() => setStorageDraftWood(item.id)}>
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
                   </button>
                 ))}
               </div>
@@ -3404,129 +3054,80 @@ export function Aurae() {
           <div style={S.storageTopbar}>
             <div style={S.logo}>AURAE</div>
             <div style={S.topBtns}>
-              <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>
-                {dark ? "Light" : "Dark"}
-              </button>
+              <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? "Light" : "Dark"}</button>
               <button style={S.btn} onClick={() => setShowStorageCreate(true)}>+ storage</button>
               <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
               <button style={S.btn} onClick={logout}>log out</button>
             </div>
           </div>
-
           {!projectsLoaded && <div style={S.loading}>Loading...</div>}
-
           <div style={S.storageLayout}>
             <div style={S.storageControls}>
               <div style={S.sectionTitle}>Storages</div>
               <div style={S.storageTabs}>
                 {storageShelf.items.map((item: any) => (
-                  <button
-                    key={item.id}
-                    style={{ ...S.storageTab, ...(item.id === storageConfig.id ? S.storageTabActive : {}) }}
-                    onClick={() => setActiveStorage(item.id)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setStorageCtxMenu({ x: e.clientX, y: e.clientY, id: item.id });
-                    }}
-                  >
+                  <button key={item.id} style={{ ...S.storageTab, ...(item.id === storageConfig.id ? S.storageTabActive : {}) }} onClick={() => setActiveStorage(item.id)}>
                     <span>{item.name}</span>
                     <small>{item.projects.filter((name: string) => projectsMeta[name]).length}</small>
                   </button>
                 ))}
               </div>
-              <input
-                style={S.input}
-                value={storageConfig.name}
-                onChange={e => updateActiveStorage("name", e.target.value)}
-                placeholder="storage name"
-              />
+              <input style={S.input} value={storageConfig.name} onChange={e => updateActiveStorage("name", e.target.value)} placeholder="storage name" />
               <div style={S.sectionTitle}>Wood</div>
               <div style={S.woodGridCompact}>
                 {STORAGE_WOODS.map(item => (
-                  <button
-                    key={item.id}
-                    style={{
-                      ...S.woodChoice,
-                      ...(storageConfig.wood === item.id ? S.woodChoiceActive : {}),
-                    }}
-                    onClick={() => updateActiveStorage("wood", item.id)}
-                  >
-                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
-                    {item.label}
+                  <button key={item.id} style={{ ...S.woodChoice, ...(storageConfig.wood === item.id ? S.woodChoiceActive : {}) }} onClick={() => updateActiveStorage("wood", item.id)}>
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
                   </button>
                 ))}
               </div>
-
               {focusedProject && (
                 <div style={S.focusPanel}>
                   <div style={S.focusCoverRow}>
                     <div style={S.focusCover}>
-                      {focusedCover ? <img src={focusedCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={S.blankCover} />}
+                      {focusedCover
+                        ? <img src={focusedCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : <div style={S.blankCover} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.focusTitle}>{focusedProject}</div>
                       <div style={S.cardSub}>{focusedMeta.tracks?.length || 0} tracks</div>
                     </div>
                   </div>
-
                   <div style={S.focusActions}>
                     <button style={S.smallBtn} onClick={() => openProject(focusedProject, "sleeve")}>open sleeve</button>
                     <button style={S.smallBtn} onClick={() => openProject(focusedProject, "studio")}>open player</button>
+                    {/* ── CHANGE 3b: "cover art" button calls addMainCoverFor ── */}
                     <label style={S.smallBtn}>
                       cover art
                       <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addMainCoverFor(e, focusedProject)} />
                     </label>
-                    <button
-                      style={S.smallBtn}
-                      onClick={() => setRenameModal({ type: "project", id: focusedProject, value: focusedProject })}
-                    >
-                      rename
-                    </button>
+                    <button style={S.smallBtn} onClick={() => setRenameModal({ type: "project", id: focusedProject, value: focusedProject })}>rename</button>
                     <button style={S.smallBtn} onClick={() => deleteProject(focusedProject)}>delete</button>
                   </div>
                 </div>
               )}
             </div>
-
             <div style={S.crateStage}>
-              <div
-                style={{
-                  ...S.crate,
-                  width: crateWidth,
-                  ["--storage-face" as any]: wood.face,
-                  ["--storage-edge" as any]: wood.edge,
-                  ["--storage-line" as any]: wood.line,
-                }}
-              >
+              <div style={{ ...S.crate, width: crateWidth, ["--storage-face" as any]: wood.face, ["--storage-edge" as any]: wood.edge, ["--storage-line" as any]: wood.line }}>
                 <div style={S.crateBack} />
                 <div style={S.crateFloor} />
                 <div style={S.crateLeftWall} />
                 <div style={S.crateRightWall} />
-
                 <div style={{ ...S.crateLeg, left: 18, transform: "rotate(18deg)" }} />
                 <div style={{ ...S.crateLeg, right: 18, transform: "rotate(-18deg)" }} />
-
                 <div style={S.crateRecords}>
                   {storageProjects.map((name: string) => {
                     const p = projectsMeta[name] || {};
                     const covers = normalizeSideCovers(p);
                     const cover = p.homeCover || p.cover || covers[0] || null;
                     return (
-                      <StorageRecord
-                        key={name}
-                        name={name}
-                        cover={cover}
-                        spineColor={p.spineColor || null}
-                        isHovered={hoveredProject === name}
-                        isFocused={focusedProject === name}
-                        isDragging={draggingProject === name}
-                        isDropTarget={dropTargetProject === name && draggingProject !== name}
+                      <StorageRecord key={name} name={name} cover={cover} spineColor={p.spineColor || null}
+                        isHovered={hoveredProject === name} isFocused={focusedProject === name}
+                        isDragging={draggingProject === name} isDropTarget={dropTargetProject === name && draggingProject !== name}
                         onPointerEnter={() => handleRecordMouseEnter(name)}
                         onPointerLeave={handleRecordMouseLeave}
-                        onClick={() => {
-                          if (draggingProject) return;
-                          openProject(name, "sleeve");
-                        }}
+                        onClick={() => { if (draggingProject) return; openProject(name, "sleeve"); }}
                         onContextMenu={(e: any) => {
                           e.preventDefault();
                           const meta = projectsMeta[name] || {};
@@ -3543,26 +3144,17 @@ export function Aurae() {
                         onDragOver={(e: any) => {
                           if (!draggingProject || draggingProject === name) return;
                           e.preventDefault();
-                          if (e.dataTransfer) e.dataTransfer.dropEffect
-                          e.dataTransfer.dropEffect = "move";
+                          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
                           setDropTargetProject(name);
                         }}
-                        onDragLeave={() => {
-                          setDropTargetProject(prev => prev === name ? null : prev);
-                        }}
+                        onDragLeave={() => { setDropTargetProject(prev => prev === name ? null : prev); }}
                         onDrop={(e: any) => {
                           e.preventDefault();
-                          if (draggingProject && draggingProject !== name) {
-                            reorderProjectInStorage(draggingProject, name);
-                          }
+                          if (draggingProject && draggingProject !== name) reorderProjectInStorage(draggingProject, name);
                           setDropTargetProject(null);
                         }}
-                        onDragEnd={() => {
-                          setDraggingProject(null);
-                          setDropTargetProject(null);
-                        }}
-                        S={S}
-                      />
+                        onDragEnd={() => { setDraggingProject(null); setDropTargetProject(null); }}
+                        S={S} />
                     );
                   })}
                   {!storageProjects.length && (
@@ -3581,14 +3173,9 @@ export function Aurae() {
         {showCreate && (
           <div style={OVL} onClick={() => setShowCreate(false)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
-              <input
-                autoFocus
-                style={S.input}
-                placeholder="project name"
-                value={projectName}
+              <input autoFocus style={S.input} placeholder="project name" value={projectName}
                 onChange={e => setProjectName(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }}
-              />
+                onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }} />
               <button style={S.btn} onClick={() => createProject()}>create</button>
             </div>
           </div>
@@ -3598,23 +3185,13 @@ export function Aurae() {
           <div style={OVL} onClick={() => setShowStorageCreate(false)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
               <div style={S.modalTitle}>Create storage</div>
-              <input
-                autoFocus
-                style={S.input}
-                placeholder="storage name"
-                value={newStorageName}
+              <input autoFocus style={S.input} placeholder="storage name" value={newStorageName}
                 onChange={e => setNewStorageName(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") createAdditionalStorage(); if (e.key === "Escape") setShowStorageCreate(false); }}
-              />
+                onKeyDown={e => { if (e.key === "Enter") createAdditionalStorage(); if (e.key === "Escape") setShowStorageCreate(false); }} />
               <div style={S.woodGrid}>
                 {STORAGE_WOODS.map(item => (
-                  <button
-                    key={item.id}
-                    style={{ ...S.woodChoice, ...(newStorageWood === item.id ? S.woodChoiceActive : {}) }}
-                    onClick={() => setNewStorageWood(item.id)}
-                  >
-                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />
-                    {item.label}
+                  <button key={item.id} style={{ ...S.woodChoice, ...(newStorageWood === item.id ? S.woodChoiceActive : {}) }} onClick={() => setNewStorageWood(item.id)}>
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
                   </button>
                 ))}
               </div>
@@ -3626,19 +3203,13 @@ export function Aurae() {
         {renameModal && (
           <div style={OVL} onClick={() => setRenameModal(null)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
-              <div style={S.modalTitle}>
-                Rename {renameModal.type === "project" ? "project" : "folder"}
-              </div>
-              <input
-                autoFocus
-                style={S.input}
-                value={renameModal.value}
+              <div style={S.modalTitle}>Rename {renameModal.type === "project" ? "project" : "folder"}</div>
+              <input autoFocus style={S.input} value={renameModal.value}
                 onChange={e => setRenameModal({ ...renameModal, value: e.target.value })}
                 onKeyDown={e => {
                   if (e.key === "Enter") applyRenameProject(renameModal.id, renameModal.value);
                   if (e.key === "Escape") setRenameModal(null);
-                }}
-              />
+                }} />
               <div style={{ display: "flex", gap: 8 }}>
                 <button style={S.btn} onClick={() => applyRenameProject(renameModal.id, renameModal.value)}>save</button>
                 <button style={S.btn} onClick={() => setRenameModal(null)}>cancel</button>
@@ -3649,20 +3220,16 @@ export function Aurae() {
 
         {projectMenu && (
           <>
-            <div
-              style={{ position: "fixed", inset: 0, zIndex: 998 }}
+            <div style={{ position: "fixed", inset: 0, zIndex: 998 }}
               onClick={() => setProjectMenu(null)}
-              onContextMenu={e => { e.preventDefault(); setProjectMenu(null); }}
-            />
+              onContextMenu={e => { e.preventDefault(); setProjectMenu(null); }} />
             <div style={{
               ...S.menu,
               left: Math.min(projectMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 220),
-              top:  Math.min(projectMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 260),
+              top: Math.min(projectMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 260),
               minWidth: 200,
             }}>
-              <div style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>
-                {projectMenu.name}
-              </div>
+              <div style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>{projectMenu.name}</div>
               <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "sleeve"); setProjectMenu(null); }}>open sleeve</button>
               <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "studio"); setProjectMenu(null); }}>open player</button>
               <label style={S.menuBtn}>
@@ -3670,12 +3237,8 @@ export function Aurae() {
                 <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
                   onChange={e => { const target = projectMenu.name; setProjectMenu(null); addHomeCover(e, target); }} />
               </label>
-              <button
-                style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
-                onClick={() => { deleteProject(projectMenu.name); setProjectMenu(null); }}
-              >
-                delete
-              </button>
+              <button style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
+                onClick={() => { deleteProject(projectMenu.name); setProjectMenu(null); }}>delete</button>
               <button style={S.menuBtn} onClick={() => setProjectMenu(null)}>close</button>
             </div>
           </>
@@ -3684,6 +3247,7 @@ export function Aurae() {
     );
   }
 
+  // ── CHANGE 3c: pass pictureVinyl to SleevePresentation ───────────────
   if (view === "sleeve") {
     return (
       <SleevePresentation
@@ -3719,9 +3283,9 @@ export function Aurae() {
         }}
         activeVinyl={activeVinyl}
         vinylColor={vinylColors[0] || vinylColor}
-        pictureVinyl={pictureVinyl}
         readImageFile={readImageFile}
         onBack={() => setView("home")}
+        pictureVinyl={pictureVinyl}
         onEnterPlayer={(vinyl: number) => {
           const firstSideOfVinyl = (vinyl - 1) * 2 + 1;
           const firstTrack = sideBoundaries[firstSideOfVinyl - 1] ?? 0;
@@ -3753,39 +3317,20 @@ export function Aurae() {
           </div>
           <button style={S.iconBtn} onClick={() => setView("home")}>home</button>
         </div>
-
         <div style={S.segment}>
-          <button
-            style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }}
-            onClick={() => setSidebarMode("songs")}
-          >
-            songs
-          </button>
-          <button
-            style={{ ...S.segmentBtn, ...(sidebarMode === "design" ? S.segmentActive : {}) }}
-            onClick={() => setSidebarMode("design")}
-          >
-            design
-          </button>
+          <button style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }} onClick={() => setSidebarMode("songs")}>songs</button>
+          <button style={{ ...S.segmentBtn, ...(sidebarMode === "design" ? S.segmentActive : {}) }} onClick={() => setSidebarMode("design")}>design</button>
         </div>
-
         {sidebarMode === "songs" ? (
           <>
             <div style={S.importRow}>
-              <label style={S.btn}>
-                add tracks
-                <input hidden multiple type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg" onChange={addTracks} />
-              </label>
+              <label style={S.btn}>add tracks<input hidden multiple type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg" onChange={addTracks} /></label>
             </div>
-
             <div style={S.coverTools}>
               <div style={S.coverToolsHeader}>
                 <span>side covers</span>
                 {sideCoverButtonCount > 2 && (
-                  <button
-                    style={{ ...S.smallBtn, ...(repeatSideCovers ? S.optionActive : {}) }}
-                    onClick={() => setRepeatCovers(!repeatSideCovers)}
-                  >
+                  <button style={{ ...S.smallBtn, ...(repeatSideCovers ? S.optionActive : {}) }} onClick={() => setRepeatCovers(!repeatSideCovers)}>
                     repeat 1/2 {repeatSideCovers ? "on" : "off"}
                   </button>
                 )}
@@ -3804,21 +3349,18 @@ export function Aurae() {
                         <span>side {side} cover</span>
                         <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(side, e)} />
                       </label>
-                      {directCover && (
-                        <button style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>clear</button>
-                      )}
+                      {directCover && <button style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>clear</button>}
                     </div>
                   );
                 })}
               </div>
             </div>
-
             <div style={S.list}>
               {(() => {
                 const vinylFirstSide = (activeVinyl - 1) * 2 + 1;
-                const vinylLastSide  = activeVinyl * 2;
+                const vinylLastSide = activeVinyl * 2;
                 const vinylStart = sideBoundaries[vinylFirstSide - 1] ?? 0;
-                const vinylEnd   = sideBoundaries[vinylLastSide] ?? tracks.length;
+                const vinylEnd = sideBoundaries[vinylLastSide] ?? tracks.length;
                 const visibleTracks = tracks.slice(vinylStart, vinylEnd);
                 return visibleTracks.map((track, relI) => {
                   const i = vinylStart + relI;
@@ -3827,16 +3369,9 @@ export function Aurae() {
                   return (
                     <React.Fragment key={track.id || `${track.name}-${i}`}>
                       {showSideLabel && (
-                        <div style={S.sideLabel}>
-                          SIDE {trackSide} - {fmt(getSideDuration(tracks, sideBoundaries, trackSide))}
-                        </div>
+                        <div style={S.sideLabel}>SIDE {trackSide} - {fmt(getSideDuration(tracks, sideBoundaries, trackSide))}</div>
                       )}
-                      <div
-                        style={{
-                          ...S.track,
-                          outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.5)" : "none",
-                          opacity: i === index ? 1 : 0.78,
-                        }}
+                      <div style={{ ...S.track, outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.5)" : "none", opacity: i === index ? 1 : 0.78 }}
                         draggable
                         onDragStart={e => e.dataTransfer.setData("aurae_track", String(i))}
                         onDragOver={e => { e.preventDefault(); setDragOverTrack(i); }}
@@ -3853,8 +3388,7 @@ export function Aurae() {
                           if (index === from) setIndex(i);
                         }}
                         onClick={() => playTrack(i)}
-                        onContextMenu={e => { e.preventDefault(); setSongMenu({ x: e.clientX, y: e.clientY, i }); }}
-                      >
+                        onContextMenu={e => { e.preventDefault(); setSongMenu({ x: e.clientX, y: e.clientY, i }); }}>
                         <span style={S.dragGrip}>::</span>
                         <span style={S.trackName}>{track.name}</span>
                         <span style={S.trackTime}>{fmt(track.duration)}</span>
@@ -3863,11 +3397,7 @@ export function Aurae() {
                   );
                 });
               })()}
-              {!tracks.length && (
-                <div style={S.emptyState}>
-                  Add songs and the needle will move across the record.
-                </div>
-              )}
+              {!tracks.length && <div style={S.emptyState}>Add songs and the needle will move across the record.</div>}
             </div>
           </>
         ) : stageMode === "equalizer" ? (
@@ -3876,41 +3406,23 @@ export function Aurae() {
               <div style={S.sectionTitle}>Equalizer shape</div>
               <div style={S.optionGrid}>
                 {EQ_SHAPES.map(item => (
-                  <button
-                    key={item.id}
-                    style={{ ...S.smallBtn, ...(eqShape === item.id ? S.optionActive : {}) }}
-                    onClick={() => setEqShape(item.id)}
-                  >
-                    {item.label}
-                  </button>
+                  <button key={item.id} style={{ ...S.smallBtn, ...(eqShape === item.id ? S.optionActive : {}) }} onClick={() => setEqShape(item.id)}>{item.label}</button>
                 ))}
               </div>
             </div>
             <div style={S.section}>
               <div style={S.sectionTitle}>Colors</div>
               <div style={S.swatchGrid}>
-                <ColorSwatch value={eqColor}   onChange={setEqColor}   label="low"  dark={dark} />
-                <ColorSwatch value={eqColor2}  onChange={setEqColor2}  label="high" dark={dark} />
-                <ColorSwatch value={eqBgColor} onChange={setEqBgColor} label="bg"   dark={dark} />
+                <ColorSwatch value={eqColor} onChange={setEqColor} label="low" dark={dark} />
+                <ColorSwatch value={eqColor2} onChange={setEqColor2} label="high" dark={dark} />
+                <ColorSwatch value={eqBgColor} onChange={setEqBgColor} label="bg" dark={dark} />
               </div>
             </div>
             <div style={S.section}>
               <div style={S.sectionTitle}>Motion</div>
-              <label style={S.sliderLabel}>
-                bars ({eqBars})
-                <input type="range" min="16" max="128" step="2" value={eqBars}
-                  onChange={e => setEqBars(Number(e.target.value))} style={S.range} />
-              </label>
-              <label style={S.sliderLabel}>
-                smoothing ({eqSmoothing.toFixed(2)})
-                <input type="range" min="0" max="0.95" step="0.01" value={eqSmoothing}
-                  onChange={e => setEqSmoothing(Number(e.target.value))} style={S.range} />
-              </label>
-              <label style={S.sliderLabel}>
-                glow ({eqGlow.toFixed(2)})
-                <input type="range" min="0" max="1" step="0.01" value={eqGlow}
-                  onChange={e => setEqGlow(Number(e.target.value))} style={S.range} />
-              </label>
+              <label style={S.sliderLabel}>bars ({eqBars})<input type="range" min="16" max="128" step="2" value={eqBars} onChange={e => setEqBars(Number(e.target.value))} style={S.range} /></label>
+              <label style={S.sliderLabel}>smoothing ({eqSmoothing.toFixed(2)})<input type="range" min="0" max="0.95" step="0.01" value={eqSmoothing} onChange={e => setEqSmoothing(Number(e.target.value))} style={S.range} /></label>
+              <label style={S.sliderLabel}>glow ({eqGlow.toFixed(2)})<input type="range" min="0" max="1" step="0.01" value={eqGlow} onChange={e => setEqGlow(Number(e.target.value))} style={S.range} /></label>
             </div>
           </div>
         ) : (
@@ -3920,89 +3432,48 @@ export function Aurae() {
               <div style={S.pictureRow}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={S.pictureCaption}>Use the side cover as a full disc image. The label is hidden.</div>
-                  {pictureVinyl && !currentVinylCover && (
-                    <div style={S.pictureHint}>Add a side cover to see the picture.</div>
-                  )}
+                  {pictureVinyl && !currentVinylCover && <div style={S.pictureHint}>Add a side cover to see the picture.</div>}
                 </div>
-                <button
-                  style={{ ...S.toggleSwitch, ...(pictureVinyl ? S.toggleSwitchOn : {}) }}
-                  onClick={() => upd("pictureVinyl", !pictureVinyl, setPictureVinyl)}
-                  aria-pressed={pictureVinyl}
-                >
+                <button style={{ ...S.toggleSwitch, ...(pictureVinyl ? S.toggleSwitchOn : {}) }}
+                  onClick={() => upd("pictureVinyl", !pictureVinyl, setPictureVinyl)} aria-pressed={pictureVinyl}>
                   <span style={{ ...S.toggleKnob, transform: pictureVinyl ? "translateX(22px)" : "translateX(2px)" }} />
                 </button>
               </div>
             </div>
-
             <div style={S.section}>
               <div style={S.sectionTitle}>Deck design</div>
               <div style={S.optionGrid}>
                 {DECK_STYLES.map(style => (
-                  <button
-                    key={style}
-                    style={{ ...S.smallBtn, ...(normalizeDeckStyle(deckStyle) === style ? S.optionActive : {}) }}
-                    onClick={() => upd("deckStyle", style, setDeckStyle)}
-                  >
-                    {style}
-                  </button>
+                  <button key={style} style={{ ...S.smallBtn, ...(normalizeDeckStyle(deckStyle) === style ? S.optionActive : {}) }} onClick={() => upd("deckStyle", style, setDeckStyle)}>{style}</button>
                 ))}
               </div>
             </div>
-
             <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
               <div style={S.sectionTitle}>Vinyl colors</div>
               {pictureVinyl && <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
               <div style={S.swatchGrid}>
                 {[0, 1, 2, 3].map(slot => (
-                  <ColorSwatch
-                    key={slot}
-                    value={vinylColors[slot] || DEFAULT_VINYL_COLORS[slot] || "#111111"}
-                    onChange={v => updateVinylColor(slot, v)}
-                    label={`tone ${slot + 1}`}
-                    dark={dark}
-                  />
+                  <ColorSwatch key={slot} value={vinylColors[slot] || DEFAULT_VINYL_COLORS[slot] || "#111111"}
+                    onChange={v => updateVinylColor(slot, v)} label={`tone ${slot + 1}`} dark={dark} />
                 ))}
               </div>
               <div style={S.optionGrid}>
                 {VINYL_GRADIENTS.map(item => (
-                  <button
-                    key={item.id}
-                    style={{ ...S.smallBtn, ...(vinylGradient === item.id ? S.optionActive : {}) }}
-                    onClick={() => upd("vinylGradient", item.id, setVinylGradient)}
-                  >
-                    {item.label}
-                  </button>
+                  <button key={item.id} style={{ ...S.smallBtn, ...(vinylGradient === item.id ? S.optionActive : {}) }} onClick={() => upd("vinylGradient", item.id, setVinylGradient)}>{item.label}</button>
                 ))}
               </div>
-              <label style={S.sliderLabel}>
-                opacity
-                <input type="range" min="0.25" max="1" step="0.01" value={vinylOpacity}
-                  onChange={e => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)}
-                  style={S.range} />
-              </label>
+              <label style={S.sliderLabel}>opacity<input type="range" min="0.25" max="1" step="0.01" value={vinylOpacity} onChange={e => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)} style={S.range} /></label>
             </div>
-
             <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
               <div style={S.sectionTitle}>Splatter</div>
               {pictureVinyl && <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
               <div style={S.inlineControls}>
                 <ColorSwatch value={splatterColor} onChange={v => upd("splatterColor", v, setSplatterColor)} label="color" dark={dark} />
-                <button
-                  style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}), alignSelf: "flex-end" }}
-                  onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}
-                >
-                  {splatterOn ? "on" : "off"}
-                </button>
+                <button style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}), alignSelf: "flex-end" }} onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}>{splatterOn ? "on" : "off"}</button>
               </div>
               <div style={S.optionGrid}>
                 {SPLATTER_STYLES.map(item => (
-                  <button
-                    key={item.id}
-                    style={{ ...S.smallBtn, ...(splatterStyle === item.id ? S.optionActive : {}) }}
-                    onClick={() => upd("splatterStyle", item.id, setSplatterStyle)}
-                  >
-                    {item.label}
-                  </button>
+                  <button key={item.id} style={{ ...S.smallBtn, ...(splatterStyle === item.id ? S.optionActive : {}) }} onClick={() => upd("splatterStyle", item.id, setSplatterStyle)}>{item.label}</button>
                 ))}
               </div>
             </div>
@@ -4013,71 +3484,25 @@ export function Aurae() {
       <div style={S.stage}>
         {stageMode === "vinyl" ? (
           <div style={{ position: "relative", width: geometry.width, height: 560 }}>
-            <div style={{
-              position: "absolute",
-              left: geometry.cx - vinylRadius,
-              top: geometry.cy - vinylRadius,
-              width: vinylRadius * 2,
-              height: vinylRadius * 2,
-              zIndex: 1,
-            }}>
+            <div style={{ position: "absolute", left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius, width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1 }}>
               <VinylDisc
-                radius={vinylRadius}
-                colors={vinylColors}
-                gradient={vinylGradient}
-                opacity={vinylOpacity}
-                splatterOn={splatterOn}
-                splatterColor={splatterColor}
-                splatterStyle={splatterStyle}
-                cover={currentVinylCover}
-                isSingle={isSingle}
-                playing={playing}
-                textColor={text}
-                flipping={flipping}
-                pictureVinyl={pictureVinyl}
-              />
+                radius={vinylRadius} colors={vinylColors} gradient={vinylGradient}
+                opacity={vinylOpacity} splatterOn={splatterOn} splatterColor={splatterColor}
+                splatterStyle={splatterStyle} cover={currentVinylCover} isSingle={isSingle}
+                playing={playing} textColor={text} flipping={flipping} pictureVinyl={pictureVinyl} />
             </div>
-            <TurntableDeck
-              style={normalizedDeckStyle}
-              color={deckColor}
-              vinylRadius={vinylRadius}
-              platterRadius={platterRadius}
-              textColor={text}
-              progress={sideProgress}
-            />
-            {needsTurn && (
-              <button style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>
-            )}
-            {awaitingVinylChange && !flipping && (
-              <button style={S.turnBtn} onClick={changeVinyl}>change vinyl</button>
-            )}
+            <TurntableDeck style={normalizedDeckStyle} color={deckColor} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={text} progress={sideProgress} />
+            {needsTurn && <button style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>}
+            {awaitingVinylChange && !flipping && <button style={S.turnBtn} onClick={changeVinyl}>change vinyl</button>}
           </div>
         ) : (
           <div style={{ position: "relative", width: "min(760px, 100%)", height: 480, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <EqualizerVisualizer
-              analyserRef={analyserRef}
-              shape={eqShape}
-              color={eqColor}
-              color2={eqColor2}
-              bars={eqBars}
-              glow={eqGlow}
-              bgColor={eqBgColor}
-              playing={playing}
-              width={720}
-              height={420}
-            />
+            <EqualizerVisualizer analyserRef={analyserRef} shape={eqShape} color={eqColor} color2={eqColor2} bars={eqBars} glow={eqGlow} bgColor={eqBgColor} playing={playing} width={720} height={420} />
           </div>
         )}
-
         <div style={S.modeSwitch}>
-          <button
-            style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }}
-            onClick={() => setStageMode("vinyl")}
-          >vinyl</button>
-          <button
-            style={{ ...S.modeSwitchBtn, ...(stageMode === "equalizer" ? S.modeSwitchActive : {}) }}
-            onClick={() => setStageMode("equalizer")}
-          >EQ</button>
+          <button style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("vinyl")}>vinyl</button>
+          <button style={{ ...S.modeSwitchBtn, ...(stageMode === "equalizer" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("equalizer")}>EQ</button>
         </div>
       </div>
 
@@ -4091,14 +3516,9 @@ export function Aurae() {
           {awaitingVinylChange ? `end of vinyl ${activeVinyl}` : awaitingFlip ? `end of side ${vinylSide}` : current?.name || "no track"}
         </div>
         <div style={S.time}>{fmt(currentTime)} / {fmt(displayDuration)}</div>
-        <input
-          type="range"
-          min="0"
-          max={displayDuration || 0}
+        <input type="range" min="0" max={displayDuration || 0}
           value={Math.min(currentTime, displayDuration || currentTime || 0)}
-          onChange={seek}
-          style={S.playerRange}
-        />
+          onChange={seek} style={S.playerRange} />
       </div>
 
       {songMenu && (
@@ -4107,23 +3527,6 @@ export function Aurae() {
           <button style={S.menuBtn} onClick={() => setSongMenu(null)}>close</button>
         </div>
       )}
-
-      {storageCtxMenu && (
-        <>
-          <div style={{ position: "fixed", inset: 0, zIndex: 199 }} onClick={() => setStorageCtxMenu(null)} />
-          <div style={{ ...S.menu, left: storageCtxMenu.x, top: storageCtxMenu.y, zIndex: 200 }}>
-            <button
-              style={S.menuBtn}
-              onClick={() => deleteStorage(storageCtxMenu.id)}
-              disabled={storageShelf.items.length <= 1}
-            >
-              {storageShelf.items.length <= 1 ? "can't delete last" : "delete"}
-            </button>
-            <button style={S.menuBtn} onClick={() => setStorageCtxMenu(null)}>close</button>
-          </div>
-        </>
-      )}
-
       <audio ref={audioRef} />
     </div>
   );
@@ -4145,7 +3548,6 @@ function makeStyles(dark: boolean, text: string) {
     "--aurae-scroll-thumb-active": dark ? "rgba(255,255,255,0.56)" : "rgba(0,0,0,0.44)",
     "--aurae-scroll-border": dark ? "rgba(8,8,10,0.92)" : "rgba(245,247,250,0.92)",
   };
-
   return {
     app: { ...scrollVars, display: "flex", height: "100vh", background: pageBg, color: text, fontFamily: baseFont, overflow: "hidden" },
     auth: { ...scrollVars, height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: pageBg, color: text },
@@ -4256,17 +3658,10 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   const style = document.createElement("style");
   style.id = _auraeStyleId;
   style.innerHTML = `
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes sleeveArrow {
       0%, 100% { transform: translateY(-50%) translateX(0); }
       50% { transform: translateY(-50%) translateX(5px); }
-    }
-    @keyframes gatefoldIn {
-      0% { transform: rotateX(8deg) scale(0.92); opacity: 0; }
-      100% { transform: rotateX(0deg) scale(1); opacity: 1; }
     }
     @keyframes gatefoldOpen {
       0% { transform: rotateY(-38deg) scale(0.9); opacity: 0; }
@@ -4282,11 +3677,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
     }
     html, body, #root { margin: 0; width: 100%; min-height: 100%; }
     body { overflow: hidden; }
-    * {
-      box-sizing: border-box;
-      scrollbar-width: thin;
-      scrollbar-color: var(--aurae-scroll-thumb, rgba(150,150,160,0.35)) transparent;
-    }
+    * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--aurae-scroll-thumb, rgba(150,150,160,0.35)) transparent; }
     button, input { font: inherit; }
     button { transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
     ::placeholder { color: currentColor; opacity: 0.55; }
@@ -4294,24 +3685,16 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
     ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
     ::-webkit-scrollbar-corner { background: transparent; }
     ::-webkit-scrollbar-track { background: var(--aurae-scroll-track, transparent); border-radius: 999px; margin: 6px 0; }
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(180deg, rgba(255,255,255,0.24), var(--aurae-scroll-thumb, rgba(150,150,160,0.35)));
-      border-radius: 999px;
-      border: 3px solid var(--aurae-scroll-border, transparent);
-      background-clip: padding-box;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px rgba(0,0,0,0.18);
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(180deg, rgba(255,255,255,0.30), var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48)));
-      background-clip: padding-box;
-    }
-    ::-webkit-scrollbar-thumb:active {
-      background: linear-gradient(180deg, rgba(255,255,255,0.36), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62)));
-      background-clip: padding-box;
-    }
+    ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(255,255,255,0.24), var(--aurae-scroll-thumb, rgba(150,150,160,0.35))); border-radius: 999px; border: 3px solid var(--aurae-scroll-border, transparent); background-clip: padding-box; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px rgba(0,0,0,0.18); }
+    ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(255,255,255,0.30), var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48))); background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:active { background:
+
+      ::-webkit-scrollbar-thumb:active { background: linear-gradient(180deg, rgba(255,255,255,0.38), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))); background-clip: padding-box; }
   `;
   document.head.appendChild(style);
 }
 
 export default Aurae;
+
+
 
