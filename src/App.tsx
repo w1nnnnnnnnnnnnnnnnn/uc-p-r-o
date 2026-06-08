@@ -1134,6 +1134,9 @@ function EqualizerVisualizer({
     const freqData = new Uint8Array(dataLen);
     const draw = () => {
       const analyser = analyserRef.current;
+      if (analyser && analyser.context && analyser.context.state === "suspended") {
+        analyser.context.resume().catch(() => {});
+      }
       const w = width;
       const h = height;
       ctx.fillStyle = bgColor;
@@ -2153,6 +2156,26 @@ function GatefoldPanel({
   );
 }
 
+const GOOGLE_CLIENT_ID = ""; // Insert your Google Client ID here to enable the real Google Sign-In.
+
+function decodeJwt(token: string): any {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      window
+        .atob(base64)
+        .split("")
+        .map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error("Failed to decode JWT:", e);
+    return null;
+  }
+}
+
 export function Aurae() {
   const initialUser = getInitialUser();
   const [view, setView] = useState<"auth" | "home" | "sleeve" | "studio">(() => initialUser ? "home" : "auth");
@@ -2177,6 +2200,7 @@ export function Aurae() {
   const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem("aurae_remember")));
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [googleHover, setGoogleHover] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
@@ -2363,6 +2387,12 @@ export function Aurae() {
   useEffect(() => { localStorage.setItem("aurae_theme", theme); }, [theme]);
 
   useEffect(() => {
+    if (stageMode === "equalizer" && playing) {
+      ensureAudioGraph();
+    }
+  }, [stageMode, playing]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     const update = () => {
@@ -2414,6 +2444,358 @@ export function Aurae() {
     setAuthError("");
     setView("home");
   }
+
+  const handleGoogleLogin = useCallback((googleUser: { name: string; email: string; sub: string }) => {
+    const cleanEmail = normalizeEmail(googleUser.email);
+    if (!cleanEmail) return;
+
+    const store = loadUsers();
+    if (!store[cleanEmail]) {
+      store[cleanEmail] = {
+        v: 1,
+        salt: "google-oauth",
+        hash: googleUser.sub,
+        algo: "sha-256",
+        createdAt: Date.now()
+      };
+      saveUsers(store);
+    }
+    setUsers(store);
+    finishAuth(cleanEmail);
+  }, [setUsers, rememberMe]);
+
+  // Load official Google Identity Services script if GOOGLE_CLIENT_ID is provided
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || view !== "auth") return;
+
+    const scriptId = "google-gsi-client";
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+
+    const initGoogle = () => {
+      if (typeof window === "undefined" || !(window as any).google) return;
+      (window as any).google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (response: any) => {
+          const payload = decodeJwt(response.credential);
+          if (payload) {
+            handleGoogleLogin({
+              name: payload.name || "",
+              email: payload.email || "",
+              sub: payload.sub || "",
+            });
+          }
+        },
+      });
+      const btnDiv = document.getElementById("google-signin-btn");
+      if (btnDiv) {
+        (window as any).google.accounts.id.renderButton(btnDiv, {
+          theme: "outline",
+          size: "large",
+          width: 280,
+        });
+      }
+    };
+
+    if (script.getAttribute("data-loaded") === "true") {
+      initGoogle();
+    } else {
+      script.onload = () => {
+        script.setAttribute("data-loaded", "true");
+        initGoogle();
+      };
+    }
+  }, [view, handleGoogleLogin]);
+
+  // Listener for the mock Google popup message
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "GOOGLE_MOCK_SUCCESS" && event.data?.payload) {
+        handleGoogleLogin(event.data.payload);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [handleGoogleLogin]);
+
+  const openMockGooglePopup = useCallback(() => {
+    const width = 500;
+    const height = 620;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const popup = window.open(
+      "about:blank",
+      "GoogleSignIn",
+      `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
+    );
+
+    if (popup) {
+      popup.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign in with Google</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f0f4f9;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #1f1f1f;
+    }
+    .card {
+      background: white;
+      border-radius: 28px;
+      padding: 40px;
+      width: 360px;
+      box-shadow: 0 4px 60px rgba(0,0,0,0.05);
+      border: 1px solid #e0e0e0;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .google-logo {
+      width: 24px;
+      height: 24px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 400;
+      margin: 0 0 8px 0;
+      color: #1f1f1f;
+    }
+    p {
+      font-size: 16px;
+      color: #444746;
+      margin: 0 0 28px 0;
+    }
+    .account-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e3e3e3;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-align: left;
+    }
+    .account-item:hover {
+      background: #f8fafd;
+    }
+    .account-item:first-child {
+      border-top: 1px solid #e3e3e3;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #0b57d0;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+      margin-right: 12px;
+      font-size: 14px;
+    }
+    .account-details {
+      flex-grow: 1;
+    }
+    .name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #1f1f1f;
+    }
+    .email {
+      font-size: 12px;
+      color: #444746;
+    }
+    .custom-input-container {
+      margin-top: 20px;
+      text-align: left;
+      display: none;
+    }
+    .custom-input-container.active {
+      display: block;
+    }
+    input[type="email"], input[type="text"] {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #747775;
+      border-radius: 4px;
+      font-size: 16px;
+      margin-bottom: 16px;
+      box-sizing: border-box;
+      outline: none;
+      transition: border 0.2s;
+    }
+    input[type="email"]:focus, input[type="text"]:focus {
+      border: 2px solid #0b57d0;
+      padding: 13px;
+    }
+    .btn-group {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+    }
+    .btn-text {
+      background: none;
+      border: none;
+      color: #0b57d0;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 0;
+    }
+    .btn-primary {
+      background: #0b57d0;
+      color: white;
+      border: none;
+      border-radius: 100px;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: box-shadow 0.2s;
+    }
+    .btn-primary:hover {
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .footer {
+      font-size: 12px;
+      color: #444746;
+      margin-top: 32px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .footer a {
+      color: #444746;
+      text-decoration: none;
+    }
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <svg class="google-logo" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+    </svg>
+    
+    <div id="step-choose">
+      <h1>Choose an account</h1>
+      <p>to continue to Aurae</p>
+      
+      <div class="account-item" onclick="selectAccount('John Doe', 'john.doe@gmail.com')">
+        <div class="avatar" style="background:#ea4335">J</div>
+        <div class="account-details">
+          <div class="name">John Doe</div>
+          <div class="email">john.doe@gmail.com</div>
+        </div>
+      </div>
+      <div class="account-item" onclick="selectAccount('Jane Smith', 'jane.smith@gmail.com')">
+        <div class="avatar" style="background:#0b57d0">J</div>
+        <div class="account-details">
+          <div class="name">Jane Smith</div>
+          <div class="email">jane.smith@gmail.com</div>
+        </div>
+      </div>
+      <div class="account-item" onclick="showCustomInput()">
+        <div class="avatar" style="background:#444746; font-size: 18px;">+</div>
+        <div class="account-details">
+          <div class="name" style="color:#0b57d0;">Use another account</div>
+          <div class="email">Sign in with a different email</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="step-custom" class="custom-input-container">
+      <h1 style="text-align:center; margin-bottom: 8px;">Sign in</h1>
+      <p style="text-align:center; margin-bottom: 24px;">with your Google Account</p>
+      <input type="text" id="custom-name" placeholder="Full Name" />
+      <input type="email" id="custom-email" placeholder="Email" />
+      
+      <div class="btn-group">
+        <button class="btn-text" onclick="showChooseAccount()">Back</button>
+        <button class="btn-primary" onclick="submitCustom()">Next</button>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>
+        <span style="margin-right:12px"><a href="#">Deutsch</a></span>
+      </div>
+      <div>
+        <span style="margin-right:12px"><a href="#">Help</a></span>
+        <span style="margin-right:12px"><a href="#">Privacy</a></span>
+        <span><a href="#">Terms</a></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function selectAccount(name, email) {
+      const payload = {
+        name: name,
+        email: email,
+        sub: 'google-oauth-' + btoa(email).replace(/=/g, ''),
+        picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c'
+      };
+      sendResult(payload);
+    }
+
+    function showCustomInput() {
+      document.getElementById('step-choose').style.display = 'none';
+      document.getElementById('step-custom').classList.add('active');
+    }
+
+    function showChooseAccount() {
+      document.getElementById('step-choose').style.display = 'block';
+      document.getElementById('step-custom').classList.remove('active');
+    }
+
+    function submitCustom() {
+      const name = document.getElementById('custom-name').value.trim();
+      const email = document.getElementById('custom-email').value.trim();
+      if (!name || !email) {
+        alert('Please fill out both Name and Email');
+        return;
+      }
+      if (!email.includes('@') || !email.includes('.')) {
+        alert('Please enter a valid email address');
+        return;
+      }
+      selectAccount(name, email);
+    }
+
+    function sendResult(payload) {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'GOOGLE_MOCK_SUCCESS', payload: payload }, '*');
+      }
+      window.close();
+    }
+  </script>
+</body>
+</html>`);
+      popup.document.close();
+    }
+  }, [handleGoogleLogin]);
 
   function logout() {
     clearSession();
@@ -3025,6 +3407,32 @@ export function Aurae() {
           <button style={{ ...S.btn, opacity: authLoading ? 0.6 : 1 }} onClick={signup} disabled={authLoading}>
             {authLoading ? "checking..." : "sign up"}
           </button>
+          <div style={S.separatorRow}>
+            <div style={S.separatorLine} />
+            <div style={S.separatorText}>or</div>
+            <div style={S.separatorLine} />
+          </div>
+          {GOOGLE_CLIENT_ID ? (
+            <div id="google-signin-btn" style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: 4 }} />
+          ) : (
+            <button
+              style={{
+                ...S.googleBtn,
+                ...(googleHover ? { background: dark ? "rgba(255,255,255,0.12)" : "#f8fafd" } : {})
+              }}
+              onMouseEnter={() => setGoogleHover(true)}
+              onMouseLeave={() => setGoogleHover(false)}
+              onClick={openMockGooglePopup}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+              </svg>
+              Sign in with Google
+            </button>
+          )}
         </div>
       </div>
     );
@@ -3659,6 +4067,28 @@ function makeStyles(dark: boolean, text: string) {
     checkbox: { width: 16, height: 16, accentColor: text, cursor: "pointer" },
     authError: { padding: "10px 12px", borderRadius: 12, background: dark ? "rgba(255,80,80,0.14)" : "rgba(210,40,40,0.10)", border: dark ? "1px solid rgba(255,120,120,0.24)" : "1px solid rgba(180,40,40,0.16)", color: text, fontSize: 11, lineHeight: 1.45 },
     btn: { padding: "11px 14px", borderRadius: 14, border, background: glass, color: text, cursor: "pointer", backdropFilter: "blur(20px) saturate(1.3)", boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.08)" : "0 8px 22px rgba(70,80,100,0.08)", fontFamily: baseFont, fontSize: 12 },
+    separatorRow: { display: "flex", alignItems: "center", margin: "8px 0 2px", width: "100%" },
+    separatorLine: { flex: 1, height: 1, background: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)" },
+    separatorText: { padding: "0 10px", color: text, opacity: 0.5, fontSize: 11, fontFamily: baseFont },
+    googleBtn: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+      padding: "11px 14px",
+      borderRadius: 14,
+      border: dark ? "1px solid rgba(255,255,255,0.16)" : "1px solid #dadce0",
+      background: dark ? "rgba(255,255,255,0.06)" : "#ffffff",
+      color: dark ? "#ffffff" : "#3c4043",
+      cursor: "pointer",
+      fontFamily: "Roboto, Arial, sans-serif",
+      fontSize: 13,
+      fontWeight: 500,
+      boxShadow: dark ? "none" : "0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)",
+      transition: "background-color 0.2s, box-shadow 0.2s",
+      width: "100%",
+      boxSizing: "border-box",
+    },
     smallBtn: { padding: "7px 10px", minHeight: 30, borderRadius: 10, border, background: dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.62)", color: text, cursor: "pointer", fontSize: 11, fontFamily: baseFont },
     iconBtn: { padding: "8px 10px", borderRadius: 12, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11 },
     home: { ...scrollVars, minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
@@ -3809,6 +4239,5 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
-
 
 
