@@ -2908,15 +2908,17 @@ export function Aurae() {
     setPlaying(true);
     setCurrentTime(0);
     setDuration(trackDuration(track));
-    setTimeout(() => {
-      const audio = audioRef.current;
-      if (!audio) return;
-      audio.src = track.url;
-      audio.preload = "metadata";
-      audio.load();
-      ensureAudioGraph();
-      audio.play().catch(() => setPlaying(false));
-    }, 20);
+    
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.src = track.url;
+    audio.preload = "metadata";
+    audio.load();
+    ensureAudioGraph();
+    audio.play().catch((err) => {
+      console.error("Playback failed:", err);
+      setPlaying(false);
+    });
   }
 
   function flipVinyl() {
@@ -2960,7 +2962,28 @@ export function Aurae() {
   }
 
   function prevTrack() { if (index > 0) playTrack(index - 1); }
-  function nextTrack() { if (index < tracks.length - 1) playTrack(index + 1); }
+  function nextTrack() {
+    const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
+    if (index === lastOfSide) {
+      if (vinylSide < totalSides) {
+        const audio = audioRef.current;
+        if (audio) audio.pause();
+        setPlaying(false);
+        if (vinylSide % 2 === 0) {
+          setGatefoldOpen(true);
+          setView("sleeve");
+        } else {
+          setAwaitingFlip(true);
+        }
+      } else {
+        const audio = audioRef.current;
+        if (audio) audio.pause();
+        setPlaying(false);
+      }
+    } else if (index < tracks.length - 1) {
+      playTrack(index + 1);
+    }
+  }
 
   function seek(e: React.ChangeEvent<HTMLInputElement>) {
     const value = Number(e.target.value);
@@ -3302,6 +3325,15 @@ export function Aurae() {
     );
   }
 
+  const playButtonContent = (() => {
+    if (awaitingVinylChange) return <span style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>🔌 change</span>;
+    if (awaitingFlip) return <span style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>🔄 turn</span>;
+    return playing ? "⏸" : "▶";
+  })();
+  const playButtonWidth = (awaitingVinylChange || awaitingFlip) ? "auto" : 36;
+  const playButtonPadding = (awaitingVinylChange || awaitingFlip) ? "0 12px" : "0";
+  const playButtonBorderRadius = (awaitingVinylChange || awaitingFlip) ? 12 : "50%";
+
   return (
     <div style={S.app}>
       <div style={S.sidebar}>
@@ -3507,18 +3539,85 @@ export function Aurae() {
       </div>
 
       <div style={S.player}>
-        <button style={S.transportBtn} onClick={prevTrack}>prev</button>
-        <button style={S.transportBtn} onClick={toggle}>
-          {awaitingVinylChange ? "change vinyl" : awaitingFlip ? "turn & play" : playing ? "pause" : "play"}
-        </button>
-        <button style={S.transportBtn} onClick={nextTrack}>next</button>
-        <div style={S.now}>
-          {awaitingVinylChange ? `end of vinyl ${activeVinyl}` : awaitingFlip ? `end of side ${vinylSide}` : current?.name || "no track"}
+        {/* Left Section: Now Playing Info */}
+        <div style={S.playerLeft}>
+          <div style={S.playerMiniCover}>
+            {currentVinylCover ? (
+              <img src={currentVinylCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <div style={S.blankCover} />
+            )}
+          </div>
+          <div style={S.playerTrackInfo}>
+            <div style={S.playerTrackName}>
+              {current?.name || "No track selected"}
+            </div>
+            <div style={S.playerTrackMeta}>
+              {tracks.length > 0 ? (
+                `Vinyl ${activeVinyl} · Side ${vinylSide === 1 ? 'A' : vinylSide === 2 ? 'B' : vinylSide === 3 ? 'C' : 'D'}`
+              ) : (
+                "Aurae OS Player"
+              )}
+            </div>
+          </div>
         </div>
-        <div style={S.time}>{fmt(currentTime)} / {fmt(displayDuration)}</div>
-        <input type="range" min="0" max={displayDuration || 0}
-          value={Math.min(currentTime, displayDuration || currentTime || 0)}
-          onChange={seek} style={S.playerRange} />
+
+        {/* Center Section: Playback Controls & Timeline */}
+        <div style={S.playerCenter}>
+          <div style={S.playerControls}>
+            <button
+              className="aurae-player-btn"
+              style={S.playerTextBtn}
+              onClick={prevTrack}
+              title="Previous Track"
+            >
+              ⏮
+            </button>
+            <button
+              className="aurae-player-btn"
+              style={{
+                ...S.playerCircleBtn,
+                width: playButtonWidth,
+                padding: playButtonPadding,
+                borderRadius: playButtonBorderRadius,
+              }}
+              onClick={toggle}
+              title={playing ? "Pause" : "Play"}
+            >
+              {playButtonContent}
+            </button>
+            <button
+              className="aurae-player-btn"
+              style={S.playerTextBtn}
+              onClick={nextTrack}
+              title="Next Track"
+            >
+              ⏭
+            </button>
+          </div>
+          <div style={S.playerProgressRow}>
+            <span style={S.playerTime}>{fmt(currentTime)}</span>
+            <input
+              type="range"
+              min="0"
+              max={displayDuration || 0}
+              value={Math.min(currentTime, displayDuration || currentTime || 0)}
+              onChange={seek}
+              style={S.playerRange}
+            />
+            <span style={S.playerTime}>{fmt(displayDuration)}</span>
+          </div>
+        </div>
+
+        {/* Right Section: Format Info & Stats */}
+        <div style={S.playerRight}>
+          <div style={S.playerBadge}>
+            {isSingle ? "45 RPM" : "33 RPM"}
+          </div>
+          <div style={S.playerBadge}>
+            {isSingle ? "7\" SINGLE" : isGatefold ? "GATEFOLD" : "12\" LP"}
+          </div>
+        </div>
       </div>
 
       {songMenu && (
@@ -3547,6 +3646,8 @@ function makeStyles(dark: boolean, text: string) {
     "--aurae-scroll-thumb-hover": dark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.32)",
     "--aurae-scroll-thumb-active": dark ? "rgba(255,255,255,0.56)" : "rgba(0,0,0,0.44)",
     "--aurae-scroll-border": dark ? "rgba(8,8,10,0.92)" : "rgba(245,247,250,0.92)",
+    "--player-btn-hover": dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+    "--player-btn-active": dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.1)",
   };
   return {
     app: { ...scrollVars, display: "flex", height: "100vh", background: pageBg, color: text, fontFamily: baseFont, overflow: "hidden" },
@@ -3643,11 +3744,21 @@ function makeStyles(dark: boolean, text: string) {
     modeSwitchBtn: { padding: "7px 14px", borderRadius: 999, border: "none", background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase", opacity: 0.7 },
     modeSwitchActive: { background: dark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.08)", color: text, opacity: 1, boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.18)" : "0 4px 10px rgba(70,80,100,0.12)" },
     turnBtn: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 10, padding: "14px 20px", borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)", color: text, fontFamily: baseFont, fontSize: 13, cursor: "pointer", backdropFilter: "blur(24px) saturate(1.25)", boxShadow: shadow },
-    player: { position: "fixed", left: 360, right: 0, bottom: 0, height: 78, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 18px", background: dark ? "rgba(12,12,14,0.82)" : "rgba(255,255,255,0.82)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)" },
-    transportBtn: { padding: "10px 13px", minWidth: 58, borderRadius: 14, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 12 },
-    now: { width: 230, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: text, fontFamily: baseFont, fontSize: 12 },
-    time: { minWidth: 92, color: text, fontFamily: baseFont, fontSize: 12, opacity: 0.86 },
-    playerRange: { width: 240, accentColor: text },
+    player: { position: "fixed", left: 360, right: 0, bottom: 0, height: 82, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", background: dark ? "rgba(12,12,14,0.85)" : "rgba(255,255,255,0.85)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)", zIndex: 100 },
+    playerLeft: { display: "flex", alignItems: "center", gap: 12, width: "30%", minWidth: 180 },
+    playerMiniCover: { width: 44, height: 44, borderRadius: 8, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", border: dark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)", boxShadow: "0 4px 10px rgba(0,0,0,0.2)", flexShrink: 0 },
+    playerTrackInfo: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0 },
+    playerTrackName: { fontSize: 12, fontWeight: "bold", color: text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+    playerTrackMeta: { fontSize: 10, opacity: 0.6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+    playerCenter: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: "40%", maxWidth: 480 },
+    playerControls: { display: "flex", alignItems: "center", gap: 16 },
+    playerProgressRow: { display: "flex", alignItems: "center", gap: 10, width: "100%" },
+    playerTime: { fontSize: 10, fontFamily: baseFont, opacity: 0.6, minWidth: 36, textAlign: "center" },
+    playerRange: { flex: 1, height: 4, borderRadius: 2, background: dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)", outline: "none", accentColor: text, cursor: "pointer" },
+    playerRight: { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, width: "30%", minWidth: 180 },
+    playerBadge: { padding: "4px 8px", borderRadius: 6, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", border: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.06)", fontSize: 9, fontWeight: "bold", letterSpacing: 1, opacity: 0.8 },
+    playerCircleBtn: { width: 36, height: 36, borderRadius: "50%", border: dark ? "1px solid rgba(255, 255, 255, 0.15)" : "1px solid rgba(0, 0, 0, 0.12)", background: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)", color: text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+    playerTextBtn: { background: "transparent", border: "none", color: text, cursor: "pointer", fontSize: 16, opacity: 0.75, display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "50%" },
     menu: { position: "fixed", zIndex: 999, background: dark ? "rgba(20,20,22,0.94)" : "rgba(255,255,255,0.94)", color: text, border, borderRadius: 14, padding: 8, display: "flex", flexDirection: "column", gap: 6, boxShadow: shadow, backdropFilter: "blur(20px)" },
     menuBtn: { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont },
   };
@@ -3690,6 +3801,9 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
     ::-webkit-scrollbar-thumb:active { background:
 
       ::-webkit-scrollbar-thumb:active { background: linear-gradient(180deg, rgba(255,255,255,0.38), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))); background-clip: padding-box; }
+    .aurae-player-btn { transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s ease, opacity 0.15s ease !important; }
+    .aurae-player-btn:hover { opacity: 1 !important; background: var(--player-btn-hover) !important; transform: scale(1.05); }
+    .aurae-player-btn:active { background: var(--player-btn-active) !important; transform: scale(0.96); }
   `;
   document.head.appendChild(style);
 }
