@@ -491,7 +491,7 @@ function normalizeStorageShelf(raw: any, projectNames: string[] = []) {
   if (raw?.items?.length) {
     const items = raw.items.map((item: any, i: number) => ({
       id: item.id || `storage-${i + 1}`,
-      name: item.name || `Storage ${i + 1}`,
+      name: item.name != null ? item.name : `Storage ${i + 1}`,
       wood: item.wood || "oak",
       projects: Array.isArray(item.projects) ? item.projects.filter((name: string) => projectNames.includes(name)) : [],
       createdAt: item.createdAt || Date.now() + i
@@ -1564,7 +1564,7 @@ const StorageRecord = React.memo(function StorageRecord({
 
 });
 
-// ── CHANGE 1: RealVinyl now accepts pictureVinyl prop ──────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ CHANGE 1: RealVinyl now accepts pictureVinyl prop Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a", pictureVinyl = false }: any) {
   const isPicture = Boolean(pictureVinyl && cover);
   return (
@@ -1700,7 +1700,7 @@ function Crease({ vertical = true }: {vertical?: boolean;}) {
 
 }
 
-// ── CHANGE 2: SleevePresentation accepts pictureVinyl prop ────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ CHANGE 2: SleevePresentation accepts pictureVinyl prop Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function SleevePresentation({
   dark, text, title, cover, sideCovers, repeatSideCovers,
   totalVinyls, isGatefold, gatefoldOpen, setGatefoldOpen,
@@ -1709,7 +1709,7 @@ function SleevePresentation({
   onSetGatefoldBoth, onSetGatefoldSide, onClearGatefoldBoth, onClearGatefoldSide,
   readImageFile, vinylColor,
   onBack, onEnterPlayer, activeVinyl,
-  pictureVinyl // ← NEW prop
+  pictureVinyl // Ã¢â€ Â NEW prop
 }: any) {
   const [pulling, setPulling] = useState<null | number>(null);
   const [fading, setFading] = useState(false);
@@ -1755,7 +1755,7 @@ function SleevePresentation({
   }} />;
 
 
-  // ── CHANGE 2b: pass pictureVinyl to RealVinyl inside CardPanel ────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ CHANGE 2b: pass pictureVinyl to RealVinyl inside CardPanel Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   const CardPanel = ({ panelIdx, discSide, vinylNum, sharedArtSrc, totalHorizPanels, panelHorizIdx }: any) => {
     const art = panelArt[panelIdx] || null;
     const hasArt = Boolean(art || sharedArtSrc);
@@ -1765,7 +1765,7 @@ function SleevePresentation({
     discSide === "right" ? isPulling ? SIZE * 1.12 : peek : 0;
     const dY = discSide === "top" ? isPulling ? -SIZE * 1.12 : -peek :
     discSide === "bottom" ? isPulling ? SIZE * 1.12 : peek : 0;
-    const arrowChar = discSide === "left" ? "‹" : discSide === "top" ? "↑" : discSide === "bottom" ? "↓" : "›";
+    const arrowChar = discSide === "left" ? "Ã¢â‚¬Â¹" : discSide === "top" ? "Ã¢â€ â€˜" : discSide === "bottom" ? "Ã¢â€ â€œ" : "Ã¢â‚¬Âº";
     const arrowPos: any = discSide === "left" ? { left: 8, top: "50%", transform: "translateY(-50%)" } :
     discSide === "right" ? { right: 8, top: "50%", transform: "translateY(-50%)" } :
     discSide === "top" ? { top: 8, left: "50%", transform: "translateX(-50%)" } :
@@ -1839,7 +1839,7 @@ function SleevePresentation({
 
   };
 
-  // ── CHANGE 2c: pass pictureVinyl to RealVinyl inside closedCover ──────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ CHANGE 2c: pass pictureVinyl to RealVinyl inside closedCover Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   const closedCover =
   <div data-ev-id="ev_46ca289c63" onClick={() => setGatefoldOpen(true)}
   style={{ position: "relative", width: SIZE, height: SIZE, cursor: "pointer" }} title="tap to open">
@@ -1870,7 +1870,7 @@ function SleevePresentation({
     </div>;
 
 
-  // ── CHANGE 2d: pass pictureVinyl to RealVinyl in single-vinyl view ────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ CHANGE 2d: pass pictureVinyl to RealVinyl in single-vinyl view Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   if (!isGatefold) {
     const pull = pulling === 1;
     return (
@@ -1921,7 +1921,7 @@ function SleevePresentation({
             transform: "translateY(-50%)", zIndex: 3, fontSize: 28, color: text,
             opacity: pulling ? 0 : 0.7, transition: "opacity 0.3s",
             animation: "sleeveArrow 1.4s ease-in-out infinite"
-          }}>›</div>
+          }}>Ã¢â‚¬Âº</div>
         </div>
         {fadeOverlay}
       </div>);
@@ -2071,7 +2071,7 @@ function GatefoldPanel({
         opacity: pulling ? 0 : hasArt ? 0.55 : 0.7,
         animation: "sleeveArrow 1.4s ease-in-out infinite",
         textShadow: "0 1px 4px rgba(0,0,0,0.8)"
-      } as any}>{isLeft ? "‹" : "›"}</div>
+      } as any}>{isLeft ? "Ã¢â‚¬Â¹" : "Ã¢â‚¬Âº"}</div>
       {!hasBothArt && !hasPerSideArt && isLeft &&
       <div data-ev-id="ev_867d267ffb" style={{
         position: "absolute", top: "50%", left: "50%",
@@ -2393,19 +2393,24 @@ export function Aurae() {
     }
   }, [stageMode, playing]);
 
+  const audioUpdateRef = useRef<() => void>(() => {});
+  const audioEndRef = useRef<() => void>(() => {});
+
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const update = () => {
+    audioUpdateRef.current = () => {
+      const audio = audioRef.current;
+      if (!audio) return;
       const knownDuration = trackDuration(tracks[index]);
       const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : knownDuration;
       setCurrentTime(audio.currentTime || 0);
-      // FIX: Only update duration if we have a valid value, don't overwrite with 0
       if (audioDuration > 0) {
         setDuration(audioDuration);
       }
     };
-    const end = () => {
+  });
+
+  useEffect(() => {
+    audioEndRef.current = () => {
       const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
       if (index === lastOfSide && vinylSide < totalSides) {
         setPlaying(false);
@@ -2421,13 +2426,18 @@ export function Aurae() {
         setPlaying(false);
       }
     };
+  });
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const update = () => audioUpdateRef.current();
+    const end = () => audioEndRef.current();
     audio.addEventListener("timeupdate", update);
     audio.addEventListener("loadedmetadata", update);
     audio.addEventListener("durationchange", update);
     audio.addEventListener("canplay", update);
     audio.addEventListener("ended", end);
-    // FIX: Call update immediately to initialize duration from track metadata
-    update();
     return () => {
       audio.removeEventListener("timeupdate", update);
       audio.removeEventListener("loadedmetadata", update);
@@ -2435,8 +2445,7 @@ export function Aurae() {
       audio.removeEventListener("canplay", update);
       audio.removeEventListener("ended", end);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, tracks, sideBoundaries, vinylSide, totalSides]);
+  }, []);
 
   const fmt = (s = 0) => {
     const safe = Number.isFinite(s) ? s : 0;
@@ -2877,7 +2886,7 @@ export function Aurae() {
 
   function createStorage() {
     if (!currentUser) return;
-    const cleanName = storageDraftName.trim() || "My Vinyl Storage";
+    const cleanName = storageDraftName;
     const id = makeStorageId();
     setStorageConfigs((prev: any) => ({
       ...prev,
@@ -2913,7 +2922,7 @@ export function Aurae() {
 
   function createAdditionalStorage() {
     if (!currentUser) return;
-    const cleanName = newStorageName.trim() || `Storage ${Date.now().toString().slice(-4)}`;
+    const cleanName = newStorageName;
     const id = makeStorageId();
     setStorageConfigs((prev: any) => {
       const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta));
@@ -3256,7 +3265,7 @@ export function Aurae() {
     });
   }
 
-  // ── CHANGE 3: addMainCoverFor sets the main album cover (cover field) ──
+  // Ã¢â€â‚¬Ã¢â€â‚¬ CHANGE 3: addMainCoverFor sets the main album cover (cover field) Ã¢â€â‚¬Ã¢â€â‚¬
   // Used by the "cover art" button in the focus panel on the home screen.
   // Updates project.cover so the sleeve and player both show the new image.
   function addMainCoverFor(e: React.ChangeEvent<HTMLInputElement>, projectNameForCover: string) {
@@ -3560,7 +3569,7 @@ export function Aurae() {
                   <div data-ev-id="ev_9135c3839e" style={S.focusActions}>
                     <button data-ev-id="ev_d52e8a3234" style={S.smallBtn} onClick={() => openProject(focusedProject, "sleeve")}>open sleeve</button>
                     <button data-ev-id="ev_0dcd4b6ad2" style={S.smallBtn} onClick={() => openProject(focusedProject, "studio")}>open player</button>
-                    {/* ── CHANGE 3b: "cover art" button calls addMainCoverFor ── */}
+                    {/* Ã¢â€â‚¬Ã¢â€â‚¬ CHANGE 3b: "cover art" button calls addMainCoverFor Ã¢â€â‚¬Ã¢â€â‚¬ */}
                     <label data-ev-id="ev_0a2980bccf" style={S.smallBtn}>
                       cover art
                       <input data-ev-id="ev_cbb2c27ad7" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => addMainCoverFor(e, focusedProject)} />
@@ -3628,7 +3637,7 @@ export function Aurae() {
                   }
                 </div>
               </div>
-              <div data-ev-id="ev_7679c6ef12" style={S.crateLabel}>{storageConfig.name} · {storageProjects.length} records</div>
+              <div data-ev-id="ev_7679c6ef12" style={S.crateLabel}>{storageConfig.name} Ã‚Â· {storageProjects.length} records</div>
             </div>
           </div>
         </div>
@@ -3710,7 +3719,7 @@ export function Aurae() {
 
   }
 
-  // ── CHANGE 3c: pass pictureVinyl to SleevePresentation ───────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ CHANGE 3c: pass pictureVinyl to SleevePresentation Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   if (view === "sleeve") {
     return (
       <SleevePresentation
@@ -3766,9 +3775,9 @@ export function Aurae() {
   }
 
   const playButtonContent = (() => {
-    if (awaitingVinylChange) return <span data-ev-id="ev_627fa347fa" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>🔌 change</span>;
-    if (awaitingFlip) return <span data-ev-id="ev_a1539d7f53" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>🔄 turn</span>;
-    return playing ? "⏸" : "▶";
+    if (awaitingVinylChange) return <span data-ev-id="ev_627fa347fa" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>Ã°Å¸â€Å’ change</span>;
+    if (awaitingFlip) return <span data-ev-id="ev_a1539d7f53" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>Ã°Å¸â€â€ž turn</span>;
+    return playing ? "Ã¢ÂÂ¸" : "Ã¢â€“Â¶";
   })();
   const playButtonWidth = awaitingVinylChange || awaitingFlip ? "auto" : 36;
   const playButtonPadding = awaitingVinylChange || awaitingFlip ? "0 12px" : "0";
@@ -3994,7 +4003,7 @@ export function Aurae() {
             </div>
             <div data-ev-id="ev_46952d315c" style={S.playerTrackMeta}>
               {tracks.length > 0 ?
-              `Vinyl ${activeVinyl} · Side ${vinylSide === 1 ? 'A' : vinylSide === 2 ? 'B' : vinylSide === 3 ? 'C' : 'D'}` :
+              `Vinyl ${activeVinyl} Ã‚Â· Side ${vinylSide === 1 ? 'A' : vinylSide === 2 ? 'B' : vinylSide === 3 ? 'C' : 'D'}` :
 
               "Aurae OS Player"
               }
@@ -4011,7 +4020,7 @@ export function Aurae() {
             onClick={prevTrack}
             title="Previous Track">
 
-              ⏮
+              Ã¢ÂÂ®
             </button>
             <button data-ev-id="ev_eabbd5cc8d"
             className="aurae-player-btn"
@@ -4032,7 +4041,7 @@ export function Aurae() {
             onClick={nextTrack}
             title="Next Track">
 
-              ⏭
+              Ã¢ÂÂ­
             </button>
           </div>
           <div data-ev-id="ev_7d16a63f69" style={S.playerProgressRow}>
