@@ -3301,11 +3301,17 @@ export function Aurae() {
     audio.src = track.url;
     audio.preload = "metadata";
     audio.load();
-    ensureAudioGraph();
-    audio.play().catch((err) => {
-      console.error("Playback failed:", err);
-      setPlaying(false);
-    });
+    audio.play()
+      .then(() => {
+        if (stageMode === "equalizer") {
+          ensureAudioGraph();
+        }
+        audioCtxRef.current?.resume?.().catch(() => {});
+      })
+      .catch((err) => {
+        console.error("Playback failed:", err);
+        setPlaying(false);
+      });
   }
 
   function flipVinyl() {
@@ -3344,8 +3350,15 @@ export function Aurae() {
     if (awaitingVinylChange) {changeVinyl();return;}
     if (awaitingFlip) {flipVinyl();return;}
     if (!audio.src && tracks[0]) {playTrack(0);return;}
-    if (playing) {audio.pause();setPlaying(false);} else
-    {ensureAudioGraph();audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));}
+    if (playing) {audio.pause();setPlaying(false);} else {
+      audio.play()
+        .then(() => {
+          if (stageMode === "equalizer") ensureAudioGraph();
+          audioCtxRef.current?.resume?.().catch(() => {});
+          setPlaying(true);
+        })
+        .catch(() => setPlaying(false));
+    }
   }
 
   function prevTrack() {if (index > 0) playTrack(index - 1);}
