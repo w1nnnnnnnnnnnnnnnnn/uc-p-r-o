@@ -6,14 +6,14 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 // All features (login, signup, remember-me, legacy upgrade) preserved.
 // ----------------------------------------------------------------------------
 type UserRecord =
-string // legacy plaintext password
-| {
-  v: 1;
-  salt: string;
-  hash: string;
-  algo?: "sha-256";
-  createdAt?: number;
-};
+  | string // legacy plaintext password
+  | {
+      v: 1;
+      salt: string;
+      hash: string;
+      algo?: "sha-256";
+      createdAt?: number;
+    };
 
 function normalizeEmail(raw: string): string {
   return String(raw || "").trim().toLowerCase();
@@ -25,12 +25,12 @@ function isEmailSyntaxValid(email: string): boolean {
 }
 
 const BLOCKED_EMAIL_DOMAINS = new Set([
-"example.com", "example.org", "example.net", "test.com", "test.test",
-"email.com", "domain.com", "fake.com", "fake.net", "mailinator.com",
-"guerrillamail.com", "10minutemail.com", "tempmail.com", "temp-mail.org",
-"yopmail.com", "trashmail.com", "sharklasers.com", "getnada.com",
-"dispostable.com", "maildrop.cc"]
-);
+  "example.com", "example.org", "example.net", "test.com", "test.test",
+  "email.com", "domain.com", "fake.com", "fake.net", "mailinator.com",
+  "guerrillamail.com", "10minutemail.com", "tempmail.com", "temp-mail.org",
+  "yopmail.com", "trashmail.com", "sharklasers.com", "getnada.com",
+  "dispostable.com", "maildrop.cc",
+]);
 
 async function isEmailDomainReal(email: string): Promise<boolean> {
   const clean = normalizeEmail(email);
@@ -109,7 +109,7 @@ async function sha256Hex(text: string): Promise<string> {
     return bytesToHex(new Uint8Array(hash));
   }
   let h = 0;
-  for (let i = 0; i < text.length; i++) h = (h << 5) - h + text.charCodeAt(i) | 0;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) - h + text.charCodeAt(i)) | 0;
   return Math.abs(h).toString(16).padStart(8, "0");
 }
 
@@ -130,8 +130,8 @@ async function verifyPassword(password: string, record: UserRecord | undefined):
 }
 
 async function verifyEmailForSignup(
-email: string)
-: Promise<{ok: boolean;email: string;error: string;}> {
+  email: string,
+): Promise<{ ok: boolean; email: string; error: string }> {
   const clean = normalizeEmail(email);
   if (!clean) return { ok: false, email: "", error: "Enter an email address." };
   if (!isEmailSyntaxValid(clean)) return { ok: false, email: "", error: "Enter a valid email address." };
@@ -184,12 +184,12 @@ function getInitialUser(): string {
 function openDB(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
     const req = indexedDB.open("aurae_audio", 2);
-    req.onupgradeneeded = (e) => {
+    req.onupgradeneeded = e => {
       const db = (e.target as any).result;
       if (!db.objectStoreNames.contains("blobs")) db.createObjectStore("blobs");
       if (!db.objectStoreNames.contains("projects")) db.createObjectStore("projects");
     };
-    req.onsuccess = (e) => res((e.target as any).result);
+    req.onsuccess = e => res((e.target as any).result);
     req.onerror = () => rej(req.error);
   });
 }
@@ -203,51 +203,51 @@ async function idb(store: string, mode: IDBTransactionMode, fn: (store: any, res
 }
 
 const saveBlob = (id: string, blob: Blob) =>
-idb("blobs", "readwrite", (store, res, rej, tx) => {
-  store.put(blob, id);
-  tx.oncomplete = res;
-  tx.onerror = () => rej(tx.error);
-});
+  idb("blobs", "readwrite", (store, res, rej, tx) => {
+    store.put(blob, id);
+    tx.oncomplete = res;
+    tx.onerror = () => rej(tx.error);
+  });
 
 const loadBlob = (id: string) =>
-idb("blobs", "readonly", (store, res) => {
-  const req = store.get(id);
-  req.onsuccess = () => res(req.result || null);
-  req.onerror = () => res(null);
-});
+  idb("blobs", "readonly", (store, res) => {
+    const req = store.get(id);
+    req.onsuccess = () => res(req.result || null);
+    req.onerror = () => res(null);
+  });
 
 const deleteBlob = (id: string) =>
-idb("blobs", "readwrite", (store, res) => {
-  store.delete(id);
-  res(undefined);
-});
+  idb("blobs", "readwrite", (store, res) => {
+    store.delete(id);
+    res(undefined);
+  });
 
 const saveProjectToDB = (name: string, data: any) =>
-idb("projects", "readwrite", (store, res, rej, tx) => {
-  store.put(data, name);
-  tx.oncomplete = res;
-  tx.onerror = () => rej(tx.error);
-});
+  idb("projects", "readwrite", (store, res, rej, tx) => {
+    store.put(data, name);
+    tx.oncomplete = res;
+    tx.onerror = () => rej(tx.error);
+  });
 
 const loadProjectFromDB = (name: string) =>
-idb("projects", "readonly", (store, res) => {
-  const req = store.get(name);
-  req.onsuccess = () => res(req.result || null);
-  req.onerror = () => res(null);
-});
+  idb("projects", "readonly", (store, res) => {
+    const req = store.get(name);
+    req.onsuccess = () => res(req.result || null);
+    req.onerror = () => res(null);
+  });
 
 const deleteProjectFromDB = (name: string) =>
-idb("projects", "readwrite", (store, res) => {
-  store.delete(name);
-  res(undefined);
-});
+  idb("projects", "readwrite", (store, res) => {
+    store.delete(name);
+    res(undefined);
+  });
 
 const loadAllProjectNames = (): Promise<string[]> =>
-idb("projects", "readonly", (store, res) => {
-  const req = store.getAllKeys();
-  req.onsuccess = () => res(req.result || []);
-  req.onerror = () => res([]);
-}) as Promise<string[]>;
+  idb("projects", "readonly", (store, res) => {
+    const req = store.getAllKeys();
+    req.onsuccess = () => res(req.result || []);
+    req.onerror = () => res([]);
+  }) as Promise<string[]>;
 
 // Utilities
 
@@ -277,7 +277,7 @@ function hexToRgb(hex: string) {
   return {
     r: parseInt(safe.slice(1, 3), 16),
     g: parseInt(safe.slice(3, 5), 16),
-    b: parseInt(safe.slice(5, 7), 16)
+    b: parseInt(safe.slice(5, 7), 16),
   };
 }
 
@@ -299,7 +299,7 @@ function rgba(hex: string, alpha: number) {
 function seededRand(seed: number) {
   let s = seed;
   return () => {
-    s = s * 16807 % 2147483647;
+    s = (s * 16807) % 2147483647;
     return (s - 1) / 2147483646;
   };
 }
@@ -321,14 +321,14 @@ function trackDuration(track: any) {
 
 function singleSideFits(sideTracks: any[]) {
   const total = sideTracks.reduce((sum, track) => sum + trackDuration(track), 0);
-  return total <= SINGLE_SIDE_TARGET || sideTracks.length === 1 && total <= SINGLE_LONG_TRACK_OK;
+  return total <= SINGLE_SIDE_TARGET || (sideTracks.length === 1 && total <= SINGLE_LONG_TRACK_OK);
 }
 
 function computeSingleSideBoundaries(tracks: any[]) {
   if (!tracks.length) return [0];
   const total = tracks.reduce((sum, track) => sum + trackDuration(track), 0);
   if (total > SINGLE_TOTAL_TARGET) return null;
-  if (tracks.some((track) => trackDuration(track) > SINGLE_LONG_TRACK_OK)) return null;
+  if (tracks.some(track => trackDuration(track) > SINGLE_LONG_TRACK_OK)) return null;
   if (singleSideFits(tracks)) return [0];
   for (let split = 1; split < tracks.length; split++) {
     const sideA = tracks.slice(0, split);
@@ -378,8 +378,8 @@ function computeSideBoundaries(tracks: any[], singleMode = false) {
 function getSideForTrack(boundaries: number[], trackIndex: number) {
   let side = 1;
   for (let i = 1; i < boundaries.length; i++) {
-    if (trackIndex >= boundaries[i]) side = i + 1;else
-    break;
+    if (trackIndex >= boundaries[i]) side = i + 1;
+    else break;
   }
   return side;
 }
@@ -414,73 +414,73 @@ function sideCoverFor(side: number, covers: any[], repeatFirstPair: boolean, fal
 const DEFAULT_VINYL_COLORS = ["#111111", "#111111", "#111111", "#111111"];
 
 const DECK_STYLES = [
-"classic", "dark", "chrome", "wood", "minimal",
-"realistic1", "realistic2", "realistic3"];
-
+  "classic", "dark", "chrome", "wood", "minimal",
+  "realistic1", "realistic2", "realistic3",
+];
 
 const VINYL_GRADIENTS = [
-{ id: "radial", label: "radial" },
-{ id: "split", label: "split" },
-{ id: "aurora", label: "aurora" },
-{ id: "rings", label: "rings" },
-{ id: "solid", label: "solid" }];
-
+  { id: "radial", label: "radial" },
+  { id: "split", label: "split" },
+  { id: "aurora", label: "aurora" },
+  { id: "rings", label: "rings" },
+  { id: "solid", label: "solid" },
+];
 
 const SPLATTER_STYLES = [
-{ id: "burst", label: "burst" },
-{ id: "mist", label: "mist" },
-{ id: "ring", label: "ring" },
-{ id: "drip", label: "drip" }];
-
+  { id: "burst", label: "burst" },
+  { id: "mist", label: "mist" },
+  { id: "ring", label: "ring" },
+  { id: "drip", label: "drip" },
+];
 
 const EQ_SHAPES = [
-{ id: "bars", label: "bars" },
-{ id: "mirror", label: "mirror" },
-{ id: "wave", label: "wave" },
-{ id: "circular", label: "circular" },
-{ id: "dots", label: "dots" }];
-
+  { id: "bars",     label: "bars"     },
+  { id: "mirror",   label: "mirror"   },
+  { id: "wave",     label: "wave"     },
+  { id: "circular", label: "circular" },
+  { id: "dots",     label: "dots"     },
+];
 
 const STORAGE_WOODS = [
-{
-  id: "oak",
-  label: "oak",
-  face: "linear-gradient(180deg, #6b3f1f 0%, #4a2912 60%, #2e1808 100%)",
-  edge: "#2a1608",
-  line: "rgba(20,10,4,0.45)"
-},
-{
-  id: "walnut",
-  label: "walnut",
-  face: "linear-gradient(180deg, #4a2a17 0%, #2e1709 60%, #1a0d05 100%)",
-  edge: "#140a05",
-  line: "rgba(20,10,4,0.55)"
-},
-{
-  id: "ash",
-  label: "ash",
-  face: "linear-gradient(180deg, #a08866 0%, #7b6346 60%, #574532 100%)",
-  edge: "#3a2c1f",
-  line: "rgba(30,20,12,0.40)"
-},
-{
-  id: "cherry",
-  label: "cherry",
-  face: "linear-gradient(180deg, #7a3a22 0%, #4a1e10 60%, #2c1208 100%)",
-  edge: "#26100a",
-  line: "rgba(40,18,10,0.45)"
-},
-{
-  id: "black",
-  label: "black oak",
-  face: "linear-gradient(180deg, #1f1c19 0%, #110f0d 60%, #050403 100%)",
-  edge: "#020202",
-  line: "rgba(255,255,255,0.05)"
-}];
-
+  {
+    id: "oak",
+    label: "oak",
+    face: "linear-gradient(180deg, #6b3f1f 0%, #4a2912 60%, #2e1808 100%)",
+    edge: "#2a1608",
+    line: "rgba(20,10,4,0.45)",
+  },
+  {
+    id: "walnut",
+    label: "walnut",
+    face: "linear-gradient(180deg, #4a2a17 0%, #2e1709 60%, #1a0d05 100%)",
+    edge: "#140a05",
+    line: "rgba(20,10,4,0.55)",
+  },
+  {
+    id: "ash",
+    label: "ash",
+    face: "linear-gradient(180deg, #a08866 0%, #7b6346 60%, #574532 100%)",
+    edge: "#3a2c1f",
+    line: "rgba(30,20,12,0.40)",
+  },
+  {
+    id: "cherry",
+    label: "cherry",
+    face: "linear-gradient(180deg, #7a3a22 0%, #4a1e10 60%, #2c1208 100%)",
+    edge: "#26100a",
+    line: "rgba(40,18,10,0.45)",
+  },
+  {
+    id: "black",
+    label: "black oak",
+    face: "linear-gradient(180deg, #1f1c19 0%, #110f0d 60%, #050403 100%)",
+    edge: "#020202",
+    line: "rgba(255,255,255,0.05)",
+  },
+];
 
 function getWoodTheme(id: string) {
-  return STORAGE_WOODS.find((wood) => wood.id === id) || STORAGE_WOODS[0];
+  return STORAGE_WOODS.find(wood => wood.id === id) || STORAGE_WOODS[0];
 }
 
 function makeStorageId() {
@@ -494,14 +494,14 @@ function normalizeStorageShelf(raw: any, projectNames: string[] = []) {
       name: item.name || `Storage ${i + 1}`,
       wood: item.wood || "oak",
       projects: Array.isArray(item.projects) ? item.projects.filter((name: string) => projectNames.includes(name)) : [],
-      createdAt: item.createdAt || Date.now() + i
+      createdAt: item.createdAt || Date.now() + i,
     }));
     const assigned = new Set(items.flatMap((item: any) => item.projects));
-    const unassigned = projectNames.filter((name) => !assigned.has(name));
+    const unassigned = projectNames.filter(name => !assigned.has(name));
     if (items[0] && unassigned.length) items[0].projects = [...items[0].projects, ...unassigned];
     return {
       activeId: items.some((item: any) => item.id === raw.activeId) ? raw.activeId : items[0]?.id || null,
-      items
+      items,
     };
   }
   if (raw?.name || raw?.wood) {
@@ -513,8 +513,8 @@ function normalizeStorageShelf(raw: any, projectNames: string[] = []) {
         name: raw.name || "My Vinyl Storage",
         wood: raw.wood || "oak",
         projects: projectNames,
-        createdAt: raw.createdAt || Date.now()
-      }]
+        createdAt: raw.createdAt || Date.now(),
+      }],
     };
   }
   return { activeId: null, items: [] };
@@ -537,7 +537,7 @@ function deckGeometry(style: string) {
     return { width: 560, height: 560, cx: 238, cy: 292, pivotX: 500, pivotY: 132 };
   }
   if (s === "realistic2") {
-    return { width: 560, height: 560, cx: 248, cy: 282, pivotX: 500, pivotY: 112 };
+    return { width: 560, height: 560, cx: 228, cy: 282, pivotX: 480, pivotY: 112 };
   }
   if (["dark", "chrome", "wood"].includes(s)) {
     return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 508, pivotY: 126 };
@@ -554,7 +554,7 @@ function boardPath(style: string) {
   if (s === "chrome") return "M58 20 L502 20 L540 58 L540 500 L502 540 L20 540 L20 58 Z";
   if (s === "dark") return "M20 20 L540 20 L540 540 L20 540 Z";
   if (s === "realistic1") return "M28 20 Q20 20 20 28 L20 532 Q20 540 28 540 L532 540 Q540 540 540 532 L540 28 Q540 20 532 20 Z";
-  if (s === "realistic2") return "M52 20 Q20 20 20 52 L20 508 Q20 540 52 540 L508 540 Q540 540 540 508 L540 52 Q540 20 508 20 Z";
+  if (s === "realistic2") return "M26 20 Q20 20 20 26 L20 534 Q20 540 26 540 L534 540 Q540 540 540 534 L540 26 Q540 20 534 20 Z";
   if (s === "wood") return "M42 20 Q20 20 20 42 L20 518 Q20 540 42 540 L518 540 Q540 540 540 518 L540 42 Q540 20 518 20 Z";
   if (s === "minimal") return "M20 20 L540 20 L540 540 L20 540 Z";
   return "M48 20 Q20 20 20 48 L20 512 Q20 540 48 540 L512 540 Q540 540 540 512 L540 48 Q540 20 512 20 Z";
@@ -609,7 +609,7 @@ function vinylBackground(colors: string[], gradient: string) {
   return `radial-gradient(circle at 38% 34%, ${lighten(c1, 42)} 0%, ${c1} 24%, ${c2} 48%, ${darken(c3, 28)} 72%, ${darken(c4, 46)} 100%)`;
 }
 
-function SplatterOverlay({ color, style }: {color: string;style: string;}) {
+function SplatterOverlay({ color, style }: { color: string; style: string }) {
   const cx = 195;
   const cy = 195;
   const rand = seededRand(42);
@@ -622,22 +622,22 @@ function SplatterOverlay({ color, style }: {color: string;style: string;}) {
       const a = rand() * Math.PI * 2;
       const r = 35 + rand() * 150;
       dots.push(
-        <circle data-ev-id="ev_7ee3492e74" key={`m${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-        r={0.7 + rand() * 3.5} fill={color} opacity={0.12 + rand() * 0.42} />
+        <circle key={`m${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={0.7 + rand() * 3.5} fill={color} opacity={0.12 + rand() * 0.42} />
       );
     }
   } else if (sel === "ring") {
     for (let i = 0; i < 70; i++) {
-      const a = i / 70 * Math.PI * 2 + (rand() - 0.5) * 0.16;
+      const a = (i / 70) * Math.PI * 2 + (rand() - 0.5) * 0.16;
       const r = 105 + rand() * 54;
       dots.push(
-        <circle data-ev-id="ev_aed30ebe7c" key={`r${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-        r={1.5 + rand() * 6} fill={color} opacity={0.25 + rand() * 0.62} />
+        <circle key={`r${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={1.5 + rand() * 6} fill={color} opacity={0.25 + rand() * 0.62} />
       );
     }
   } else if (sel === "drip") {
     for (let i = 0; i < 46; i++) {
-      const a = i / 46 * Math.PI * 2 + (rand() - 0.5) * 0.45;
+      const a = (i / 46) * Math.PI * 2 + (rand() - 0.5) * 0.45;
       const inn = 65 + rand() * 28;
       const out = 118 + rand() * 90;
       const x1 = cx + Math.cos(a) * inn;
@@ -645,15 +645,15 @@ function SplatterOverlay({ color, style }: {color: string;style: string;}) {
       const x2 = cx + Math.cos(a) * out;
       const y2 = cy + Math.sin(a) * out;
       paths.push(
-        <path data-ev-id="ev_43dd492fed" key={`d${i}`}
-        d={`M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 + rand() * 28} ${x2} ${y2}`}
-        stroke={color} strokeWidth={3 + rand() * 7} strokeLinecap="round" fill="none"
-        opacity={0.32 + rand() * 0.48} />
+        <path key={`d${i}`}
+          d={`M ${x1} ${y1} Q ${(x1 + x2) / 2} ${(y1 + y2) / 2 + rand() * 28} ${x2} ${y2}`}
+          stroke={color} strokeWidth={3 + rand() * 7} strokeLinecap="round" fill="none"
+          opacity={0.32 + rand() * 0.48} />
       );
     }
   } else {
     for (let i = 0; i < 54; i++) {
-      const a = i / 54 * Math.PI * 2 + (rand() - 0.5) * 0.42;
+      const a = (i / 54) * Math.PI * 2 + (rand() - 0.5) * 0.42;
       const inn = 62 + rand() * 24;
       const out = 132 + rand() * 58;
       const bend = (rand() - 0.5) * 0.22;
@@ -662,53 +662,53 @@ function SplatterOverlay({ color, style }: {color: string;style: string;}) {
       const x2 = cx + Math.cos(a + bend) * out;
       const y2 = cy + Math.sin(a + bend) * out;
       paths.push(
-        <path data-ev-id="ev_3da2fa08a0" key={`b${i}`}
-        d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 20} ${(y1 + y2) / 2 + (rand() - 0.5) * 20} ${x2} ${y2}`}
-        stroke={color} strokeWidth={2.5 + rand() * 9} strokeLinecap="round" fill="none"
-        opacity={0.34 + rand() * 0.56} />
+        <path key={`b${i}`}
+          d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + (rand() - 0.5) * 20} ${(y1 + y2) / 2 + (rand() - 0.5) * 20} ${x2} ${y2}`}
+          stroke={color} strokeWidth={2.5 + rand() * 9} strokeLinecap="round" fill="none"
+          opacity={0.34 + rand() * 0.56} />
       );
     }
     for (let i = 0; i < 45; i++) {
       const a = rand() * Math.PI * 2;
       const r = 68 + rand() * 120;
       dots.push(
-        <circle data-ev-id="ev_24e54947df" key={`bd${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
-        r={1.2 + rand() * 5.4} fill={color} opacity={0.34 + rand() * 0.56} />
+        <circle key={`bd${i}`} cx={cx + Math.cos(a) * r} cy={cy + Math.sin(a) * r}
+          r={1.2 + rand() * 5.4} fill={color} opacity={0.34 + rand() * 0.56} />
       );
     }
   }
 
   return (
-    <svg data-ev-id="ev_9e830ad043" viewBox="0 0 390 390" style={{
+    <svg viewBox="0 0 390 390" style={{
       position: "absolute", inset: 0, width: "100%", height: "100%",
-      borderRadius: "50%", overflow: "hidden", pointerEvents: "none"
+      borderRadius: "50%", overflow: "hidden", pointerEvents: "none",
     }}>
-      <defs data-ev-id="ev_ebd181182e">
-        <clipPath data-ev-id="ev_3b0ea2be27" id="aurae-splatter-clip">
-          <circle data-ev-id="ev_e0b013c785" cx="195" cy="195" r="195" />
+      <defs>
+        <clipPath id="aurae-splatter-clip">
+          <circle cx="195" cy="195" r="195" />
         </clipPath>
-        <filter data-ev-id="ev_d0d8f42a0c" id="aurae-splatter-soft">
-          <feGaussianBlur data-ev-id="ev_86f0bd0830" stdDeviation="0.65" />
+        <filter id="aurae-splatter-soft">
+          <feGaussianBlur stdDeviation="0.65" />
         </filter>
       </defs>
-      <g data-ev-id="ev_d2b36623b7" clipPath="url(#aurae-splatter-clip)" filter="url(#aurae-splatter-soft)">
+      <g clipPath="url(#aurae-splatter-clip)" filter="url(#aurae-splatter-soft)">
         {paths}
         {dots}
       </g>
-    </svg>);
-
+    </svg>
+  );
 }
 
 function VinylDisc({
   radius, colors, gradient, opacity, splatterOn, splatterColor, splatterStyle,
-  cover, isSingle, playing, textColor, flipping, pictureVinyl
+  cover, isSingle, playing, textColor, flipping, pictureVinyl,
 }: any) {
   const labelSize = Math.round(radius * (isSingle ? 0.58 : 0.75));
   const centerHoleSize = Math.round(radius * (isSingle ? 0.34 : 0.12));
   const isPicture = Boolean(pictureVinyl && cover);
 
   return (
-    <div data-ev-id="ev_e027da9e1b" style={{
+    <div style={{
       position: "absolute",
       width: radius * 2,
       height: radius * 2,
@@ -717,229 +717,367 @@ function VinylDisc({
       opacity,
       overflow: "hidden",
       boxShadow:
-      "0 36px 80px rgba(0,0,0,0.72), 0 6px 18px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 0 60px rgba(0,0,0,0.6)",
-      animation: flipping ?
-      `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards` :
-      playing ?
-      "spin 1.8s linear infinite" :
-      "none",
-      transformOrigin: "50% 50%"
+        "0 36px 80px rgba(0,0,0,0.72), 0 6px 18px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 0 60px rgba(0,0,0,0.6)",
+      animation: flipping
+        ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
+        : playing
+          ? "spin 1.8s linear infinite"
+          : "none",
+      transformOrigin: "50% 50%",
     }}>
-      {isPicture &&
-      <img data-ev-id="ev_9c6a29b0e1" src={cover} alt="" style={{
-        position: "absolute", inset: 0, width: "100%", height: "100%",
-        borderRadius: "50%", objectFit: "cover", display: "block"
-      }} />
-      }
-      <div data-ev-id="ev_fc79848e61" style={{
+      {isPicture && (
+        <img src={cover} alt="" style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          borderRadius: "50%", objectFit: "cover", display: "block",
+        }} />
+      )}
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.10) 0 0.5px, rgba(0,0,0,0.20) 0.5px 1px, transparent 1px 2.5px)",
-        opacity: isPicture ? 0.12 : 0.92, pointerEvents: "none"
+        opacity: isPicture ? 0.12 : 0.92, pointerEvents: "none",
       }} />
-      <div data-ev-id="ev_363ed7c846" style={{
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, transparent 0 7px, rgba(255,255,255,0.035) 7px 8px, transparent 8px 16px)",
-        opacity: isPicture ? 0.08 : 0.7, pointerEvents: "none"
+        opacity: isPicture ? 0.08 : 0.7, pointerEvents: "none",
       }} />
-      <div data-ev-id="ev_1fc0ef30c0" style={{
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 200deg, rgba(255,255,255,0.38) 0deg, rgba(200,160,255,0.14) 28deg, transparent 58deg, rgba(255,255,255,0.05) 130deg, transparent 195deg, rgba(255,255,255,0.30) 252deg, rgba(160,200,255,0.12) 280deg, transparent 320deg)",
-        mixBlendMode: isPicture ? "overlay" : "screen", pointerEvents: "none"
+        mixBlendMode: isPicture ? "overlay" : "screen", pointerEvents: "none",
       }} />
-      <div data-ev-id="ev_71736ec4e0" style={{
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 42deg, transparent 0deg, rgba(255,210,170,0.11) 18deg, transparent 65deg, rgba(170,255,210,0.09) 198deg, transparent 260deg)",
-        mixBlendMode: "screen", pointerEvents: "none"
+        mixBlendMode: "screen", pointerEvents: "none",
       }} />
-      {!isPicture &&
-      <div data-ev-id="ev_4350ae67dd" style={{
-        position: "absolute", inset: 0, borderRadius: "50%",
-        background: "radial-gradient(circle, transparent 46%, rgba(0,0,0,0.38) 66%, rgba(0,0,0,0.78) 100%)",
-        pointerEvents: "none"
-      }} />
-      }
-      <div data-ev-id="ev_17ef911cff" style={{
+      {!isPicture && (
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          background: "radial-gradient(circle, transparent 46%, rgba(0,0,0,0.38) 66%, rgba(0,0,0,0.78) 100%)",
+          pointerEvents: "none",
+        }} />
+      )}
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "radial-gradient(ellipse 55% 28% at 42% 20%, rgba(255,255,255,0.14) 0%, transparent 100%)",
-        pointerEvents: "none"
+        pointerEvents: "none",
       }} />
-      <div data-ev-id="ev_cb8cbc9ad8" style={{
+      <div style={{
         position: "absolute",
         inset: Math.round(radius * 0.08),
         borderRadius: "50%",
         border: "1px solid rgba(255,255,255,0.12)",
         boxShadow: "inset 0 0 30px rgba(0,0,0,0.34)",
-        pointerEvents: "none"
+        pointerEvents: "none",
       }} />
       {!isPicture && splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
-      {!isPicture && (cover ?
-      <img data-ev-id="ev_c6aebc0eee" src={cover} alt="" style={{
-        position: "absolute",
-        width: labelSize, height: labelSize,
-        borderRadius: "50%", objectFit: "cover",
-        top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)"
-      }} /> :
-
-      <div data-ev-id="ev_e5a091a668" style={{
-        position: "absolute",
-        width: labelSize, height: labelSize,
-        borderRadius: "50%",
-        top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
-        color: textColor,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: "Courier New, monospace",
-        fontSize: isSingle ? 10 : 14,
-        letterSpacing: 1,
-        boxShadow: "0 0 0 7px rgba(0,0,0,0.32)"
-      }}>
+      {!isPicture && (cover ? (
+        <img src={cover} alt="" style={{
+          position: "absolute",
+          width: labelSize, height: labelSize,
+          borderRadius: "50%", objectFit: "cover",
+          top: "50%", left: "50%",
+          transform: "translate(-50%, -50%)",
+          boxShadow: "0 0 0 7px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.35)",
+        }} />
+      ) : (
+        <div style={{
+          position: "absolute",
+          width: labelSize, height: labelSize,
+          borderRadius: "50%",
+          top: "50%", left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0.07) 42%, rgba(0,0,0,0.35))",
+          color: textColor,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "Courier New, monospace",
+          fontSize: isSingle ? 10 : 14,
+          letterSpacing: 1,
+          boxShadow: "0 0 0 7px rgba(0,0,0,0.32)",
+        }}>
           {isSingle ? "7 IN" : "AURAE"}
-        </div>)
-      }
-      <div data-ev-id="ev_f022bab748" style={{
+        </div>
+      ))}
+      <div style={{
         position: "absolute",
         width: centerHoleSize, height: centerHoleSize,
         borderRadius: "50%",
         top: "50%", left: "50%",
         transform: "translate(-50%, -50%)",
         background: "rgba(8,8,8,0.78)",
-        boxShadow: isSingle ?
-        "inset 0 0 0 5px rgba(255,255,255,0.14), inset 0 0 22px rgba(0,0,0,0.82), 0 0 0 2px rgba(0,0,0,0.55)" :
-        "inset 0 0 0 2px rgba(255,255,255,0.12)"
+        boxShadow: isSingle
+          ? "inset 0 0 0 5px rgba(255,255,255,0.14), inset 0 0 22px rgba(0,0,0,0.82), 0 0 0 2px rgba(0,0,0,0.55)"
+          : "inset 0 0 0 2px rgba(255,255,255,0.12)",
       }} />
-    </div>);
-
+    </div>
+  );
 }
 
 function DeckDefs({ id, style, color }: any) {
   const s = normalizeDeckStyle(style);
   const base = deckBase(s, color);
   return (
-    <defs data-ev-id="ev_f0bf06c845">
-      <linearGradient data-ev-id="ev_dd046eb87e" id={`${id}-base`} x1="0" y1="0" x2="1" y2="1">
-        {s === "chrome" ?
-        <>
-            <stop data-ev-id="ev_49ef2e82e4" offset="0%" stopColor="#f1f4f6" />
-            <stop data-ev-id="ev_1a97e76daf" offset="28%" stopColor="#9fa8b0" />
-            <stop data-ev-id="ev_0639a99343" offset="56%" stopColor="#dce1e5" />
-            <stop data-ev-id="ev_8eec726976" offset="100%" stopColor="#737b82" />
-          </> :
-        s === "wood" ?
-        <>
-            <stop data-ev-id="ev_ff30b5a6ab" offset="0%" stopColor="#a87543" />
-            <stop data-ev-id="ev_cea9144b97" offset="28%" stopColor="#6f421e" />
-            <stop data-ev-id="ev_9858ffb04b" offset="56%" stopColor="#9b6537" />
-            <stop data-ev-id="ev_e97ca8a3d8" offset="100%" stopColor="#b47b47" />
-          </> :
-        s === "realistic1" ?
-        <>
-            <stop data-ev-id="ev_45a35d3de9" offset="0%" stopColor={lighten(base, 34)} />
-            <stop data-ev-id="ev_cf6acb843b" offset="34%" stopColor={base} />
-            <stop data-ev-id="ev_503a69f976" offset="72%" stopColor={darken(base, 34)} />
-            <stop data-ev-id="ev_e3f349f87c" offset="100%" stopColor="#090a0d" />
-          </> :
-        s === "realistic2" ?
-        <>
-            <stop data-ev-id="ev_495bc33ec7" offset="0%" stopColor={lighten(base, 28)} />
-            <stop data-ev-id="ev_c50cd84c43" offset="42%" stopColor={base} />
-            <stop data-ev-id="ev_b46174a5d0" offset="100%" stopColor={darken(base, 22)} />
-          </> :
-
-        <>
-            <stop data-ev-id="ev_11ccd7bea2" offset="0%" stopColor={lighten(base, 44)} />
-            <stop data-ev-id="ev_7319857cf7" offset="48%" stopColor={base} />
-            <stop data-ev-id="ev_58b346aba9" offset="100%" stopColor={darken(base, 36)} />
+    <defs>
+      <linearGradient id={`${id}-base`} x1="0" y1="0" x2="1" y2="1">
+        {s === "chrome" ? (
+          <>
+            <stop offset="0%" stopColor="#f1f4f6" />
+            <stop offset="28%" stopColor="#9fa8b0" />
+            <stop offset="56%" stopColor="#dce1e5" />
+            <stop offset="100%" stopColor="#737b82" />
           </>
-        }
+        ) : s === "wood" ? (
+          <>
+            <stop offset="0%" stopColor="#a87543" />
+            <stop offset="28%" stopColor="#6f421e" />
+            <stop offset="56%" stopColor="#9b6537" />
+            <stop offset="100%" stopColor="#b47b47" />
+          </>
+        ) : s === "realistic1" ? (
+          <>
+            <stop offset="0%" stopColor={lighten(base, 34)} />
+            <stop offset="34%" stopColor={base} />
+            <stop offset="72%" stopColor={darken(base, 34)} />
+            <stop offset="100%" stopColor="#090a0d" />
+          </>
+        ) : s === "realistic2" ? (
+          <>
+            <stop offset="0%" stopColor={lighten(base, 28)} />
+            <stop offset="42%" stopColor={base} />
+            <stop offset="100%" stopColor={darken(base, 22)} />
+          </>
+        ) : (
+          <>
+            <stop offset="0%" stopColor={lighten(base, 44)} />
+            <stop offset="48%" stopColor={base} />
+            <stop offset="100%" stopColor={darken(base, 36)} />
+          </>
+        )}
       </linearGradient>
-      <linearGradient data-ev-id="ev_0e7e04ff94" id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
-        <stop data-ev-id="ev_34c30b4e3b" offset="0%" stopColor="#f5f5f5" />
-        <stop data-ev-id="ev_e264d5a895" offset="45%" stopColor="#b9b9b9" />
-        <stop data-ev-id="ev_879c1cb4f0" offset="100%" stopColor="#6d6d6d" />
+      <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#f5f5f5" />
+        <stop offset="45%" stopColor="#b9b9b9" />
+        <stop offset="100%" stopColor="#6d6d6d" />
       </linearGradient>
-      <linearGradient data-ev-id="ev_c4882be352" id={`${id}-brass`} x1="0" y1="0" x2="1" y2="1">
-        <stop data-ev-id="ev_7528e314f0" offset="0%" stopColor="#e9c96a" />
-        <stop data-ev-id="ev_ff1420c7af" offset="44%" stopColor="#b88b2b" />
-        <stop data-ev-id="ev_2f2e03b415" offset="100%" stopColor="#f4d984" />
+      <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#e9c96a" />
+        <stop offset="44%" stopColor="#b88b2b" />
+        <stop offset="100%" stopColor="#f4d984" />
       </linearGradient>
-      <radialGradient data-ev-id="ev_389cd31c90" id={`${id}-knob`} cx="35%" cy="30%" r="70%">
-        <stop data-ev-id="ev_0493eab6c7" offset="0%" stopColor="#f0f0f0" />
-        <stop data-ev-id="ev_a7f0bb788b" offset="54%" stopColor="#888" />
-        <stop data-ev-id="ev_6793700e01" offset="100%" stopColor="#333" />
+      <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
+        <stop offset="0%" stopColor="#f0f0f0" />
+        <stop offset="54%" stopColor="#888" />
+        <stop offset="100%" stopColor="#333" />
       </radialGradient>
-      <filter data-ev-id="ev_345f31b6eb" id={`${id}-shadow`}>
-        <feDropShadow data-ev-id="ev_5ac634f058" dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" />
+      <filter id={`${id}-shadow`}>
+        <feDropShadow dx="0" dy="10" stdDeviation="16" floodOpacity="0.42" />
       </filter>
-      <filter data-ev-id="ev_41a3bd97c3" id={`${id}-soft`}>
-        <feDropShadow data-ev-id="ev_0eb9f7a180" dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
+      <filter id={`${id}-soft`}>
+        <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" />
       </filter>
-      <pattern data-ev-id="ev_59efbdd287" id={`${id}-woodgrain`} x="0" y="0" width="560" height="12" patternUnits="userSpaceOnUse">
-        <line data-ev-id="ev_2124f3aeef" x1="0" y1="2" x2="560" y2="2" stroke="rgba(0,0,0,0.09)" strokeWidth="1" />
-        <line data-ev-id="ev_2ab9347c59" x1="0" y1="8" x2="560" y2="8" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+      <pattern id={`${id}-woodgrain`} x="0" y="0" width="560" height="12" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="2" x2="560" y2="2" stroke="rgba(0,0,0,0.09)" strokeWidth="1" />
+        <line x1="0" y1="8" x2="560" y2="8" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
       </pattern>
-      <pattern data-ev-id="ev_d1d82461b7" id={`${id}-brushed`} x="0" y="0" width="8" height="560" patternUnits="userSpaceOnUse">
-        <line data-ev-id="ev_5b205becd5" x1="1" y1="0" x2="7" y2="560" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
+      <pattern id={`${id}-brushed`} x="0" y="0" width="8" height="560" patternUnits="userSpaceOnUse">
+        <line x1="1" y1="0" x2="7" y2="560" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
       </pattern>
-    </defs>);
-
+    </defs>
+  );
 }
 
+// Classic straight tonearm (used for non-realistic styles)
 function Tonearm({ id, geometry, stylus, textColor }: any) {
   const dx = stylus.x - geometry.pivotX;
   const dy = stylus.y - geometry.pivotY;
   const len = Math.max(1, Math.hypot(dx, dy));
-  const ux = dx / len;const uy = dy / len;
-  const px = -uy;const py = ux;
+  const ux = dx / len; const uy = dy / len;
+  const px = -uy; const py = ux;
   const angle = Math.atan2(dy, dx) * 180 / Math.PI;
   const a0 = { x: geometry.pivotX + ux * 22, y: geometry.pivotY + uy * 22 };
   const a1 = { x: stylus.x - ux * 42, y: stylus.y - uy * 42 };
-  const w0 = 5.5;const w1 = 2.5;
+  const w0 = 5.5; const w1 = 2.5;
   const armPoly = [
-  { x: a0.x + px * w0, y: a0.y + py * w0 },
-  { x: a1.x + px * w1, y: a1.y + py * w1 },
-  { x: a1.x - px * w1, y: a1.y - py * w1 },
-  { x: a0.x - px * w0, y: a0.y - py * w0 }].
-  map((p) => `${p.x},${p.y}`).join(" ");
+    { x: a0.x + px * w0, y: a0.y + py * w0 },
+    { x: a1.x + px * w1, y: a1.y + py * w1 },
+    { x: a1.x - px * w1, y: a1.y - py * w1 },
+    { x: a0.x - px * w0, y: a0.y - py * w0 },
+  ].map(p => `${p.x},${p.y}`).join(" ");
   const s0 = { x: a0.x + px * (w0 - 1.2), y: a0.y + py * (w0 - 1.2) };
   const s1 = { x: a1.x + px * (w1 - 0.6), y: a1.y + py * (w1 - 0.6) };
   const counter = { x: geometry.pivotX - ux * 28, y: geometry.pivotY - uy * 28 };
   return (
-    <g data-ev-id="ev_4d4a22a58c">
-      <circle data-ev-id="ev_14f6d430d1" cx={geometry.pivotX} cy={geometry.pivotY} r="28"
-      fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="2" filter={`url(#${id}-soft)`} />
-      <circle data-ev-id="ev_eae435bca1" cx={geometry.pivotX} cy={geometry.pivotY} r="19" fill="rgba(0,0,0,0.45)" />
-      <circle data-ev-id="ev_afbce3c281" cx={geometry.pivotX} cy={geometry.pivotY} r="7" fill="rgba(30,30,30,0.9)" />
-      <circle data-ev-id="ev_429870c404" cx={geometry.pivotX - 4} cy={geometry.pivotY - 4} r="2.8" fill="rgba(255,255,255,0.72)" />
-      <ellipse data-ev-id="ev_84e35b146c" cx={counter.x} cy={counter.y} rx="14" ry="9"
-      transform={`rotate(${angle} ${counter.x} ${counter.y})`}
-      fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
-      <ellipse data-ev-id="ev_075d46bf0b" cx={counter.x} cy={counter.y} rx="5" ry="3"
-      transform={`rotate(${angle} ${counter.x} ${counter.y})`}
-      fill="rgba(255,255,255,0.15)" />
-      <polygon data-ev-id="ev_5994a1ff4f" points={armPoly} fill={`url(#${id}-arm)`}
-      stroke="rgba(0,0,0,0.32)" strokeWidth="0.6" strokeLinejoin="round" />
-      <line data-ev-id="ev_965247bc81" x1={s0.x} y1={s0.y} x2={s1.x} y2={s1.y}
-      stroke="rgba(255,255,255,0.52)" strokeWidth="1.2" strokeLinecap="round" />
-      <g data-ev-id="ev_25b2cf525f" transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
-        <path data-ev-id="ev_470a258013" d="M -48 -10 L -15 -12 Q -8 -12 -5 -6 L -1 4 Q -4 12 -13 13 L -48 10 Z"
-        fill="#c8c8c8" stroke="rgba(0,0,0,0.40)" strokeWidth="1" filter={`url(#${id}-soft)`} />
-        <rect data-ev-id="ev_68620be918" x="-42" y="-6" width="22" height="12" rx="2.5" fill="#1e1e1e" />
-        <rect data-ev-id="ev_928f56c806" x="-39" y="-4" width="15" height="4.5" rx="1.5" fill="rgba(80,160,220,0.35)" />
-        <path data-ev-id="ev_ad2cf98d1c" d="M -16 7 L -4 4 L 0 0 L -6 10 Z" fill="#141414" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" />
-        <line data-ev-id="ev_ec9c85a92b" x1="-4" y1="4" x2="0" y2="0" stroke="#0a0a0a" strokeWidth="1.7" strokeLinecap="round" />
-        <circle data-ev-id="ev_41cafc421d" cx="0" cy="0" r="1.7" fill="rgba(140,220,255,0.78)" />
-        <line data-ev-id="ev_567dbbe36f" x1="-44" y1="-8" x2="-8" y2="-7" stroke="rgba(255,255,255,0.38)" strokeWidth="1" strokeLinecap="round" />
+    <g>
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="28"
+        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="2" filter={`url(#${id}-soft)`} />
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="19" fill="rgba(0,0,0,0.45)" />
+      <circle cx={geometry.pivotX} cy={geometry.pivotY} r="7" fill="rgba(30,30,30,0.9)" />
+      <circle cx={geometry.pivotX - 4} cy={geometry.pivotY - 4} r="2.8" fill="rgba(255,255,255,0.72)" />
+      <ellipse cx={counter.x} cy={counter.y} rx="14" ry="9"
+        transform={`rotate(${angle} ${counter.x} ${counter.y})`}
+        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
+      <ellipse cx={counter.x} cy={counter.y} rx="5" ry="3"
+        transform={`rotate(${angle} ${counter.x} ${counter.y})`}
+        fill="rgba(255,255,255,0.15)" />
+      <polygon points={armPoly} fill={`url(#${id}-arm)`}
+        stroke="rgba(0,0,0,0.32)" strokeWidth="0.6" strokeLinejoin="round" />
+      <line x1={s0.x} y1={s0.y} x2={s1.x} y2={s1.y}
+        stroke="rgba(255,255,255,0.52)" strokeWidth="1.2" strokeLinecap="round" />
+      <g transform={`translate(${stylus.x} ${stylus.y}) rotate(${angle})`}>
+        <path d="M -48 -10 L -15 -12 Q -8 -12 -5 -6 L -1 4 Q -4 12 -13 13 L -48 10 Z"
+          fill="#c8c8c8" stroke="rgba(0,0,0,0.40)" strokeWidth="1" filter={`url(#${id}-soft)`} />
+        <rect x="-42" y="-6" width="22" height="12" rx="2.5" fill="#1e1e1e" />
+        <rect x="-39" y="-4" width="15" height="4.5" rx="1.5" fill="rgba(80,160,220,0.35)" />
+        <path d="M -16 7 L -4 4 L 0 0 L -6 10 Z" fill="#141414" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" />
+        <line x1="-4" y1="4" x2="0" y2="0" stroke="#0a0a0a" strokeWidth="1.7" strokeLinecap="round" />
+        <circle cx="0" cy="0" r="1.7" fill="rgba(140,220,255,0.78)" />
+        <line x1="-44" y1="-8" x2="-8" y2="-7" stroke="rgba(255,255,255,0.38)" strokeWidth="1" strokeLinecap="round" />
       </g>
-      <circle data-ev-id="ev_6f84f40941" cx={stylus.x} cy={stylus.y} r="1.35" fill="rgba(0,0,0,0.52)" />
-      <text data-ev-id="ev_6fbee54e58" x={geometry.pivotX} y={geometry.pivotY + 50} fill={textColor} opacity="0.65"
-      fontSize="7" fontFamily="monospace" textAnchor="middle" letterSpacing="2">
+      <circle cx={stylus.x} cy={stylus.y} r="1.35" fill="rgba(0,0,0,0.52)" />
+      <text x={geometry.pivotX} y={geometry.pivotY + 50} fill={textColor} opacity="0.65"
+        fontSize="7" fontFamily="monospace" textAnchor="middle" letterSpacing="2">
         TONE ARM
       </text>
-    </g>);
+    </g>
+  );
+}
 
+// AT-LP120X-style S-shaped tonearm for realistic1
+function ATLP120XTonearm({ id, geometry, stylus }: any) {
+  const px = geometry.pivotX;
+  const py = geometry.pivotY;
+  const sx = stylus.x;
+  const sy = stylus.y;
+  const dx = sx - px; const dy = sy - py;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  // S-bend path: from pivot, go straight ~60px, then slight offset curve, then straight to headshell
+  const armLen = Math.hypot(dx, dy);
+  const ux = dx / Math.max(1, armLen); const uy = dy / Math.max(1, armLen);
+  const perpX = -uy; const perpY = ux;
+  // Pivot end of arm
+  const start = { x: px + ux * 24, y: py + uy * 24 };
+  // Mid-bend toward stylus
+  const mid1 = { x: px + ux * (armLen * 0.42) + perpX * 12, y: py + uy * (armLen * 0.42) + perpY * 12 };
+  const mid2 = { x: px + ux * (armLen * 0.65) - perpX * 8, y: py + uy * (armLen * 0.65) - perpY * 8 };
+  // Headshell connector point
+  const hEnd = { x: sx - ux * 38, y: sy - uy * 38 };
+  // Build tapered arm polygon (4-sided)
+  const w0 = 6; const wm = 4.5; const w1 = 3;
+  const buildSide = (pts: {x:number,y:number}[], widths: number[], side: 1|-1) =>
+    pts.map((p, i) => ({ x: p.x + perpX * widths[i] * side, y: p.y + perpY * widths[i] * side }));
+  const pts = [start, mid1, mid2, hEnd];
+  const ws = [w0, wm, wm, w1];
+  const left = buildSide(pts, ws, 1);
+  const right = buildSide(pts, ws, -1).reverse();
+  const poly = [...left, ...right].map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  // Highlight stripe along top-left of arm
+  const hl = buildSide(pts, ws.map(w => w - 1.5), 1);
+  const hlPoly = [...hl, ...buildSide(pts, ws.map(w => w - 2.8), 1).reverse()]
+    .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  // Counterweight - behind pivot
+  const cwX = px - ux * 38; const cwY = py - uy * 38;
+  return (
+    <g>
+      {/* Counterweight */}
+      <ellipse cx={cwX} cy={cwY} rx="13" ry="10"
+        transform={`rotate(${angle} ${cwX} ${cwY})`}
+        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" />
+      <ellipse cx={cwX} cy={cwY} rx="5" ry="4"
+        transform={`rotate(${angle} ${cwX} ${cwY})`}
+        fill="rgba(255,255,255,0.18)" />
+      {/* Anti-skate dial label */}
+      <text x={px + 6} y={py - 38} fill="rgba(255,255,255,0.5)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">ANTI-SKATE</text>
+      {/* Bearing pivot base */}
+      <circle cx={px} cy={py} r="20"
+        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.6)" strokeWidth="2"
+        filter={`url(#${id}-soft)`} />
+      <circle cx={px} cy={py} r="13" fill="rgba(0,0,0,0.5)" />
+      <circle cx={px} cy={py} r="6" fill="#1e1e1e" />
+      <circle cx={px - 3.5} cy={py - 3.5} r="2.2" fill="rgba(255,255,255,0.7)" />
+      {/* S-shaped arm body */}
+      <polygon points={poly}
+        fill={`url(#${id}-arm)`} stroke="rgba(0,0,0,0.4)" strokeWidth="0.7" strokeLinejoin="round" />
+      {/* Arm highlight */}
+      <polygon points={hlPoly} fill="rgba(255,255,255,0.22)" strokeWidth="0" />
+      {/* Headshell */}
+      <g transform={`translate(${sx} ${sy}) rotate(${angle})`}>
+        {/* Headshell body - AT-HS6 style */}
+        <path d="M -52 -11 L -18 -13 Q -9 -13 -5 -6 L -1 5 Q -5 13 -14 14 L -52 11 Z"
+          fill="#b5b5b5" stroke="rgba(0,0,0,0.45)" strokeWidth="1.2"
+          filter={`url(#${id}-soft)`} />
+        {/* Cartridge body (AT-VM95E blue) */}
+        <rect x="-46" y="-7" width="26" height="14" rx="3" fill="#1c2b4a" />
+        <rect x="-44" y="-5" width="22" height="5" rx="1.5" fill="rgba(60,120,220,0.6)" />
+        <rect x="-44" y="2" width="22" height="3" rx="1" fill="rgba(40,100,180,0.35)" />
+        {/* Cartridge label */}
+        <text x="-33" y="1" fill="rgba(180,210,255,0.9)" fontSize="4.5"
+          fontFamily="monospace" textAnchor="middle">AT-VM95E</text>
+        {/* Stylus cantilever */}
+        <path d="M -18 6 L -6 4 L -1 0" fill="none" stroke="#888" strokeWidth="1.2" />
+        <path d="M -5 4 L 0 0" fill="none" stroke="#555" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="0" cy="0" r="1.8" fill="rgba(140,220,255,0.9)" />
+        {/* Headshell highlight */}
+        <path d="M -50 -9 L -16 -11" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Stylus target light */}
+        <rect x="-52" y="-14" width="6" height="4" rx="1" fill="#f0d060" opacity="0.85" />
+        <circle cx="-49" cy="-12" r="1.5" fill="rgba(255,255,220,0.9)" />
+      </g>
+    </g>
+  );
+}
+
+// Technics SL-1200 style S-tonearm for realistic2
+function SL1200Tonearm({ id, geometry, stylus }: any) {
+  const px = geometry.pivotX;
+  const py = geometry.pivotY;
+  const sx = stylus.x;
+  const sy = stylus.y;
+  const dx = sx - px; const dy = sy - py;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const armLen = Math.hypot(dx, dy);
+  const ux = dx / Math.max(1, armLen); const uy = dy / Math.max(1, armLen);
+  const perpX = -uy; const perpY = ux;
+  const start = { x: px + ux * 22, y: py + uy * 22 };
+  const mid1 = { x: px + ux * (armLen * 0.44) + perpX * 10, y: py + uy * (armLen * 0.44) + perpY * 10 };
+  const mid2 = { x: px + ux * (armLen * 0.68) - perpX * 7, y: py + uy * (armLen * 0.68) - perpY * 7 };
+  const hEnd = { x: sx - ux * 36, y: sy - uy * 36 };
+  const pts = [start, mid1, mid2, hEnd];
+  const ws = [7, 5, 4, 3];
+  const buildSide = (pts2: {x:number,y:number}[], widths: number[], side: 1|-1) =>
+    pts2.map((p, i) => ({ x: p.x + perpX * widths[i] * side, y: p.y + perpY * widths[i] * side }));
+  const left = buildSide(pts, ws, 1);
+  const right = buildSide(pts, ws, -1).reverse();
+  const poly = [...left, ...right].map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const cwX = px - ux * 42; const cwY = py - uy * 42;
+  return (
+    <g>
+      <circle cx={cwX} cy={cwY} r="15"
+        fill="#d0cfc8" stroke="rgba(0,0,0,0.6)" strokeWidth="2" />
+      <circle cx={cwX} cy={cwY} r="8" fill="#b0afa8" />
+      <circle cx={cwX - 3} cy={cwY - 3} r="2.5" fill="rgba(255,255,255,0.35)" />
+      <circle cx={px} cy={py} r="22"
+        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.6)" strokeWidth="2"
+        filter={`url(#${id}-soft)`} />
+      <circle cx={px} cy={py} r="14" fill="rgba(0,0,0,0.55)" />
+      <circle cx={px} cy={py} r="6" fill="#222" />
+      <circle cx={px - 3} cy={py - 3} r="2" fill="rgba(255,255,255,0.65)" />
+      <polygon points={poly}
+        fill={`url(#${id}-arm)`} stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" strokeLinejoin="round" />
+      <g transform={`translate(${sx} ${sy}) rotate(${angle})`}>
+        <path d="M -48 -10 L -16 -12 Q -9 -12 -5 -6 L -1 5 Q -5 13 -14 13 L -48 10 Z"
+          fill="#cdcdcd" stroke="rgba(0,0,0,0.4)" strokeWidth="1" filter={`url(#${id}-soft)`} />
+        <rect x="-42" y="-7" width="24" height="14" rx="3" fill="#111" />
+        <rect x="-40" y="-5" width="20" height="5" rx="1.5" fill="rgba(200,180,40,0.7)" />
+        <text x="-30" y="1" fill="rgba(255,240,120,0.9)" fontSize="4"
+          fontFamily="monospace" textAnchor="middle">TECHNICS</text>
+        <path d="M -16 6 L -4 4 L 0 0" fill="none" stroke="#999" strokeWidth="1.2" />
+        <circle cx="0" cy="0" r="1.8" fill="rgba(255,200,60,0.9)" />
+        <path d="M -46 -8 L -14 -10" stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeLinecap="round" />
+      </g>
+    </g>
+  );
 }
 
 function StandardControls({ id, style, textColor }: any) {
@@ -949,27 +1087,325 @@ function StandardControls({ id, style, textColor }: any) {
   }
   if (s !== "minimal") {
     return (
-      <g data-ev-id="ev_c30911742f">
-        <rect data-ev-id="ev_d7962337b3" x="48" y="474" width="210" height="42" rx="10" fill="rgba(0,0,0,0.16)" stroke="rgba(255,255,255,0.15)" />
-        {["33", "45", "78"].map((label, i) =>
-        <g data-ev-id="ev_e19977e08e" key={label}>
-            <rect data-ev-id="ev_34dd31e140" x={62 + i * 58} y="486" width="42" height="18" rx="5"
-          fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" strokeWidth="0.8" />
-            <text data-ev-id="ev_423c20dbeb" x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
+      <g>
+        <rect x="48" y="474" width="210" height="42" rx="10" fill="rgba(0,0,0,0.16)" stroke="rgba(255,255,255,0.15)" />
+        {["33", "45", "78"].map((label, i) => (
+          <g key={label}>
+            <rect x={62 + i * 58} y="486" width="42" height="18" rx="5"
+              fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" strokeWidth="0.8" />
+            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
               {label}
             </text>
           </g>
-        )}
-      </g>);
-
+        ))}
+      </g>
+    );
   }
   return (
-    <g data-ev-id="ev_c1dcb98e0d">
-      <line data-ev-id="ev_442d6fb0fc" x1="520" y1="82" x2="520" y2="232" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-      <circle data-ev-id="ev_0c87d9162f" cx="520" cy="152" r="5" fill={textColor} opacity="0.75" />
-      <text data-ev-id="ev_4de19a626d" x="520" y="256" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">VOL</text>
-    </g>);
+    <g>
+      <line x1="520" y1="82" x2="520" y2="232" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+      <circle cx="520" cy="152" r="5" fill={textColor} opacity="0.75" />
+      <text x="520" y="256" fill={textColor} opacity="0.78" fontSize="8" fontFamily="monospace" textAnchor="middle">VOL</text>
+    </g>
+  );
+}
 
+// AT-LP120X full-detail control panel
+function ATLP120XControls({ id, textColor }: any) {
+  // Strobe dots around platter edge
+  const cx = 238; const cy = 292; const strobeR = 222;
+  const strobeDots: React.ReactNode[] = [];
+  const dotCount = 48;
+  for (let i = 0; i < dotCount; i++) {
+    const a = (i / dotCount) * Math.PI * 2 - Math.PI / 2;
+    const bx = cx + Math.cos(a) * strobeR;
+    const by = cy + Math.sin(a) * strobeR;
+    strobeDots.push(
+      <rect key={i} x={bx - 1.5} y={by - 1} width="3" height="2"
+        rx="0.5" fill="rgba(255,255,255,0.55)"
+        transform={`rotate(${(i / dotCount) * 360} ${bx} ${by})`} />
+    );
+  }
+  return (
+    <g>
+      {/* Outer chassis inner bevel */}
+      <rect x="32" y="32" width="496" height="496" rx="10"
+        fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="2" />
+      <rect x="36" y="36" width="488" height="488" rx="8"
+        fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" />
+
+      {/* Top-left: brand plate */}
+      <rect x="42" y="42" width="176" height="38" rx="4"
+        fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.08)" />
+      <text x="54" y="57" fill="rgba(255,255,255,0.85)" fontSize="10"
+        fontFamily="'Arial', sans-serif" fontWeight="bold" letterSpacing="1.5">AUDIO-TECHNICA</text>
+      <text x="54" y="71" fill="rgba(200,210,255,0.65)" fontSize="7.5"
+        fontFamily="monospace" letterSpacing="2.5">AT-LP120X · DIRECT DRIVE</text>
+
+      {/* Strobe dots */}
+      {strobeDots}
+
+      {/* Strobe speed indicator bar (right of platter) */}
+      <rect x="402" y="268" width="56" height="10" rx="3" fill="rgba(0,0,0,0.5)" />
+      <rect x="408" y="270" width="44" height="6" rx="2" fill="rgba(255,255,255,0.06)" />
+      {[0, 14, 28, 42].map(ox => (
+        <rect key={ox} x={410 + ox} y="271" width="8" height="4"
+          rx="1" fill="rgba(255,255,255,0.30)" />
+      ))}
+      <text x="430" y="291" fill="rgba(255,255,255,0.38)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">STROBE</text>
+
+      {/* Bottom left control zone - recessed panel */}
+      <rect x="42" y="448" width="316" height="80" rx="6"
+        fill="rgba(0,0,0,0.38)" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+
+      {/* START/STOP button */}
+      <circle cx="82" cy="478" r="16" fill="#1a1a1a" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"
+        filter={`url(#${id}-soft)`} />
+      <circle cx="82" cy="478" r="12"
+        fill="radial-gradient(circle at 40% 35%, #4a4a4a, #1a1a1a)" />
+      <circle cx="82" cy="478" r="9" fill="#2a2a2a" />
+      <circle cx="82" cy="478" r="6" fill="#222"
+        stroke="rgba(80,200,80,0.7)" strokeWidth="1.5" />
+      <circle cx="82" cy="478" r="3.5" fill="rgba(60,180,60,0.9)" />
+      <text x="82" y="500" fill="rgba(255,255,255,0.5)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">START/STOP</text>
+
+      {/* Speed buttons: 33 / 45 / 78 */}
+      {(["33", "45", "78"] as string[]).map((spd, i) => {
+        const bx = 120 + i * 42; const by = 468;
+        const active = i === 0;
+        return (
+          <g key={spd}>
+            <rect x={bx} y={by} width="34" height="20" rx="4"
+              fill={active ? "rgba(40,100,200,0.75)" : "rgba(30,30,30,0.8)"}
+              stroke={active ? "rgba(80,150,255,0.6)" : "rgba(255,255,255,0.12)"}
+              strokeWidth="1" />
+            <text x={bx + 17} y={by + 13.5} fill={active ? "#c8dfff" : "rgba(255,255,255,0.55)"}
+              fontSize="8.5" fontFamily="monospace" textAnchor="middle" fontWeight={active ? "bold" : "normal"}>
+              {spd}
+            </text>
+          </g>
+        );
+      })}
+      <text x="188" y="501" fill="rgba(255,255,255,0.35)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">RPM</text>
+
+      {/* Pitch slider: +/-8% +/-16% */}
+      <rect x="242" y="456" width="48" height="16" rx="3"
+        fill="rgba(20,20,20,0.7)" stroke="rgba(255,255,255,0.1)" />
+      <text x="266" y="467" fill="rgba(255,255,255,0.45)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">±8% ±16%</text>
+
+      {/* Pitch fader */}
+      <rect x="254" y="475" width="7" height="52" rx="3"
+        fill="#0d0d0d" stroke="rgba(255,255,255,0.12)" />
+      <rect x="250" y="491" width="15" height="10" rx="2"
+        fill="#d0d0d0" stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
+      <line x1="250" y1="496" x2="265" y2="496" stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" />
+      <text x="258" y="541" fill="rgba(255,255,255,0.35)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">PITCH</text>
+
+      {/* Tonearm panel: anti-skate, tracking force */}
+      <rect x="416" y="448" width="112" height="78" rx="5"
+        fill="rgba(0,0,0,0.32)" stroke="rgba(255,255,255,0.07)" />
+
+      {/* Anti-skate dial */}
+      <circle cx="444" cy="474" r="12" fill="#1a1a1a" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+      <circle cx="444" cy="474" r="8" fill="#222" />
+      {/* Dial tick marks */}
+      {[0,45,90,135,180,225,270,315].map((a,i) => {
+        const ar = a * Math.PI / 180;
+        return <line key={i}
+          x1={444 + Math.cos(ar) * 6} y1={474 + Math.sin(ar) * 6}
+          x2={444 + Math.cos(ar) * 9} y2={474 + Math.sin(ar) * 9}
+          stroke="rgba(255,255,255,0.3)" strokeWidth="0.8" />;
+      })}
+      <line x1="444" y1="474" x2={444 + Math.cos(-0.8) * 6} y2={474 + Math.sin(-0.8) * 6}
+        stroke="rgba(255,255,255,0.8)" strokeWidth="1.2" strokeLinecap="round" />
+      <text x="444" y="492" fill="rgba(255,255,255,0.4)" fontSize="5.5"
+        fontFamily="monospace" textAnchor="middle">ANTI-SKATE</text>
+
+      {/* Tracking force ring */}
+      <circle cx="498" cy="474" r="12" fill="#1a1a1a" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+      <circle cx="498" cy="474" r="8" fill="#222" />
+      {[0,45,90,135,180,225,270,315].map((a,i) => {
+        const ar = a * Math.PI / 180;
+        return <line key={i}
+          x1={498 + Math.cos(ar) * 6} y1={474 + Math.sin(ar) * 6}
+          x2={498 + Math.cos(ar) * 9} y2={474 + Math.sin(ar) * 9}
+          stroke="rgba(255,255,255,0.3)" strokeWidth="0.8" />;
+      })}
+      <line x1="498" y1="474" x2={498 + Math.cos(0.5) * 6} y2={474 + Math.sin(0.5) * 6}
+        stroke="rgba(255,255,255,0.8)" strokeWidth="1.2" strokeLinecap="round" />
+      <text x="498" y="492" fill="rgba(255,255,255,0.4)" fontSize="5.5"
+        fontFamily="monospace" textAnchor="middle">TRACKING</text>
+
+      {/* Tonearm lift lever */}
+      <rect x="428" y="498" width="80" height="14" rx="4"
+        fill="rgba(20,20,20,0.7)" stroke="rgba(255,255,255,0.1)" />
+      <rect x="456" y="499" width="14" height="12" rx="2"
+        fill="#bbb" stroke="rgba(0,0,0,0.4)" />
+      <text x="468" y="520" fill="rgba(255,255,255,0.35)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">LIFT</text>
+
+      {/* Top-right: USB port + phono/line */}
+      <rect x="428" y="42" width="100" height="52" rx="4"
+        fill="rgba(0,0,0,0.38)" stroke="rgba(255,255,255,0.07)" />
+      <text x="478" y="57" fill="rgba(255,255,255,0.45)" fontSize="6.5"
+        fontFamily="monospace" textAnchor="middle" letterSpacing="1">OUTPUTS</text>
+      {/* USB port */}
+      <rect x="436" y="62" width="22" height="14" rx="2"
+        fill="#141414" stroke="rgba(255,255,255,0.18)" />
+      <rect x="439" y="65" width="16" height="8" rx="1" fill="rgba(40,80,200,0.4)" />
+      <text x="447" y="85" fill="rgba(255,255,255,0.3)" fontSize="5.5"
+        fontFamily="monospace" textAnchor="middle">USB</text>
+      {/* Phono/line switch */}
+      <rect x="464" y="62" width="36" height="14" rx="3"
+        fill="#0d0d0d" stroke="rgba(255,255,255,0.12)" />
+      <rect x="464" y="62" width="18" height="14" rx="3"
+        fill="rgba(40,100,200,0.5)" />
+      <text x="473" y="72" fill="rgba(200,220,255,0.9)" fontSize="5.5"
+        fontFamily="monospace" textAnchor="middle">PH</text>
+      <text x="491" y="72" fill="rgba(255,255,255,0.4)" fontSize="5.5"
+        fontFamily="monospace" textAnchor="middle">LN</text>
+      <text x="482" y="85" fill="rgba(255,255,255,0.3)" fontSize="5.5"
+        fontFamily="monospace" textAnchor="middle">PHONO/LINE</text>
+    </g>
+  );
+}
+
+// Technics SL-1200 control panel for realistic2
+function SL1200Controls({ id, textColor }: any) {
+  const cx = 248; const cy = 282;
+  // Strobe dots - smaller and tighter
+  const strobeDots: React.ReactNode[] = [];
+  const dotCount = 64;
+  const strobeR = 218;
+  for (let i = 0; i < dotCount; i++) {
+    const a = (i / dotCount) * Math.PI * 2 - Math.PI / 2;
+    const bx = cx + Math.cos(a) * strobeR;
+    const by = cy + Math.sin(a) * strobeR;
+    strobeDots.push(
+      <circle key={i} cx={bx} cy={by} r="1.5" fill="rgba(255,255,255,0.45)" />
+    );
+  }
+  return (
+    <g>
+      {/* Chassis bevels */}
+      <rect x="20" y="20" width="520" height="520" rx="52"
+        fill="none" stroke="rgba(0,0,0,0.7)" strokeWidth="3" />
+      <rect x="24" y="24" width="512" height="512" rx="50"
+        fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5" />
+
+      {/* Top panel label */}
+      <rect x="46" y="42" width="186" height="36" rx="4"
+        fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.07)" />
+      <text x="58" y="56" fill="rgba(255,255,255,0.9)" fontSize="10.5"
+        fontFamily="'Arial', sans-serif" fontWeight="bold" letterSpacing="1.5">TECHNICS</text>
+      <text x="58" y="70" fill="rgba(220,200,80,0.75)" fontSize="7"
+        fontFamily="monospace" letterSpacing="2">SL-1200MK2 · DIRECT DRIVE</text>
+
+      {/* Strobe dots */}
+      {strobeDots}
+
+      {/* Pitch fader: right side */}
+      <rect x="432" y="120" width="14" height="260" rx="5"
+        fill="#0a0a0a" stroke="rgba(255,255,255,0.12)" />
+      <rect x="428" y="220" width="22" height="16" rx="3"
+        fill="#d5d5d5" stroke="rgba(0,0,0,0.45)" />
+      <line x1="428" y1="228" x2="450" y2="228" stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
+      {/* Pitch markings */}
+      {[-6,-4,-2,0,2,4,6].map((v, i) => (
+        <g key={v}>
+          <line x1="414" y1={126 + i * 37} x2={v === 0 ? "430" : "422"} y2={126 + i * 37}
+            stroke={v === 0 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)"} strokeWidth={v === 0 ? 1.2 : 0.8} />
+          <text x="410" y={130 + i * 37} fill="rgba(255,255,255,0.35)" fontSize="6"
+            fontFamily="monospace" textAnchor="end">{v > 0 ? `+${v}` : v}</text>
+        </g>
+      ))}
+      <text x="439" y="395" fill="rgba(255,255,255,0.35)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">PITCH</text>
+
+      {/* Bottom control panel */}
+      <rect x="42" y="448" width="360" height="82" rx="6"
+        fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.07)" />
+
+      {/* START button */}
+      <circle cx="80" cy="478" r="15" fill="#111" stroke="rgba(255,255,255,0.14)" strokeWidth="1.5" />
+      <circle cx="80" cy="478" r="10" fill="#222" />
+      <circle cx="80" cy="478" r="6" fill="rgba(80,200,80,0.85)" />
+      <text x="80" y="499" fill="rgba(255,255,255,0.45)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">START</text>
+
+      {/* STOP button */}
+      <circle cx="130" cy="478" r="15" fill="#111" stroke="rgba(255,255,255,0.14)" strokeWidth="1.5" />
+      <circle cx="130" cy="478" r="10" fill="#222" />
+      <circle cx="130" cy="478" r="6" fill="rgba(200,50,50,0.85)" />
+      <text x="130" y="499" fill="rgba(255,255,255,0.45)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">STOP</text>
+
+      {/* Speed selectors */}
+      {(["33", "45"] as string[]).map((spd, i) => {
+        const bx = 170 + i * 50; const by = 467;
+        const active = i === 0;
+        return (
+          <g key={spd}>
+            <rect x={bx} y={by} width="42" height="22" rx="4"
+              fill={active ? "rgba(200,170,40,0.6)" : "rgba(30,30,30,0.8)"}
+              stroke={active ? "rgba(230,200,60,0.5)" : "rgba(255,255,255,0.1)"} />
+            <text x={bx + 21} y={by + 15} fill={active ? "#ffe87a" : "rgba(255,255,255,0.45)"}
+              fontSize="9" fontFamily="monospace" textAnchor="middle" fontWeight="bold">
+              {spd}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Cue button */}
+      <rect x="280" y="458" width="52" height="36" rx="5"
+        fill="rgba(180,120,20,0.3)" stroke="rgba(220,160,40,0.3)" />
+      <text x="306" y="474" fill="rgba(220,200,80,0.7)" fontSize="8"
+        fontFamily="monospace" textAnchor="middle">CUE</text>
+      <circle cx="306" cy="484" r="5" fill="rgba(220,180,40,0.5)" />
+
+      {/* Strobe indicator light */}
+      <rect x="348" y="460" width="42" height="18" rx="3"
+        fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.08)" />
+      <circle cx="360" cy="469" r="4" fill="rgba(255,120,20,0.8)" />
+      <text x="378" y="472" fill="rgba(255,255,255,0.35)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">STROBE</text>
+
+      {/* Anti-skate + tracking knobs */}
+      <rect x="420" y="442" width="110" height="96" rx="5"
+        fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.06)" />
+      {[{ label: "ANTI-SKATE", cx: 450, cy: 464 }, { label: "TRACKING", cx: 500, cy: 464 }].map(k => (
+        <g key={k.label}>
+          <circle cx={k.cx} cy={k.cy} r="12" fill="#141414" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+          <circle cx={k.cx} cy={k.cy} r="8" fill="#1e1e1e" />
+          {[0,60,120,180,240,300].map((a, i) => {
+            const ar = (a - 90) * Math.PI / 180;
+            return <line key={i}
+              x1={k.cx + Math.cos(ar) * 6} y1={k.cy + Math.sin(ar) * 6}
+              x2={k.cx + Math.cos(ar) * 9} y2={k.cy + Math.sin(ar) * 9}
+              stroke="rgba(255,255,255,0.3)" strokeWidth="0.9" />;
+          })}
+          <line x1={k.cx} y1={k.cy}
+            x2={k.cx + Math.cos(-1.2) * 6} y2={k.cy + Math.sin(-1.2) * 6}
+            stroke="rgba(255,200,60,0.9)" strokeWidth="1.2" strokeLinecap="round" />
+          <text x={k.cx} y={k.cy + 20} fill="rgba(255,255,255,0.35)" fontSize="5"
+            fontFamily="monospace" textAnchor="middle">{k.label}</text>
+        </g>
+      ))}
+      {/* Tonearm lift */}
+      <rect x="430" y="492" width="90" height="14" rx="4"
+        fill="rgba(10,10,10,0.7)" stroke="rgba(255,255,255,0.1)" />
+      <rect x="458" y="493" width="14" height="12" rx="2"
+        fill="#cccccc" stroke="rgba(0,0,0,0.4)" />
+      <text x="475" y="516" fill="rgba(255,255,255,0.35)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">LIFT</text>
+    </g>
+  );
 }
 
 function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, progress }: any) {
@@ -981,64 +1417,48 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
   const hole = holePath(g.cx, g.cy, holeR);
   const board = boardPath(s);
   return (
-    <svg data-ev-id="ev_83e7568c1e" viewBox="0 0 560 560"
-    style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
+    <svg viewBox="0 0 560 560"
+      style={{ position: "absolute", inset: 0, width: 560, height: 560, pointerEvents: "none", zIndex: 2 }}>
       <DeckDefs id={id} style={s} color={color} />
-      <path data-ev-id="ev_34bdd7b8cc" d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
-      {s === "wood" && <path data-ev-id="ev_45dc529b92" d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
-      {s === "chrome" && <path data-ev-id="ev_b98bc4cbc7" d={`${board} ${hole}`} fill={`url(#${id}-brushed)`} fillRule="evenodd" opacity="0.7" />}
-      {s === "chrome" &&
-      <>
-          <path data-ev-id="ev_a9130ffb50" d="M20 70 L70 20 L132 20 L20 132 Z" fill="rgba(80,180,220,0.42)" />
-          <path data-ev-id="ev_4c989d2b93" d="M500 540 L540 500 L540 540 Z" fill="rgba(80,180,220,0.35)" />
+      <path d={`${board} ${hole}`} fill={`url(#${id}-base)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+      {s === "wood" && <path d={`${board} ${hole}`} fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.72" />}
+      {s === "chrome" && <path d={`${board} ${hole}`} fill={`url(#${id}-brushed)`} fillRule="evenodd" opacity="0.7" />}
+      {s === "chrome" && (
+        <>
+          <path d="M20 70 L70 20 L132 20 L20 132 Z" fill="rgba(80,180,220,0.42)" />
+          <path d="M500 540 L540 500 L540 540 Z" fill="rgba(80,180,220,0.35)" />
         </>
-      }
-      {s === "dark" &&
-      <>
-          <rect data-ev-id="ev_c8a7523a8c" x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="3" />
-          <rect data-ev-id="ev_a5a89a3f9e" x="20" y="20" width="520" height="6" fill="rgba(255,255,255,0.18)" />
-          <rect data-ev-id="ev_9bc6df1b9f" x="20" y="534" width="520" height="6" fill="rgba(255,255,255,0.18)" />
+      )}
+      {s === "dark" && (
+        <>
+          <rect x="20" y="20" width="520" height="520" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="3" />
+          <rect x="20" y="20" width="520" height="6" fill="rgba(255,255,255,0.18)" />
+          <rect x="20" y="534" width="520" height="6" fill="rgba(255,255,255,0.18)" />
         </>
-      }
-      {s === "wood" &&
-      <>
-          <rect data-ev-id="ev_6b8e778717" x="30" y="30" width="500" height="500" rx="15" fill="none" stroke={`url(#${id}-brass)`} strokeWidth="3" />
-          <rect data-ev-id="ev_0f6823f57d" x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
+      )}
+      {s === "wood" && (
+        <>
+          <rect x="30" y="30" width="500" height="500" rx="15" fill="none" stroke={`url(#${id}-brass)`} strokeWidth="3" />
+          <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
         </>
-      }
-      {s === "realistic1" &&
-      <>
-          <rect data-ev-id="ev_307ae0d68c" x="38" y="38" width="484" height="484" rx="8" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2" />
-          <rect data-ev-id="ev_4c1fd52ea8" x="52" y="50" width="176" height="26" rx="3" fill="rgba(0,0,0,0.34)" stroke="rgba(255,255,255,0.10)" />
-          <text data-ev-id="ev_5238dfa502" x="66" y="67" fill={textColor} opacity="0.72" fontSize="9" fontFamily="monospace">DIRECT DRIVE</text>
-          <circle data-ev-id="ev_530e9a2fe1" cx="74" cy="482" r="12" fill="#d92727" opacity="0.9" />
-          <circle data-ev-id="ev_59d4e00ad3" cx="74" cy="482" r="5" fill="rgba(255,210,210,0.9)" />
-          <rect data-ev-id="ev_2d7c0f503c" x="100" y="470" width="86" height="24" rx="4" fill="rgba(0,0,0,0.32)" stroke="rgba(255,255,255,0.10)" />
-          <text data-ev-id="ev_48dc8d63e0" x="143" y="486" fill={textColor} opacity="0.68" fontSize="8" fontFamily="monospace" textAnchor="middle">PITCH</text>
-        </>
-      }
-      {s === "realistic2" &&
-      <>
-          <rect data-ev-id="ev_3af01d7597" x="48" y="40" width="464" height="480" rx="30" fill="none" stroke="rgba(80,60,40,0.18)" strokeWidth="2" />
-          <rect data-ev-id="ev_f01c0ba5c9" x="66" y="58" width="146" height="30" rx="15" fill="rgba(255,255,255,0.26)" stroke="rgba(70,55,40,0.15)" />
-          <text data-ev-id="ev_2adfd96e9a" x="139" y="77" fill={textColor} opacity="0.68" fontSize="9" fontFamily="monospace" textAnchor="middle">BELT DRIVE</text>
-          <rect data-ev-id="ev_f41e54d8b0" x="72" y="448" width="132" height="42" rx="21" fill="rgba(0,0,0,0.12)" stroke="rgba(70,55,40,0.14)" />
-          <circle data-ev-id="ev_7b58023706" cx="96" cy="469" r="9" fill="rgba(40,170,90,0.78)" />
-          <circle data-ev-id="ev_a7e848a2a3" cx="96" cy="469" r="4" fill="rgba(210,255,225,0.82)" />
-          <text data-ev-id="ev_897514001c" x="154" y="473" fill={textColor} opacity="0.62" fontSize="8" fontFamily="monospace" textAnchor="middle">AUTO STOP</text>
-        </>
-      }
-      <circle data-ev-id="ev_07c11219f5" cx={g.cx} cy={g.cy} r={holeR + 20} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="9" />
-      <circle data-ev-id="ev_e9184d8287" cx={g.cx} cy={g.cy} r={holeR + 14} fill="none" stroke="rgba(255,255,255,0.20)" strokeWidth="2.5" />
-      <circle data-ev-id="ev_da6a33fc9b" cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3.5" />
-      <circle data-ev-id="ev_62a9215546" cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
-      <StandardControls id={id} style={s} textColor={textColor} />
-      <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
-      <circle data-ev-id="ev_1f8646c375" cx={g.cx} cy={g.cy} r="7" fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
-      <circle data-ev-id="ev_d7132776b5" cx={g.cx} cy={g.cy} r="3" fill="rgba(255,255,255,0.55)" />
-      <circle data-ev-id="ev_a50d1c0b89" cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.2" fill="rgba(255,255,255,0.85)" />
-    </svg>);
-
+      )}
+      {s === "realistic1" && <ATLP120XControls id={id} textColor={textColor} />}
+      {s === "realistic2" && <SL1200Controls id={id} textColor={textColor} />}
+      <circle cx={g.cx} cy={g.cy} r={holeR + 20} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="9" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 14} fill="none" stroke="rgba(255,255,255,0.20)" strokeWidth="2.5" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3.5" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
+      {(s === "realistic1" || s === "realistic2") ? null : <StandardControls id={id} style={s} textColor={textColor} />}
+      {s === "realistic1"
+        ? <ATLP120XTonearm id={id} geometry={g} stylus={stylus} />
+        : s === "realistic2"
+        ? <SL1200Tonearm id={id} geometry={g} stylus={stylus} />
+        : <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />}
+      <circle cx={g.cx} cy={g.cy} r="7" fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+      <circle cx={g.cx} cy={g.cy} r="3" fill="rgba(255,255,255,0.55)" />
+      <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.2" fill="rgba(255,255,255,0.85)" />
+    </svg>
+  );
 }
 
 function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any) {
@@ -1047,63 +1467,212 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
   const stylus = groovePoint(g, vinylRadius, progress);
   const holeR = (platterRadius ?? vinylRadius) + 7;
   const hole = holePath(g.cx, g.cy, holeR);
+  // VU meter bars (simulated fixed position)
+  const vuBars = [0.55, 0.72, 0.85, 0.60, 0.45, 0.78, 0.90, 0.38];
+  // Strobe dots on platter edge
+  const cx3 = g.cx; const cy3 = g.cy;
+  const strobeR3 = holeR + 18;
+  const strobeDots3: React.ReactNode[] = [];
+  for (let i = 0; i < 52; i++) {
+    const a = (i / 52) * Math.PI * 2;
+    const bx = cx3 + Math.cos(a) * strobeR3;
+    const by = cy3 + Math.sin(a) * strobeR3;
+    strobeDots3.push(
+      <circle key={i} cx={bx} cy={by} r="1.4" fill="rgba(255,255,255,0.38)" />
+    );
+  }
   return (
-    <svg data-ev-id="ev_48a21cc2ab" viewBox="0 0 760 560"
-    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
-      <defs data-ev-id="ev_de69ba57e5">
-        <filter data-ev-id="ev_f61f6d85bd" id={`${id}-shadow`}><feDropShadow data-ev-id="ev_daad9d2360" dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" /></filter>
-        <filter data-ev-id="ev_801a61e889" id={`${id}-soft`}><feDropShadow data-ev-id="ev_3dbff2a2f5" dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
-        <linearGradient data-ev-id="ev_783eea6bc7" id={`${id}-plinth`} x1="0" y1="0" x2="0.4" y2="1">
-          <stop data-ev-id="ev_9e727cacf1" offset="0%" stopColor="#ebe4d8" />
-          <stop data-ev-id="ev_59f0d6efb5" offset="44%" stopColor="#d2c7b6" />
-          <stop data-ev-id="ev_2dedd2d07c" offset="100%" stopColor="#b7ac9c" />
+    <svg viewBox="0 0 760 560"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
+      <defs>
+        <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="8" stdDeviation="14" floodOpacity="0.42" /></filter>
+        <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
+        <filter id={`${id}-glow`}>
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <linearGradient id={`${id}-plinth`} x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor="#ece5d9" />
+          <stop offset="30%" stopColor="#d8ccba" />
+          <stop offset="70%" stopColor="#c2b6a4" />
+          <stop offset="100%" stopColor="#a89e8e" />
         </linearGradient>
-        <linearGradient data-ev-id="ev_e6b9066e31" id={`${id}-panel`} x1="0" y1="0" x2="0" y2="1">
-          <stop data-ev-id="ev_c35c32f4c4" offset="0%" stopColor="#2d2924" />
-          <stop data-ev-id="ev_b2340999bb" offset="50%" stopColor="#1f1b18" />
-          <stop data-ev-id="ev_25adde1f38" offset="100%" stopColor="#12100e" />
+        <linearGradient id={`${id}-panel`} x1="0" y1="0" x2="0.1" y2="1">
+          <stop offset="0%" stopColor="#2a2620" />
+          <stop offset="40%" stopColor="#1c1915" />
+          <stop offset="100%" stopColor="#0e0c0a" />
         </linearGradient>
-        <linearGradient data-ev-id="ev_2069a9f411" id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
-          <stop data-ev-id="ev_e60a0098d9" offset="0%" stopColor="#f2f2f2" />
-          <stop data-ev-id="ev_449c0a6c5d" offset="34%" stopColor="#c5c5c5" />
-          <stop data-ev-id="ev_d26588b5f0" offset="100%" stopColor="#777" />
+        <linearGradient id={`${id}-arm`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f4f4f4" />
+          <stop offset="32%" stopColor="#c8c8c8" />
+          <stop offset="100%" stopColor="#787878" />
         </linearGradient>
-        <radialGradient data-ev-id="ev_c4f5344bf7" id={`${id}-knob`} cx="35%" cy="30%" r="70%">
-          <stop data-ev-id="ev_51709b4049" offset="0%" stopColor="#e8e8e8" />
-          <stop data-ev-id="ev_80d3eb5d78" offset="55%" stopColor="#a8a8a8" />
-          <stop data-ev-id="ev_22a4cc70f9" offset="100%" stopColor="#565656" />
+        <radialGradient id={`${id}-knob`} cx="35%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#dcdcdc" />
+          <stop offset="50%" stopColor="#909090" />
+          <stop offset="100%" stopColor="#484848" />
         </radialGradient>
+        <linearGradient id={`${id}-vuL`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#22cc55" />
+          <stop offset="70%" stopColor="#ddcc22" />
+          <stop offset="100%" stopColor="#ee3322" />
+        </linearGradient>
+        <linearGradient id={`${id}-vuR`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#22cc55" />
+          <stop offset="70%" stopColor="#ddcc22" />
+          <stop offset="100%" stopColor="#ee3322" />
+        </linearGradient>
+        <pattern id={`${id}-woodgrain`} x="0" y="0" width="484" height="14" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="3" x2="484" y2="3" stroke="rgba(0,0,0,0.07)" strokeWidth="1" />
+          <line x1="0" y1="9" x2="484" y2="9" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+          <line x1="0" y1="13" x2="484" y2="13" stroke="rgba(0,0,0,0.04)" strokeWidth="0.8" />
+        </pattern>
       </defs>
-      <path data-ev-id="ev_a54575f532" d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`} fill="#1a1612" fillRule="evenodd" stroke="#090806" strokeWidth="2" />
-      <path data-ev-id="ev_e34c4218d7" d={`M8 8 L484 8 L484 552 L8 552 Z ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
-      <rect data-ev-id="ev_f0d0de6054" x="486" y="8" width="4" height="544" rx="1" fill="#0f0d0b" />
-      <rect data-ev-id="ev_f403463585" x="492" y="8" width="260" height="544" rx="8" fill={`url(#${id}-panel)`} />
-      <circle data-ev-id="ev_6fa9ea8513" cx={g.cx} cy={g.cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="10" />
-      <circle data-ev-id="ev_cc74ff3d2d" cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="3" />
-      <circle data-ev-id="ev_4a36e38d2c" cx={g.cx} cy={g.cy} r={holeR + 12} fill="none" stroke="rgba(0,0,0,0.45)" strokeWidth="4" />
-      <circle data-ev-id="ev_a0bf3292a9" cx={g.cx} cy={g.cy} r={holeR + 6} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" />
-      <rect data-ev-id="ev_59b4b502a4" x="502" y="20" width="108" height="70" rx="6" fill="rgba(0,0,0,0.42)" stroke="rgba(255,255,255,0.07)" />
-      <text data-ev-id="ev_3b7627900e" x="556" y="42" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle" letterSpacing="1">POWER</text>
-      <circle data-ev-id="ev_60f6c9a5c7" cx="543" cy="60" r="5" fill="#22dd44" opacity="0.85" />
-      <circle data-ev-id="ev_0adc4e24f7" cx="543" cy="60" r="3" fill="rgba(180,255,200,0.6)" />
-      <rect data-ev-id="ev_79ac25957d" x="622" y="20" width="120" height="70" rx="6" fill="rgba(0,0,0,0.42)" stroke="rgba(255,255,255,0.07)" />
-      <text data-ev-id="ev_d75f2c47de" x="682" y="42" fill={textColor} fontSize="8" fontFamily="monospace" textAnchor="middle" letterSpacing="1">SELECTOR</text>
-      {["BASS", "TREBLE", "VOL L", "VOL R"].map((label, i) =>
-      <g data-ev-id="ev_c7f76a890c" key={label}>
-          <rect data-ev-id="ev_039fa54745" x={502 + i * 60} y="104" width="52" height="312" rx="5" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.09)" />
-          <text data-ev-id="ev_e67adeaceb" x={507 + i * 60} y="117" fill={textColor} fontSize="7" fontFamily="monospace">{label}</text>
-          <rect data-ev-id="ev_9556f1809a" x={512 + i * 60} y="140" width="8" height="230" rx="4" fill="#101010" />
-          <rect data-ev-id="ev_36152bf9ae" x={508 + i * 60} y={230 + i * 8} width="16" height="21" rx="3" fill="#d0d0d0" />
-        </g>
-      )}
-      <rect data-ev-id="ev_fb85dc5bca" x="326" y="462" width="72" height="52" rx="5" fill="rgba(0,0,0,0.18)" stroke="rgba(0,0,0,0.28)" />
-      <text data-ev-id="ev_cd3747d0de" x="350" y="476" fill={textColor} fontSize="8" fontFamily="monospace">LIFT</text>
-      <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
-      <circle data-ev-id="ev_4b426887f3" cx={g.cx} cy={g.cy} r="7.5" fill="#d8d2c8" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
-      <circle data-ev-id="ev_bcb6250bb0" cx={g.cx} cy={g.cy} r="3.5" fill="#f5f2ec" />
-      <circle data-ev-id="ev_336fc05aa9" cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.4" fill="rgba(255,255,255,0.9)" />
-    </svg>);
 
+      {/* Outer chassis shell */}
+      <path d={`M2 2 L758 2 L758 558 L2 558 Z ${hole}`}
+        fill="#14120f" fillRule="evenodd" stroke="#080704" strokeWidth="2" />
+
+      {/* Plinth (wood/beige) */}
+      <path d={`M10 10 L482 10 L482 550 L10 550 Z ${hole}`}
+        fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
+      <path d={`M10 10 L482 10 L482 550 L10 550 Z ${hole}`}
+        fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.65" />
+      {/* Plinth inner border */}
+      <rect x="16" y="16" width="462" height="528" fill="none"
+        stroke="rgba(0,0,0,0.18)" strokeWidth="1.5" />
+      <rect x="18" y="18" width="458" height="524" fill="none"
+        stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+
+      {/* Divider strip */}
+      <rect x="484" y="10" width="3" height="540" fill="#0c0a08" />
+      <rect x="487" y="10" width="2" height="540" fill="rgba(255,255,255,0.06)" />
+
+      {/* Right control panel */}
+      <rect x="490" y="10" width="264" height="540" rx="6"
+        fill={`url(#${id}-panel)`} />
+      {/* Panel highlight */}
+      <rect x="490" y="10" width="264" height="2" fill="rgba(255,255,255,0.12)" />
+      <rect x="490" y="10" width="2" height="540" fill="rgba(255,255,255,0.08)" />
+
+      {/* Brand label on panel */}
+      <rect x="498" y="18" width="248" height="46" rx="4"
+        fill="rgba(0,0,0,0.35)" stroke="rgba(255,255,255,0.06)" />
+      <text x="622" y="36" fill="rgba(255,255,255,0.88)" fontSize="12"
+        fontFamily="'Arial', sans-serif" fontWeight="bold" textAnchor="middle" letterSpacing="2">AURAE</text>
+      <text x="622" y="52" fill="rgba(180,170,140,0.65)" fontSize="7"
+        fontFamily="monospace" textAnchor="middle" letterSpacing="3">HI-FI STEREO SYSTEM</text>
+
+      {/* VU Meters */}
+      <rect x="500" y="74" width="244" height="80" rx="4"
+        fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.06)" />
+      <text x="622" y="88" fill="rgba(255,255,255,0.4)" fontSize="7"
+        fontFamily="monospace" textAnchor="middle" letterSpacing="2">VU · OUTPUT LEVEL</text>
+      {/* VU meter L */}
+      <rect x="510" y="94" width="108" height="13" rx="2" fill="rgba(0,0,0,0.5)" />
+      <rect x="510" y="94" width={108 * vuBars[0]} height="13" rx="2"
+        fill={`url(#${id}-vuL)`} opacity="0.85" />
+      <text x="510" y="120" fill="rgba(255,255,255,0.35)" fontSize="6" fontFamily="monospace">L</text>
+      {/* VU meter R */}
+      <rect x="630" y="94" width="108" height="13" rx="2" fill="rgba(0,0,0,0.5)" />
+      <rect x="630" y="94" width={108 * vuBars[1]} height="13" rx="2"
+        fill={`url(#${id}-vuR)`} opacity="0.85" />
+      <text x="630" y="120" fill="rgba(255,255,255,0.35)" fontSize="6" fontFamily="monospace">R</text>
+      {/* VU LED dots */}
+      {[0,1,2,3,4,5,6,7].map(i => {
+        const level = vuBars[i % 2 === 0 ? 0 : 1];
+        const active = i / 8 < level;
+        const ledColor = i < 5 ? "#22dd55" : i < 7 ? "#ddcc11" : "#dd2222";
+        return (
+          <circle key={i} cx={514 + i * 13.5} cy={138} r="4"
+            fill={active ? ledColor : "rgba(255,255,255,0.06)"}
+            opacity={active ? 0.9 : 0.5} />
+        );
+      })}
+
+      {/* Equalizer / Tone sliders */}
+      {(["BASS", "MID", "TREBLE", "VOL L", "VOL R"] as string[]).map((label, i) => {
+        const sx = 502 + i * 50;
+        const sliderY = 145 + (i % 3) * 8; // slight offset for realism
+        return (
+          <g key={label}>
+            <rect x={sx} y="166" width="42" height="270" rx="4"
+              fill="rgba(0,0,0,0.32)" stroke="rgba(255,255,255,0.07)" />
+            <text x={sx + 4} y="178" fill="rgba(255,255,255,0.38)" fontSize="6.5" fontFamily="monospace">{label}</text>
+            {/* Track */}
+            <rect x={sx + 17} y="188" width="8" height="220" rx="3" fill="#090909" />
+            {/* Scale marks */}
+            {[0, 55, 110, 165, 220].map((my, mi) => (
+              <line key={mi} x1={sx + 10} y1={188 + my} x2={sx + 15} y2={188 + my}
+                stroke="rgba(255,255,255,0.18)" strokeWidth="0.8" />
+            ))}
+            {/* Slider handle */}
+            <rect x={sx + 12} y={sliderY + 220} width="18" height="14" rx="3"
+              fill="#c8c8c8" stroke="rgba(0,0,0,0.45)" strokeWidth="1" />
+            <line x1={sx + 12} y1={sliderY + 226} x2={sx + 30} y2={sliderY + 226}
+              stroke="rgba(0,0,0,0.35)" strokeWidth="0.8" />
+          </g>
+        );
+      })}
+
+      {/* Input selector buttons */}
+      <rect x="500" y="450" width="250" height="42" rx="4"
+        fill="rgba(0,0,0,0.35)" stroke="rgba(255,255,255,0.06)" />
+      <text x="625" y="462" fill="rgba(255,255,255,0.38)" fontSize="6.5"
+        fontFamily="monospace" textAnchor="middle" letterSpacing="1">INPUT SELECT</text>
+      {(["PHONO", "AUX", "CD", "TAPE"] as string[]).map((inp, i) => {
+        const active = i === 0;
+        return (
+          <g key={inp}>
+            <rect x={504 + i * 60} y="468" width="54" height="18" rx="3"
+              fill={active ? "rgba(40,100,200,0.6)" : "rgba(255,255,255,0.05)"}
+              stroke={active ? "rgba(80,150,255,0.45)" : "rgba(255,255,255,0.09)"} />
+            <text x={531 + i * 60} y="480" fill={active ? "#c0d8ff" : "rgba(255,255,255,0.38)"}
+              fontSize="7" fontFamily="monospace" textAnchor="middle">{inp}</text>
+          </g>
+        );
+      })}
+
+      {/* Power LED */}
+      <circle cx="622" cy="502" r="5"
+        fill="#22dd44" filter={`url(#${id}-glow)`} opacity="0.9" />
+      <circle cx="622" cy="502" r="3" fill="rgba(200,255,220,0.8)" />
+      <text x="622" y="516" fill="rgba(255,255,255,0.3)" fontSize="6"
+        fontFamily="monospace" textAnchor="middle">POWER</text>
+
+      {/* Headphone jack */}
+      <circle cx="660" cy="502" r="7" fill="#0a0a0a" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+      <circle cx="660" cy="502" r="4" fill="#111" />
+      <circle cx="660" cy="502" r="2" fill="rgba(255,255,255,0.12)" />
+      <text x="660" y="516" fill="rgba(255,255,255,0.25)" fontSize="5.5"
+        fontFamily="monospace" textAnchor="middle">HP</text>
+
+      {/* Platter rings */}
+      <circle cx={g.cx} cy={g.cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth="10" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 17} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="3" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 12} fill="none" stroke="rgba(0,0,0,0.42)" strokeWidth="4" />
+      <circle cx={g.cx} cy={g.cy} r={holeR + 6} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1.5" />
+      {/* Strobe dots */}
+      {strobeDots3}
+
+      {/* Tonearm lift (on plinth) */}
+      <rect x="326" y="462" width="78" height="54" rx="5"
+        fill="rgba(0,0,0,0.22)" stroke="rgba(0,0,0,0.3)" />
+      <rect x="336" y="472" width="58" height="12" rx="4"
+        fill="rgba(0,0,0,0.5)" stroke="rgba(255,255,255,0.08)" />
+      <rect x="354" y="473" width="12" height="10" rx="2" fill="#c0c0c0" stroke="rgba(0,0,0,0.4)" />
+      <text x="365" y="493" fill="rgba(80,60,40,0.7)" fontSize="6.5" fontFamily="monospace" textAnchor="middle">LIFT</text>
+      <text x="365" y="504" fill="rgba(80,60,40,0.5)" fontSize="5.5" fontFamily="monospace" textAnchor="middle">TONEARM</text>
+
+      {/* Tonearm (straight for vintage hi-fi) */}
+      <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
+
+      {/* Spindle */}
+      <circle cx={g.cx} cy={g.cy} r="7.5" fill="#ddd8ce" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+      <circle cx={g.cx} cy={g.cy} r="3.5" fill="#f5f0e8" />
+      <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.4" fill="rgba(255,255,255,0.9)" />
+    </svg>
+  );
 }
 
 function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, progress }: any) {
@@ -1115,7 +1684,7 @@ function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, pr
 }
 
 function EqualizerVisualizer({
-  analyserRef, shape, color, color2, bars, glow, bgColor, playing, width, height
+  analyserRef, shape, color, color2, bars, glow, bgColor, playing, width, height,
 }: any) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -1183,11 +1752,11 @@ function EqualizerVisualizer({
         ctx.strokeStyle = grad;
         ctx.beginPath();
         for (let i = 0; i < bars; i++) {
-          const x = i / (bars - 1) * w;
+          const x = (i / (bars - 1)) * w;
           const y = h / 2 + (values[i] - 0.5) * h * 0.75;
-          if (i === 0) ctx.moveTo(x, y);else
-          {
-            const prevX = (i - 1) / (bars - 1) * w;
+          if (i === 0) ctx.moveTo(x, y);
+          else {
+            const prevX = ((i - 1) / (bars - 1)) * w;
             const prevY = h / 2 + (values[i - 1] - 0.5) * h * 0.75;
             const cpx = (prevX + x) / 2;
             ctx.quadraticCurveTo(cpx, prevY, x, y);
@@ -1200,10 +1769,10 @@ function EqualizerVisualizer({
         const radius = Math.min(w, h) * 0.22;
         const maxBar = Math.min(w, h) * 0.28;
         ctx.strokeStyle = grad;
-        ctx.lineWidth = Math.max(2, 2 * Math.PI * radius / bars * 0.6);
+        ctx.lineWidth = Math.max(2, (2 * Math.PI * radius) / bars * 0.6);
         ctx.lineCap = "round";
         for (let i = 0; i < bars; i++) {
-          const a = i / bars * Math.PI * 2 - Math.PI / 2;
+          const a = (i / bars) * Math.PI * 2 - Math.PI / 2;
           const v = values[i];
           const r1 = radius;
           const r2 = radius + v * maxBar;
@@ -1269,16 +1838,16 @@ function EqualizerVisualizer({
       rafRef.current = requestAnimationFrame(draw);
     };
     rafRef.current = requestAnimationFrame(draw);
-    return () => {if (rafRef.current) cancelAnimationFrame(rafRef.current);};
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [shape, color, color2, bars, glow, bgColor, width, height, playing, analyserRef]);
 
   return (
-    <canvas data-ev-id="ev_d1ee0154e6" ref={canvasRef} style={{
+    <canvas ref={canvasRef} style={{
       width, height, borderRadius: 22, display: "block",
       boxShadow: "0 30px 80px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.06)",
-      background: bgColor
-    }} />);
-
+      background: bgColor,
+    }} />
+  );
 }
 
 function rgbToHex(r: number, g: number, b: number) {
@@ -1287,14 +1856,14 @@ function rgbToHex(r: number, g: number, b: number) {
 }
 function hexToHsv(hex: string) {
   const { r, g, b } = hexToRgb(hex);
-  const rn = r / 255,gn = g / 255,bn = b / 255;
-  const max = Math.max(rn, gn, bn),min = Math.min(rn, gn, bn);
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
   const d = max - min;
   let h = 0;
   if (d !== 0) {
-    if (max === rn) h = (gn - bn) / d % 6;else
-    if (max === gn) h = (bn - rn) / d + 2;else
-    h = (rn - gn) / d + 4;
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
     h *= 60;
     if (h < 0) h += 360;
   }
@@ -1303,23 +1872,23 @@ function hexToHsv(hex: string) {
 }
 function hsvToHex(h: number, s: number, v: number) {
   const c = v * s;
-  const hh = h % 360 / 60;
-  const x = c * (1 - Math.abs(hh % 2 - 1));
-  let r1 = 0,g1 = 0,b1 = 0;
-  if (hh >= 0 && hh < 1) {r1 = c;g1 = x;} else
-  if (hh < 2) {r1 = x;g1 = c;} else
-  if (hh < 3) {g1 = c;b1 = x;} else
-  if (hh < 4) {g1 = x;b1 = c;} else
-  if (hh < 5) {r1 = x;b1 = c;} else
-  {r1 = c;b1 = x;}
+  const hh = (h % 360) / 60;
+  const x = c * (1 - Math.abs((hh % 2) - 1));
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (hh >= 0 && hh < 1) { r1 = c; g1 = x; }
+  else if (hh < 2) { r1 = x; g1 = c; }
+  else if (hh < 3) { g1 = c; b1 = x; }
+  else if (hh < 4) { g1 = x; b1 = c; }
+  else if (hh < 5) { r1 = x; b1 = c; }
+  else { r1 = c; b1 = x; }
   const m = v - c;
   return rgbToHex((r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255);
 }
 
-function ColorPicker({ value, onChange, onClose, dark, anchorRect
-
-
-}: {value: string;onChange: (v: string) => void;onClose: () => void;dark: boolean;anchorRect: {top: number;left: number;width: number;height: number;} | null;}) {
+function ColorPicker({ value, onChange, onClose, dark, anchorRect }: {
+  value: string; onChange: (v: string) => void; onClose: () => void;
+  dark: boolean; anchorRect: { top: number; left: number; width: number; height: number } | null;
+}) {
   const text = dark ? "#fff" : "#111";
   const panelBg = dark ? "rgba(22,22,24,0.96)" : "rgba(255,255,255,0.98)";
   const border = dark ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(0,0,0,0.10)";
@@ -1333,7 +1902,7 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect
     const onDown = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
     };
-    const onKey = (e: KeyboardEvent) => {if (e.key === "Escape") onClose();};
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -1342,7 +1911,7 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect
     };
   }, [onClose]);
 
-  const commit = (next: {h: number;s: number;v: number;}) => {
+  const commit = (next: { h: number; s: number; v: number }) => {
     setHsv(next);
     const hex = hsvToHex(next.h, next.s, next.v);
     setHexInput(hex.toUpperCase());
@@ -1370,7 +1939,7 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect
       if (padDragging.current) handlePadEvent(e);
       if (hueDragging.current) handleHueEvent(e);
     };
-    const up = () => {padDragging.current = false;hueDragging.current = false;};
+    const up = () => { padDragging.current = false; hueDragging.current = false; };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     return () => {
@@ -1380,7 +1949,7 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hsv]);
 
-  const PANEL_W = 240,PANEL_H = 260;
+  const PANEL_W = 240, PANEL_H = 260;
   const pad = 8;
   let top = (anchorRect?.top ?? 0) + (anchorRect?.height ?? 0) + pad;
   let left = (anchorRect?.left ?? 0) + (anchorRect?.width ?? 0) / 2 - PANEL_W / 2;
@@ -1391,119 +1960,119 @@ function ColorPicker({ value, onChange, onClose, dark, anchorRect
   const hueColor = hsvToHex(hsv.h, 1, 1);
 
   return (
-    <div data-ev-id="ev_ece5d145f2" ref={panelRef} style={{
+    <div ref={panelRef} style={{
       position: "fixed", top, left, width: PANEL_W, zIndex: 2000,
       padding: 12, borderRadius: 16, border, background: panelBg, color: text,
       boxShadow: "0 20px 50px rgba(0,0,0,0.40)",
       backdropFilter: "blur(22px) saturate(1.25)",
       display: "flex", flexDirection: "column", gap: 10,
-      fontFamily: "Courier New, monospace"
-    }} onMouseDown={(e) => e.stopPropagation()}>
-      <div data-ev-id="ev_c006153c5c" style={{ display: "flex", gap: 10 }}>
-        <div data-ev-id="ev_d9f8805922" ref={padRef}
-        onPointerDown={(e) => {padDragging.current = true;handlePadEvent(e);}}
-        style={{
-          position: "relative", flex: 1, height: 160, borderRadius: 10, cursor: "crosshair",
-          background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueColor})`,
-          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)", touchAction: "none"
-        }}>
-          <div data-ev-id="ev_063d8d3ec5" style={{
+      fontFamily: "Courier New, monospace",
+    }} onMouseDown={e => e.stopPropagation()}>
+      <div style={{ display: "flex", gap: 10 }}>
+        <div ref={padRef}
+          onPointerDown={e => { padDragging.current = true; handlePadEvent(e); }}
+          style={{
+            position: "relative", flex: 1, height: 160, borderRadius: 10, cursor: "crosshair",
+            background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueColor})`,
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)", touchAction: "none",
+          }}>
+          <div style={{
             position: "absolute",
             left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`,
             width: 14, height: 14, borderRadius: "50%",
             transform: "translate(-50%, -50%)",
             border: "2px solid #fff",
             boxShadow: "0 0 0 1px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35)",
-            pointerEvents: "none"
+            pointerEvents: "none",
           }} />
         </div>
-        <div data-ev-id="ev_7d07c27004" ref={hueRef}
-        onPointerDown={(e) => {hueDragging.current = true;handleHueEvent(e);}}
-        style={{
-          position: "relative", width: 18, height: 160, borderRadius: 10, cursor: "ns-resize",
-          background: "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
-          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)", touchAction: "none"
-        }}>
-          <div data-ev-id="ev_8203dbd6b7" style={{
-            position: "absolute", left: "50%", top: `${hsv.h / 360 * 100}%`,
+        <div ref={hueRef}
+          onPointerDown={e => { hueDragging.current = true; handleHueEvent(e); }}
+          style={{
+            position: "relative", width: 18, height: 160, borderRadius: 10, cursor: "ns-resize",
+            background: "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.30)", touchAction: "none",
+          }}>
+          <div style={{
+            position: "absolute", left: "50%", top: `${(hsv.h / 360) * 100}%`,
             width: 22, height: 8, borderRadius: 3,
             transform: "translate(-50%, -50%)",
             background: "#fff",
             boxShadow: "0 0 0 1px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.30)",
-            pointerEvents: "none"
+            pointerEvents: "none",
           }} />
         </div>
       </div>
-      <div data-ev-id="ev_ea884cf0ae" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div data-ev-id="ev_fde81df729" style={{
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{
           width: 36, height: 30, borderRadius: 8, background: hsvToHex(hsv.h, hsv.s, hsv.v),
-          boxShadow: "0 0 0 1px rgba(0,0,0,0.20), inset 0 0 0 1px rgba(255,255,255,0.10)", flexShrink: 0
+          boxShadow: "0 0 0 1px rgba(0,0,0,0.20), inset 0 0 0 1px rgba(255,255,255,0.10)", flexShrink: 0,
         }} />
-        <span data-ev-id="ev_0b03e8f97a" style={{ fontSize: 11, opacity: 0.7 }}>#</span>
-        <input data-ev-id="ev_cb6680ca75"
-        value={hexInput.replace(/^#/, "")}
-        onChange={(e) => {
-          const v = e.target.value.replace(/[^0-9a-f]/gi, "").slice(0, 6).toUpperCase();
-          setHexInput(`#${v}`);
-          if (v.length === 6) {
-            const next = hexToHsv(`#${v}`);
-            setHsv(next);
-            onChange(`#${v.toLowerCase()}`);
-          }
-        }}
-        spellCheck={false}
-        style={{
-          flex: 1, padding: "6px 8px", borderRadius: 8,
-          border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
-          background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
-          color: text, fontFamily: "Courier New, monospace", fontSize: 12,
-          outline: "none", letterSpacing: 1, textTransform: "uppercase"
-        }} />
-
-        <button data-ev-id="ev_4a18746aaf" onClick={onClose} style={{
+        <span style={{ fontSize: 11, opacity: 0.7 }}>#</span>
+        <input
+          value={hexInput.replace(/^#/, "")}
+          onChange={e => {
+            const v = e.target.value.replace(/[^0-9a-f]/gi, "").slice(0, 6).toUpperCase();
+            setHexInput(`#${v}`);
+            if (v.length === 6) {
+              const next = hexToHsv(`#${v}`);
+              setHsv(next);
+              onChange(`#${v.toLowerCase()}`);
+            }
+          }}
+          spellCheck={false}
+          style={{
+            flex: 1, padding: "6px 8px", borderRadius: 8,
+            border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
+            background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+            color: text, fontFamily: "Courier New, monospace", fontSize: 12,
+            outline: "none", letterSpacing: 1, textTransform: "uppercase",
+          }}
+        />
+        <button onClick={onClose} style={{
           padding: "6px 10px", borderRadius: 8,
           border: dark ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.18)",
           background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
-          color: text, cursor: "pointer", fontFamily: "Courier New, monospace", fontSize: 11
+          color: text, cursor: "pointer", fontFamily: "Courier New, monospace", fontSize: 11,
         }}>done</button>
       </div>
-    </div>);
-
+    </div>
+  );
 }
 
-function ColorSwatch({ value, onChange, label, dark
-
-}: {value: string;onChange: (v: string) => void;label?: string;dark: boolean;}) {
+function ColorSwatch({ value, onChange, label, dark }: {
+  value: string; onChange: (v: string) => void; label?: string; dark: boolean;
+}) {
   const text = dark ? "#fff" : "#111";
   const hex = normalizeHex(value).toUpperCase();
   const [open, setOpen] = useState(false);
   const swatchRef = useRef<HTMLButtonElement | null>(null);
-  const [rect, setRect] = useState<{top: number;left: number;width: number;height: number;} | null>(null);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const handleOpen = () => {
     const r = swatchRef.current?.getBoundingClientRect();
     if (r) setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
     setOpen(true);
   };
   return (
-    <div data-ev-id="ev_3af98b97c3" style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, userSelect: "none" }}>
-      <button data-ev-id="ev_5bd38c4f77" ref={swatchRef} onClick={handleOpen} aria-label={label || "pick color"} style={{
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, userSelect: "none" }}>
+      <button ref={swatchRef} onClick={handleOpen} aria-label={label || "pick color"} style={{
         position: "relative", width: "100%", aspectRatio: "1 / 1", minWidth: 40,
         borderRadius: 14, background: value,
         boxShadow: "0 4px 10px rgba(0,0,0,0.18), 0 0 0 1px " + (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
         transition: "transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.18s ease",
-        cursor: "pointer", padding: 0, border: "none"
+        cursor: "pointer", padding: 0, border: "none",
       }} />
-      {label && <span data-ev-id="ev_2b75fabde3" style={{ fontSize: 9, opacity: 0.7, color: text, letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</span>}
-      <span data-ev-id="ev_bc39e490a6" style={{ fontSize: 10, fontFamily: "Courier New, monospace", color: text, opacity: 0.85, letterSpacing: 0.5 }}>{hex}</span>
+      {label && <span style={{ fontSize: 9, opacity: 0.7, color: text, letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</span>}
+      <span style={{ fontSize: 10, fontFamily: "Courier New, monospace", color: text, opacity: 0.85, letterSpacing: 0.5 }}>{hex}</span>
       {open && <ColorPicker value={value} onChange={onChange} onClose={() => setOpen(false)} dark={dark} anchorRect={rect} />}
-    </div>);
-
+    </div>
+  );
 }
 
 const OVL: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.58)",
   display: "flex", justifyContent: "center", alignItems: "center",
-  zIndex: 1000, backdropFilter: "blur(22px)"
+  zIndex: 1000, backdropFilter: "blur(22px)",
 };
 const MOD = (dark: boolean, text: string): React.CSSProperties => ({
   width: 340, padding: 20, borderRadius: 22,
@@ -1511,7 +2080,7 @@ const MOD = (dark: boolean, text: string): React.CSSProperties => ({
   color: text,
   border: dark ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(0,0,0,0.08)",
   boxShadow: "0 26px 80px rgba(0,0,0,0.34)",
-  display: "flex", flexDirection: "column", gap: 12
+  display: "flex", flexDirection: "column", gap: 12,
 });
 
 const SLEEVE_SIZE = 220;
@@ -1520,184 +2089,184 @@ const HOVER_LIFT = 28;
 
 function nameHue(name: string) {
   let h = 0;
-  for (let i = 0; i < name.length; i++) h = h * 31 + name.charCodeAt(i) >>> 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return h % 360;
 }
 
 const StorageRecord = React.memo(function StorageRecord({
   name, cover, spineColor, isHovered, isFocused, isDragging, isDropTarget,
   onPointerEnter, onPointerLeave, onClick, onContextMenu,
-  onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, S
+  onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, S,
 }: any) {
   const hue = nameHue(name);
-  const spineBg = spineColor ?
-  spineColor :
-  cover ? "#111" :
-  `linear-gradient(175deg,hsl(${hue} 52% 28%) 0%,hsl(${(hue + 48) % 360} 42% 14%) 100%)`;
+  const spineBg = spineColor
+    ? spineColor
+    : cover ? "#111"
+    : `linear-gradient(175deg,hsl(${hue} 52% 28%) 0%,hsl(${(hue + 48) % 360} 42% 14%) 100%)`;
   const lifted = isHovered || isFocused;
   return (
-    <button data-ev-id="ev_152e6d3861"
-    draggable
-    onDragStart={onDragStart} onDragOver={onDragOver}
-    onDragLeave={onDragLeave} onDrop={onDrop} onDragEnd={onDragEnd}
-    style={{
-      ...S.storageRecord, width: SPINE_W, height: SLEEVE_SIZE,
-      background: spineBg, borderRadius: 2, overflow: "hidden",
-      border: "none", borderRight: "1px solid rgba(0,0,0,0.48)",
-      transform: lifted ? `translateY(-${HOVER_LIFT}px)` : "translateY(0)",
-      transition: "transform 0.20s cubic-bezier(0.22,1,0.36,1), filter 0.14s ease, opacity 0.14s ease",
-      filter: lifted ? "brightness(1.35) saturate(1.15)" : "brightness(1)",
-      zIndex: lifted ? 50 : "auto",
-      opacity: isDragging ? 0.35 : 1,
-      boxShadow: isDropTarget ?
-      "inset 3px 0 0 rgba(120,200,255,0.95), inset -3px 0 0 rgba(120,200,255,0.95)" :
-      undefined,
-      cursor: isDragging ? "grabbing" : "grab"
-    }}
-    onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}
-    onClick={onClick} onContextMenu={onContextMenu} title={name}>
-
-      {cover && <img data-ev-id="ev_19bfb2be5e" src={cover} alt="" style={{ ...S.cover, objectPosition: "left center", opacity: 0.82 }} />}
-      <span data-ev-id="ev_457ca3fc2f" style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 4, background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.52))", pointerEvents: "none" }} />
-      <span data-ev-id="ev_5ffd142177" style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 2, background: "rgba(255,255,255,0.16)", pointerEvents: "none" }} />
-    </button>);
-
+    <button
+      draggable
+      onDragStart={onDragStart} onDragOver={onDragOver}
+      onDragLeave={onDragLeave} onDrop={onDrop} onDragEnd={onDragEnd}
+      style={{
+        ...S.storageRecord, width: SPINE_W, height: SLEEVE_SIZE,
+        background: spineBg, borderRadius: 2, overflow: "hidden",
+        border: "none", borderRight: "1px solid rgba(0,0,0,0.48)",
+        transform: lifted ? `translateY(-${HOVER_LIFT}px)` : "translateY(0)",
+        transition: "transform 0.20s cubic-bezier(0.22,1,0.36,1), filter 0.14s ease, opacity 0.14s ease",
+        filter: lifted ? "brightness(1.35) saturate(1.15)" : "brightness(1)",
+        zIndex: lifted ? 50 : "auto",
+        opacity: isDragging ? 0.35 : 1,
+        boxShadow: isDropTarget
+          ? "inset 3px 0 0 rgba(120,200,255,0.95), inset -3px 0 0 rgba(120,200,255,0.95)"
+          : undefined,
+        cursor: isDragging ? "grabbing" : "grab",
+      }}
+      onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}
+      onClick={onClick} onContextMenu={onContextMenu} title={name}
+    >
+      {cover && <img src={cover} alt="" style={{ ...S.cover, objectPosition: "left center", opacity: 0.82 }} />}
+      <span style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 4, background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.52))", pointerEvents: "none" }} />
+      <span style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 2, background: "rgba(255,255,255,0.16)", pointerEvents: "none" }} />
+    </button>
+  );
 });
 
 // ── CHANGE 1: RealVinyl now accepts pictureVinyl prop ──────────────────────
 function RealVinyl({ size, cover, labelColor = "#d8d2c4", vinylColor = "#0a0a0a", pictureVinyl = false }: any) {
   const isPicture = Boolean(pictureVinyl && cover);
   return (
-    <div data-ev-id="ev_fe526c7ae0" style={{
+    <div style={{
       position: "absolute", inset: 0, borderRadius: "50%",
       background: vinylColor,
       boxShadow: "0 20px 52px rgba(0,0,0,0.72), 0 4px 12px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.07)",
-      overflow: "hidden"
+      overflow: "hidden",
     }}>
       {/* Full-cover image when picture vinyl is active */}
-      {isPicture &&
-      <img data-ev-id="ev_0b200f2b36" src={cover} alt="" style={{
-        position: "absolute", inset: 0, width: "100%", height: "100%",
-        borderRadius: "50%", objectFit: "cover", display: "block", zIndex: 1
-      }} />
-      }
-      <div data-ev-id="ev_492248e05a" style={{
+      {isPicture && (
+        <img src={cover} alt="" style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          borderRadius: "50%", objectFit: "cover", display: "block", zIndex: 1,
+        }} />
+      )}
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.11) 0 0.5px, rgba(0,0,0,0.22) 0.5px 1px, transparent 1px 2.5px)",
-        opacity: isPicture ? 0.12 : 0.9, pointerEvents: "none", zIndex: 2
+        opacity: isPicture ? 0.12 : 0.9, pointerEvents: "none", zIndex: 2,
       }} />
-      <div data-ev-id="ev_83a13c10d8" style={{
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, transparent 0 6px, rgba(255,255,255,0.04) 6px 7px, transparent 7px 14px)",
-        opacity: isPicture ? 0.08 : 0.6, pointerEvents: "none", zIndex: 2
+        opacity: isPicture ? 0.08 : 0.6, pointerEvents: "none", zIndex: 2,
       }} />
-      <div data-ev-id="ev_62ea08ef6c" style={{
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 200deg, rgba(255,255,255,0.32) 0deg, rgba(200,160,255,0.12) 30deg, transparent 60deg, rgba(255,255,255,0.06) 130deg, transparent 190deg, rgba(255,255,255,0.28) 250deg, rgba(160,200,255,0.10) 280deg, transparent 320deg)",
-        mixBlendMode: isPicture ? "overlay" : "screen", pointerEvents: "none", zIndex: 3
+        mixBlendMode: isPicture ? "overlay" : "screen", pointerEvents: "none", zIndex: 3,
       }} />
-      <div data-ev-id="ev_5d0bafaa50" style={{
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "conic-gradient(from 40deg, transparent 0deg, rgba(255,220,180,0.10) 20deg, transparent 70deg, rgba(180,255,220,0.08) 200deg, transparent 260deg)",
-        mixBlendMode: "screen", pointerEvents: "none", zIndex: 3
+        mixBlendMode: "screen", pointerEvents: "none", zIndex: 3,
       }} />
-      <div data-ev-id="ev_3563f258d2" style={{
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "radial-gradient(circle, transparent 44%, rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.82) 100%)",
-        pointerEvents: "none", zIndex: 4
+        pointerEvents: "none", zIndex: 4,
       }} />
-      <div data-ev-id="ev_ecb5c7239c" style={{
+      <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "radial-gradient(ellipse 60% 30% at 42% 22%, rgba(255,255,255,0.13) 0%, transparent 100%)",
-        pointerEvents: "none", zIndex: 5
+        pointerEvents: "none", zIndex: 5,
       }} />
       {/* Label circle only when NOT picture vinyl */}
-      {!isPicture &&
-      <div data-ev-id="ev_3bb3215738" style={{
-        position: "absolute", top: "50%", left: "50%",
-        width: size * 0.38, height: size * 0.38, borderRadius: "50%",
-        transform: "translate(-50%,-50%)", overflow: "hidden",
-        background: cover ? "#000" : `radial-gradient(circle at 36% 28%, ${labelColor}, #b8b0a0 55%, #8a8070 100%)`,
-        boxShadow: "0 0 0 4px rgba(0,0,0,0.55), 0 0 0 5px rgba(255,255,255,0.06), inset 0 0 12px rgba(0,0,0,0.35)",
-        zIndex: 6
-      }}>
-          {cover && <img data-ev-id="ev_84065304c9" src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+      {!isPicture && (
+        <div style={{
+          position: "absolute", top: "50%", left: "50%",
+          width: size * 0.38, height: size * 0.38, borderRadius: "50%",
+          transform: "translate(-50%,-50%)", overflow: "hidden",
+          background: cover ? "#000" : `radial-gradient(circle at 36% 28%, ${labelColor}, #b8b0a0 55%, #8a8070 100%)`,
+          boxShadow: "0 0 0 4px rgba(0,0,0,0.55), 0 0 0 5px rgba(255,255,255,0.06), inset 0 0 12px rgba(0,0,0,0.35)",
+          zIndex: 6,
+        }}>
+          {cover && <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
         </div>
-      }
+      )}
       {/* Spindle hole always visible */}
-      <div data-ev-id="ev_a3a1f369be" style={{
+      <div style={{
         position: "absolute", top: "50%", left: "50%",
         width: size * 0.034, height: size * 0.034, borderRadius: "50%",
         transform: "translate(-50%,-50%)",
         background: "radial-gradient(circle at 38% 30%, #2a2a2a, #000)",
         boxShadow: "inset 0 0 4px rgba(255,255,255,0.28), 0 0 0 1.5px rgba(255,255,255,0.08)",
-        zIndex: 7
+        zIndex: 7,
       }} />
-    </div>);
-
+    </div>
+  );
 }
 
 function PanelCtxMenu({ dark, text, border, panelBg, mono, onSet, onClear, readImageFile }: any) {
-  const [menu, setMenu] = useState<{x: number;y: number;} | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const btn: any = {
     padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent",
     color: text, cursor: "pointer", textAlign: "left", fontFamily: mono,
-    fontSize: 11, whiteSpace: "nowrap", display: "block"
+    fontSize: 11, whiteSpace: "nowrap", display: "block",
   };
   return (
     <>
-      <div data-ev-id="ev_8ad6c899cf" style={{ position: "absolute", inset: 0, zIndex: 7 }}
-      onContextMenu={(e) => {e.preventDefault();setMenu({ x: e.clientX, y: e.clientY });}} />
-      {menu &&
-      <>
-          <div data-ev-id="ev_799de5eb3c" style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setMenu(null)} />
-          <div data-ev-id="ev_0f328ffc22" style={{
-          position: "fixed", left: menu.x, top: menu.y, zIndex: 101,
-          background: panelBg, border, borderRadius: 10, padding: 6,
-          display: "flex", flexDirection: "column", gap: 2,
-          boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)"
-        }}>
-            <label data-ev-id="ev_6968e23777" style={{ ...btn, cursor: "pointer" }} onClick={() => setMenu(null)}>
+      <div style={{ position: "absolute", inset: 0, zIndex: 7 }}
+        onContextMenu={e => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }} />
+      {menu && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setMenu(null)} />
+          <div style={{
+            position: "fixed", left: menu.x, top: menu.y, zIndex: 101,
+            background: panelBg, border, borderRadius: 10, padding: 6,
+            display: "flex", flexDirection: "column", gap: 2,
+            boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)",
+          }}>
+            <label style={{ ...btn, cursor: "pointer" }} onClick={() => setMenu(null)}>
               change art
-              <input data-ev-id="ev_b8dbeb1868" hidden type="file" accept=".png,.jpg,.jpeg,.webp"
-            onChange={(e) => {setMenu(null);readImageFile(e, onSet);}} />
+              <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
+                onChange={e => { setMenu(null); readImageFile(e, onSet); }} />
             </label>
-            <button data-ev-id="ev_e1793fce10" style={{ ...btn, color: dark ? "#ff8a8a" : "#b13030" }}
-          onClick={() => {setMenu(null);onClear();}}>remove art</button>
-            <button data-ev-id="ev_8ee0efb3bc" style={{ ...btn, opacity: 0.5 }} onClick={() => setMenu(null)}>close</button>
+            <button style={{ ...btn, color: dark ? "#ff8a8a" : "#b13030" }}
+              onClick={() => { setMenu(null); onClear(); }}>remove art</button>
+            <button style={{ ...btn, opacity: 0.5 }} onClick={() => setMenu(null)}>close</button>
           </div>
         </>
-      }
-    </>);
-
+      )}
+    </>
+  );
 }
 
-function Crease({ vertical = true }: {vertical?: boolean;}) {
+function Crease({ vertical = true }: { vertical?: boolean }) {
   return (
-    <div data-ev-id="ev_0d0f56417c" style={{
+    <div style={{
       [vertical ? "width" : "height"]: 20,
       [vertical ? "height" : "width"]: "100%",
       flexShrink: 0, zIndex: 6,
-      background: vertical ?
-      "linear-gradient(90deg, rgba(0,0,0,0.7) 0%, rgba(22,22,24,1) 18%, rgba(34,33,36,1) 38%, rgba(28,27,30,1) 50%, rgba(34,33,36,1) 62%, rgba(22,22,24,1) 82%, rgba(0,0,0,0.7) 100%)" :
-      "linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(22,22,24,1) 18%, rgba(34,33,36,1) 38%, rgba(28,27,30,1) 50%, rgba(34,33,36,1) 62%, rgba(22,22,24,1) 82%, rgba(0,0,0,0.7) 100%)",
-      boxShadow: vertical ?
-      "inset 3px 0 10px rgba(0,0,0,0.6), inset -3px 0 10px rgba(0,0,0,0.6)" :
-      "inset 0 3px 10px rgba(0,0,0,0.6), inset 0 -3px 10px rgba(0,0,0,0.6)",
-      position: "relative"
+      background: vertical
+        ? "linear-gradient(90deg, rgba(0,0,0,0.7) 0%, rgba(22,22,24,1) 18%, rgba(34,33,36,1) 38%, rgba(28,27,30,1) 50%, rgba(34,33,36,1) 62%, rgba(22,22,24,1) 82%, rgba(0,0,0,0.7) 100%)"
+        : "linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(22,22,24,1) 18%, rgba(34,33,36,1) 38%, rgba(28,27,30,1) 50%, rgba(34,33,36,1) 62%, rgba(22,22,24,1) 82%, rgba(0,0,0,0.7) 100%)",
+      boxShadow: vertical
+        ? "inset 3px 0 10px rgba(0,0,0,0.6), inset -3px 0 10px rgba(0,0,0,0.6)"
+        : "inset 0 3px 10px rgba(0,0,0,0.6), inset 0 -3px 10px rgba(0,0,0,0.6)",
+      position: "relative",
     }}>
-      <div data-ev-id="ev_1d232db5bf" style={{
+      <div style={{
         position: "absolute",
         [vertical ? "top" : "left"]: 0, [vertical ? "bottom" : "right"]: 0,
         [vertical ? "left" : "top"]: "50%",
         [vertical ? "width" : "height"]: 1,
         transform: vertical ? "translateX(-50%)" : "translateY(-50%)",
-        background: vertical ?
-        "linear-gradient(180deg, transparent, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.06) 70%, transparent)" :
-        "linear-gradient(90deg, transparent, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.06) 70%, transparent)"
+        background: vertical
+          ? "linear-gradient(180deg, transparent, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.06) 70%, transparent)"
+          : "linear-gradient(90deg, transparent, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.06) 70%, transparent)",
       }} />
-    </div>);
-
+    </div>
+  );
 }
 
 // ── CHANGE 2: SleevePresentation accepts pictureVinyl prop ────────────────
@@ -1709,20 +2278,20 @@ function SleevePresentation({
   onSetGatefoldBoth, onSetGatefoldSide, onClearGatefoldBoth, onClearGatefoldSide,
   readImageFile, vinylColor,
   onBack, onEnterPlayer, activeVinyl,
-  pictureVinyl // ← NEW prop
+  pictureVinyl, // ← NEW prop
 }: any) {
   const [pulling, setPulling] = useState<null | number>(null);
   const [fading, setFading] = useState(false);
   const panelBg = dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.6)";
   const border = dark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.08)";
-  const pageBg = dark ?
-  "radial-gradient(circle at 50% 30%, #15161a 0%, #050506 70%)" :
-  "radial-gradient(circle at 50% 30%, #ffffff 0%, #e8eaee 70%)";
+  const pageBg = dark
+    ? "radial-gradient(circle at 50% 30%, #15161a 0%, #050506 70%)"
+    : "radial-gradient(circle at 50% 30%, #ffffff 0%, #e8eaee 70%)";
 
   const SIZE = 300;
   const frontCover = cover || sideCovers?.[0] || null;
   const vc = vinylColor || "#0a0a0a";
-  const vinylCovers = [1, 2, 3, 4].map((v) => sideCoverFor((v - 1) * 2 + 1, sideCovers || [], repeatSideCovers, cover));
+  const vinylCovers = [1, 2, 3, 4].map(v => sideCoverFor((v - 1) * 2 + 1, sideCovers || [], repeatSideCovers, cover));
 
   const pullVinyl = (vinyl: number) => {
     if (pulling) return;
@@ -1734,26 +2303,26 @@ function SleevePresentation({
   const panelArt = gatefoldPanelArts || [];
   const mono = "Courier New, monospace";
 
-  const headerBar =
-  <div data-ev-id="ev_549cb6a44b" style={{
-    position: "absolute", top: 26, left: 0, right: 0,
-    display: "flex", justifyContent: "center", gap: 12, alignItems: "center", zIndex: 20
-  }}>
-      <button data-ev-id="ev_5142d0d741" onClick={onBack} style={{
-      padding: "9px 14px", borderRadius: 12, border,
-      background: panelBg, color: text, cursor: "pointer", fontFamily: mono, fontSize: 12,
-      backdropFilter: "blur(20px)"
-    }}>back</button>
-      <div data-ev-id="ev_fd19b3f2a3" style={{ color: text, fontFamily: mono, letterSpacing: 2, fontSize: 15, opacity: 0.85 }}>{title}</div>
-    </div>;
+  const headerBar = (
+    <div style={{
+      position: "absolute", top: 26, left: 0, right: 0,
+      display: "flex", justifyContent: "center", gap: 12, alignItems: "center", zIndex: 20,
+    }}>
+      <button onClick={onBack} style={{
+        padding: "9px 14px", borderRadius: 12, border,
+        background: panelBg, color: text, cursor: "pointer", fontFamily: mono, fontSize: 12,
+        backdropFilter: "blur(20px)",
+      }}>back</button>
+      <div style={{ color: text, fontFamily: mono, letterSpacing: 2, fontSize: 15, opacity: 0.85 }}>{title}</div>
+    </div>
+  );
 
-
-  const fadeOverlay =
-  <div data-ev-id="ev_231163ef25" style={{
-    position: "fixed", inset: 0, background: pageBg, opacity: fading ? 1 : 0,
-    transition: "opacity 0.45s ease", pointerEvents: "none", zIndex: 60
-  }} />;
-
+  const fadeOverlay = (
+    <div style={{
+      position: "fixed", inset: 0, background: pageBg, opacity: fading ? 1 : 0,
+      transition: "opacity 0.45s ease", pointerEvents: "none", zIndex: 60,
+    }} />
+  );
 
   // ── CHANGE 2b: pass pictureVinyl to RealVinyl inside CardPanel ────────
   const CardPanel = ({ panelIdx, discSide, vinylNum, sharedArtSrc, totalHorizPanels, panelHorizIdx }: any) => {
@@ -1761,263 +2330,263 @@ function SleevePresentation({
     const hasArt = Boolean(art || sharedArtSrc);
     const isPulling = pulling === vinylNum;
     const peek = SIZE * 0.08;
-    const dX = discSide === "left" ? isPulling ? -SIZE * 1.12 : -peek :
-    discSide === "right" ? isPulling ? SIZE * 1.12 : peek : 0;
-    const dY = discSide === "top" ? isPulling ? -SIZE * 1.12 : -peek :
-    discSide === "bottom" ? isPulling ? SIZE * 1.12 : peek : 0;
+    const dX = discSide === "left" ? (isPulling ? -SIZE * 1.12 : -peek)
+      : discSide === "right" ? (isPulling ? SIZE * 1.12 : peek) : 0;
+    const dY = discSide === "top" ? (isPulling ? -SIZE * 1.12 : -peek)
+      : discSide === "bottom" ? (isPulling ? SIZE * 1.12 : peek) : 0;
     const arrowChar = discSide === "left" ? "‹" : discSide === "top" ? "↑" : discSide === "bottom" ? "↓" : "›";
-    const arrowPos: any = discSide === "left" ? { left: 8, top: "50%", transform: "translateY(-50%)" } :
-    discSide === "right" ? { right: 8, top: "50%", transform: "translateY(-50%)" } :
-    discSide === "top" ? { top: 8, left: "50%", transform: "translateX(-50%)" } :
-    { bottom: 8, left: "50%", transform: "translateX(-50%)" };
+    const arrowPos: any = discSide === "left" ? { left: 8, top: "50%", transform: "translateY(-50%)" }
+      : discSide === "right" ? { right: 8, top: "50%", transform: "translateY(-50%)" }
+      : discSide === "top" ? { top: 8, left: "50%", transform: "translateX(-50%)" }
+      : { bottom: 8, left: "50%", transform: "translateX(-50%)" };
     return (
-      <div data-ev-id="ev_cc44803670" onClick={() => pullVinyl(vinylNum)}
-      style={{
-        position: "relative", width: SIZE, height: SIZE,
-        cursor: isPulling ? "default" : "pointer",
-        background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
-        boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
-        overflow: "visible"
-      }}>
-        <div data-ev-id="ev_4e299e2139" style={{
+      <div onClick={() => pullVinyl(vinylNum)}
+        style={{
+          position: "relative", width: SIZE, height: SIZE,
+          cursor: isPulling ? "default" : "pointer",
+          background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
+          boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
+          overflow: "visible",
+        }}>
+        <div style={{
           position: "absolute", top: "50%", left: "50%",
           width: SIZE * 0.9, height: SIZE * 0.9,
           transform: `translate(calc(-50% + ${dX}px), calc(-50% + ${dY}px))`,
           transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)",
-          pointerEvents: "none", zIndex: 2
+          pointerEvents: "none", zIndex: 2,
         }}>
-          <div data-ev-id="ev_5a89642075" style={{
+          <div style={{
             position: "absolute", inset: "3%", borderRadius: "50%",
-            background: "#f0ede6", boxShadow: "0 8px 22px rgba(0,0,0,0.22)"
+            background: "#f0ede6", boxShadow: "0 8px 22px rgba(0,0,0,0.22)",
           }} />
           {/* pictureVinyl forwarded here */}
           <RealVinyl size={SIZE * 0.9} cover={vinylCovers[vinylNum - 1]} vinylColor={vc} pictureVinyl={pictureVinyl} />
         </div>
-        <div data-ev-id="ev_3329e024b0" style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
-          {sharedArtSrc && totalHorizPanels > 0 ?
-          <img data-ev-id="ev_03feee068f" src={sharedArtSrc} alt="" style={{
-            position: "absolute", top: 0, height: "100%",
-            width: totalHorizPanels * SIZE, objectFit: "cover",
-            left: -(panelHorizIdx ?? 0) * SIZE
-          }} /> :
-          art ?
-          <img data-ev-id="ev_ab9e0d37d2" src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> :
-          null}
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
+          {sharedArtSrc && totalHorizPanels > 0 ? (
+            <img src={sharedArtSrc} alt="" style={{
+              position: "absolute", top: 0, height: "100%",
+              width: totalHorizPanels * SIZE, objectFit: "cover",
+              left: -(panelHorizIdx ?? 0) * SIZE,
+            }} />
+          ) : art ? (
+            <img src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : null}
         </div>
-        {["left", "right"].map((dir) =>
-        <div data-ev-id="ev_3077de75fb" key={dir} style={{
-          position: "absolute", top: 0, bottom: 0, [dir]: 0, width: 28,
-          pointerEvents: "none", zIndex: 4,
-          background: `linear-gradient(${dir === "left" ? "270deg" : "90deg"}, transparent, rgba(0,0,0,0.28))`
-        }} />
-        )}
-        {!hasArt &&
-        <label data-ev-id="ev_9e807e32af" onClick={(e) => e.stopPropagation()} style={{
-          position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
-          zIndex: 8, padding: "6px 12px", borderRadius: 10, border,
-          background: "rgba(255,255,255,0.85)", color: "#333",
-          cursor: "pointer", fontFamily: mono, fontSize: 10, textAlign: "center",
-          backdropFilter: "blur(12px)", boxShadow: "0 2px 12px rgba(0,0,0,0.12)"
-        }}>
+        {["left", "right"].map(dir => (
+          <div key={dir} style={{
+            position: "absolute", top: 0, bottom: 0, [dir]: 0, width: 28,
+            pointerEvents: "none", zIndex: 4,
+            background: `linear-gradient(${dir === "left" ? "270deg" : "90deg"}, transparent, rgba(0,0,0,0.28))`,
+          }} />
+        ))}
+        {!hasArt && (
+          <label onClick={e => e.stopPropagation()} style={{
+            position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
+            zIndex: 8, padding: "6px 12px", borderRadius: 10, border,
+            background: "rgba(255,255,255,0.85)", color: "#333",
+            cursor: "pointer", fontFamily: mono, fontSize: 10, textAlign: "center",
+            backdropFilter: "blur(12px)", boxShadow: "0 2px 12px rgba(0,0,0,0.12)",
+          }}>
             + art
-            <input data-ev-id="ev_52165c7977" hidden type="file" accept=".png,.jpg,.jpeg,.webp"
-          onChange={(e) => readImageFile(e, (d: string) => onSetGatefoldPanelArt(panelIdx, d))} />
+            <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
+              onChange={e => readImageFile(e, (d: string) => onSetGatefoldPanelArt(panelIdx, d))} />
           </label>
-        }
-        {hasArt &&
-        <PanelCtxMenu dark={dark} text={text} border={border} panelBg={panelBg} mono={mono}
-        onSet={(d: string) => onSetGatefoldPanelArt(panelIdx, d)}
-        onClear={() => onClearGatefoldPanelArt(panelIdx)} readImageFile={readImageFile} />
-        }
-        <div data-ev-id="ev_d320666962" style={{
+        )}
+        {hasArt && (
+          <PanelCtxMenu dark={dark} text={text} border={border} panelBg={panelBg} mono={mono}
+            onSet={(d: string) => onSetGatefoldPanelArt(panelIdx, d)}
+            onClear={() => onClearGatefoldPanelArt(panelIdx)} readImageFile={readImageFile} />
+        )}
+        <div style={{
           position: "absolute", ...arrowPos, zIndex: 5, fontSize: 22,
           color: hasArt ? "#fff" : "#888",
           opacity: isPulling ? 0 : 0.6, animation: "sleeveArrow 1.4s ease-in-out infinite",
-          textShadow: hasArt ? "0 1px 4px rgba(0,0,0,0.8)" : "none"
+          textShadow: hasArt ? "0 1px 4px rgba(0,0,0,0.8)" : "none",
         }}>{arrowChar}</div>
-      </div>);
-
+      </div>
+    );
   };
 
   // ── CHANGE 2c: pass pictureVinyl to RealVinyl inside closedCover ──────
-  const closedCover =
-  <div data-ev-id="ev_46ca289c63" onClick={() => setGatefoldOpen(true)}
-  style={{ position: "relative", width: SIZE, height: SIZE, cursor: "pointer" }} title="tap to open">
-      <div data-ev-id="ev_dd8b74eb5a" style={{
-      position: "absolute", top: "50%", right: -SIZE * 0.12,
-      width: SIZE * 0.9, height: SIZE * 0.9,
-      transform: "translateY(-50%)", zIndex: 0
-    }}>
+  const closedCover = (
+    <div onClick={() => setGatefoldOpen(true)}
+      style={{ position: "relative", width: SIZE, height: SIZE, cursor: "pointer" }} title="tap to open">
+      <div style={{
+        position: "absolute", top: "50%", right: -SIZE * 0.12,
+        width: SIZE * 0.9, height: SIZE * 0.9,
+        transform: "translateY(-50%)", zIndex: 0,
+      }}>
         {/* pictureVinyl forwarded here */}
         <RealVinyl size={SIZE * 0.9} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
       </div>
-      <div data-ev-id="ev_e16cdedd51" style={{
-      position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
-      background: frontCover ? "#111" : dark ? "#15151a" : "#e7e9ee", border,
-      boxShadow: "0 34px 80px rgba(0,0,0,0.55)", zIndex: 1
-    }}>
-        {frontCover ?
-      <img data-ev-id="ev_4e88048a00" src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> :
-      <div data-ev-id="ev_5343826808" style={{
-        width: "100%", height: "100%", display: "flex", alignItems: "center",
-        justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.5
-      }}>{title || "AURAE"}</div>}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
+        background: frontCover ? "#111" : (dark ? "#15151a" : "#e7e9ee"), border,
+        boxShadow: "0 34px 80px rgba(0,0,0,0.55)", zIndex: 1,
+      }}>
+        {frontCover
+          ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : <div style={{
+            width: "100%", height: "100%", display: "flex", alignItems: "center",
+            justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.5,
+          }}>{title || "AURAE"}</div>}
       </div>
-      <div data-ev-id="ev_d0e107c209" style={{
-      position: "absolute", bottom: -34, left: 0, right: 0,
-      textAlign: "center", fontFamily: mono, fontSize: 12, opacity: 0.7
-    }}>tap to open</div>
-    </div>;
-
+      <div style={{
+        position: "absolute", bottom: -34, left: 0, right: 0,
+        textAlign: "center", fontFamily: mono, fontSize: 12, opacity: 0.7,
+      }}>tap to open</div>
+    </div>
+  );
 
   // ── CHANGE 2d: pass pictureVinyl to RealVinyl in single-vinyl view ────
   if (!isGatefold) {
     const pull = pulling === 1;
     return (
-      <div data-ev-id="ev_1b369bf7ed" style={{
+      <div style={{
         position: "fixed", inset: 0, background: pageBg,
-        display: "flex", alignItems: "center", justifyContent: "center", color: text
+        display: "flex", alignItems: "center", justifyContent: "center", color: text,
       }}>
         {headerBar}
-        <div data-ev-id="ev_385f66dbc0" onClick={() => pullVinyl(1)}
-        style={{
-          position: "relative", width: SIZE * 1.7, height: SIZE * 1.18,
-          cursor: pulling ? "default" : "pointer", overflow: "visible"
-        }} title="tap to play">
-          <div data-ev-id="ev_5d36a51f88" style={{
+        <div onClick={() => pullVinyl(1)}
+          style={{
+            position: "relative", width: SIZE * 1.7, height: SIZE * 1.18,
+            cursor: pulling ? "default" : "pointer", overflow: "visible",
+          }} title="tap to play">
+          <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: SIZE * 0.96, height: SIZE * 0.96,
             transform: `translate(calc(-50% + ${pull ? SIZE * 1.1 : SIZE * 0.08}px), -50%)`,
-            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", zIndex: 2
+            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", zIndex: 2,
           }}>
-            <div data-ev-id="ev_89a64b5693" style={{
+            <div style={{
               position: "absolute", inset: "3%", borderRadius: "50%",
               background: dark ? "#e9e7df" : "#f6f4ee",
-              boxShadow: "0 8px 22px rgba(0,0,0,0.3)"
+              boxShadow: "0 8px 22px rgba(0,0,0,0.3)",
             }} />
             {/* pictureVinyl forwarded here */}
             <RealVinyl size={SIZE * 0.96} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
           </div>
-          <div data-ev-id="ev_6754c7e18f" style={{
+          <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: SIZE, height: SIZE,
             transform: "translate(-50%, -50%)", borderRadius: 4, overflow: "hidden", zIndex: 3,
             background: frontCover ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
-            border, boxShadow: "0 34px 80px rgba(0,0,0,0.55)"
+            border, boxShadow: "0 34px 80px rgba(0,0,0,0.55)",
           }}>
-            {frontCover ?
-            <img data-ev-id="ev_2c85e7456c" src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> :
-            <div data-ev-id="ev_a6182829af" style={{
-              width: "100%", height: "100%", display: "flex", alignItems: "center",
-              justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.35
-            }}>{title || "AURAE"}</div>}
-            <div data-ev-id="ev_32e52a0d68" style={{
+            {frontCover
+              ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <div style={{
+                width: "100%", height: "100%", display: "flex", alignItems: "center",
+                justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.35,
+              }}>{title || "AURAE"}</div>}
+            <div style={{
               position: "absolute", top: 0, bottom: 0, right: 0, width: 6,
-              background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))"
+              background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))",
             }} />
           </div>
-          <div data-ev-id="ev_5a6e3c1841" style={{
+          <div style={{
             position: "absolute", top: "50%", right: SIZE * 0.18,
             transform: "translateY(-50%)", zIndex: 3, fontSize: 28, color: text,
             opacity: pulling ? 0 : 0.7, transition: "opacity 0.3s",
-            animation: "sleeveArrow 1.4s ease-in-out infinite"
+            animation: "sleeveArrow 1.4s ease-in-out infinite",
           }}>›</div>
         </div>
         {fadeOverlay}
-      </div>);
-
+      </div>
+    );
   }
 
   if (totalVinyls === 2) {
     const sharedArt = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
     return (
-      <div data-ev-id="ev_84865c11e4" style={{
+      <div style={{
         position: "fixed", inset: 0, background: pageBg,
-        display: "flex", alignItems: "center", justifyContent: "center", color: text
+        display: "flex", alignItems: "center", justifyContent: "center", color: text,
       }}>
         {headerBar}
-        {!gatefoldOpen ? closedCover :
-        <div data-ev-id="ev_af306bfa7d" style={{
-          display: "flex", alignItems: "stretch",
-          animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)",
-          boxShadow: "0 40px 90px rgba(0,0,0,0.6)"
-        }}>
+        {!gatefoldOpen ? closedCover : (
+          <div style={{
+            display: "flex", alignItems: "stretch",
+            animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)",
+            boxShadow: "0 40px 90px rgba(0,0,0,0.6)",
+          }}>
             {CardPanel({ panelIdx: 0, discSide: "left", vinylNum: 1, sharedArtSrc: sharedArt, totalHorizPanels: 2, panelHorizIdx: 0 })}
             <Crease />
             {CardPanel({ panelIdx: 1, discSide: "right", vinylNum: 2, sharedArtSrc: sharedArt, totalHorizPanels: 2, panelHorizIdx: 1 })}
           </div>
-        }
+        )}
         {fadeOverlay}
-      </div>);
-
+      </div>
+    );
   }
 
   if (totalVinyls === 3) {
     const sharedHoriz = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
     return (
-      <div data-ev-id="ev_cd64dd7ef8" style={{
+      <div style={{
         position: "fixed", inset: 0, background: pageBg,
-        display: "flex", alignItems: "center", justifyContent: "center", color: text
+        display: "flex", alignItems: "center", justifyContent: "center", color: text,
       }}>
         {headerBar}
-        {!gatefoldOpen ? closedCover :
-        <div data-ev-id="ev_7ad119f169" style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
-            <div data-ev-id="ev_f0928b0c2e" style={{ display: "flex", alignItems: "stretch" }}>
-              <div data-ev-id="ev_2a4e320c27" style={{ width: SIZE }} /><Crease />
+        {!gatefoldOpen ? closedCover : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
+            <div style={{ display: "flex", alignItems: "stretch" }}>
+              <div style={{ width: SIZE }} /><Crease />
               {CardPanel({ panelIdx: 2, discSide: "top", vinylNum: 3 })}
-              <Crease /><div data-ev-id="ev_d03aacf546" style={{ width: SIZE }} />
+              <Crease /><div style={{ width: SIZE }} />
             </div>
             <Crease vertical={false} />
-            <div data-ev-id="ev_c22db56b9b" style={{ display: "flex", alignItems: "stretch", boxShadow: "0 40px 90px rgba(0,0,0,0.6)" }}>
+            <div style={{ display: "flex", alignItems: "stretch", boxShadow: "0 40px 90px rgba(0,0,0,0.6)" }}>
               {CardPanel({ panelIdx: 0, discSide: "left", vinylNum: 1, sharedArtSrc: sharedHoriz, totalHorizPanels: 2, panelHorizIdx: 0 })}
               <Crease />
               {CardPanel({ panelIdx: 1, discSide: "right", vinylNum: 2, sharedArtSrc: sharedHoriz, totalHorizPanels: 2, panelHorizIdx: 1 })}
             </div>
           </div>
-        }
+        )}
         {fadeOverlay}
-      </div>);
-
+      </div>
+    );
   }
 
   const sharedLR = panelArt[0] && panelArt[0] === panelArt[1] ? panelArt[0] : null;
   return (
-    <div data-ev-id="ev_f195533e7a" style={{
+    <div style={{
       position: "fixed", inset: 0, background: pageBg,
-      display: "flex", alignItems: "center", justifyContent: "center", color: text
+      display: "flex", alignItems: "center", justifyContent: "center", color: text,
     }}>
       {headerBar}
-      {!gatefoldOpen ? closedCover :
-      <div data-ev-id="ev_ba7c239535" style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
-          <div data-ev-id="ev_2aa25f0f29" style={{ display: "flex", alignItems: "stretch" }}>
-            <div data-ev-id="ev_ba54859d0f" style={{ width: SIZE + 20 }} />
+      {!gatefoldOpen ? closedCover : (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
+          <div style={{ display: "flex", alignItems: "stretch" }}>
+            <div style={{ width: SIZE + 20 }} />
             {CardPanel({ panelIdx: 2, discSide: "top", vinylNum: 3 })}
-            <div data-ev-id="ev_b039851ea6" style={{ width: SIZE + 20 }} />
+            <div style={{ width: SIZE + 20 }} />
           </div>
           <Crease vertical={false} />
-          <div data-ev-id="ev_f0c55357a4" style={{ display: "flex", alignItems: "stretch", boxShadow: "0 40px 90px rgba(0,0,0,0.6)" }}>
+          <div style={{ display: "flex", alignItems: "stretch", boxShadow: "0 40px 90px rgba(0,0,0,0.6)" }}>
             {CardPanel({ panelIdx: 0, discSide: "left", vinylNum: 1, sharedArtSrc: sharedLR, totalHorizPanels: 2, panelHorizIdx: 0 })}
             <Crease />
             {CardPanel({ panelIdx: 1, discSide: "right", vinylNum: 2, sharedArtSrc: sharedLR, totalHorizPanels: 2, panelHorizIdx: 1 })}
           </div>
           <Crease vertical={false} />
-          <div data-ev-id="ev_d3a3f7601d" style={{ display: "flex", alignItems: "stretch" }}>
-            <div data-ev-id="ev_b2c003f074" style={{ width: SIZE + 20 }} />
+          <div style={{ display: "flex", alignItems: "stretch" }}>
+            <div style={{ width: SIZE + 20 }} />
             {CardPanel({ panelIdx: 3, discSide: "bottom", vinylNum: 4 })}
-            <div data-ev-id="ev_3ebb4a5319" style={{ width: SIZE + 20 }} />
+            <div style={{ width: SIZE + 20 }} />
           </div>
         </div>
-      }
+      )}
       {fadeOverlay}
-    </div>);
-
+    </div>
+  );
 }
 
 function GatefoldPanel({
   side, SIZE, dark, text, border, art,
   hasBothArt, hasPerSideArt,
   vinylCover, vinylColor, pulling, onPull,
-  onSetBoth, onSetSide, onClearBoth, onClearSide, readImageFile
+  onSetBoth, onSetSide, onClearBoth, onClearSide, readImageFile,
 }: any) {
   const isLeft = side === "left";
   const peek = SIZE * 0.08;
@@ -2025,12 +2594,12 @@ function GatefoldPanel({
   const pullOffset = isLeft ? -SIZE * 1.12 : SIZE * 1.12;
   const menuFont: any = { fontFamily: "Courier New, monospace", fontSize: 11 };
   const panelBg = dark ? "rgba(18,18,22,0.96)" : "rgba(255,255,255,0.96)";
-  const [ctxMenu, setCtxMenu] = useState<{x: number;y: number;} | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const noArtHere = !art;
   const hasArt = Boolean(art);
 
   return (
-    <div data-ev-id="ev_9283db0760" style={{
+    <div style={{
       position: "relative", width: SIZE, height: SIZE,
       background: hasArt ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
       boxShadow: hasArt ? "none" : "0 8px 32px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.07)",
@@ -2039,121 +2608,121 @@ function GatefoldPanel({
       borderRight: !isLeft ? border : "none",
       borderTopLeftRadius: isLeft ? 4 : 0, borderBottomLeftRadius: isLeft ? 4 : 0,
       borderTopRightRadius: !isLeft ? 4 : 0, borderBottomRightRadius: !isLeft ? 4 : 0,
-      overflow: "visible"
+      overflow: "visible",
     }}
-    onContextMenu={(e) => {e.preventDefault();setCtxMenu({ x: e.clientX, y: e.clientY });}}>
-      <div data-ev-id="ev_f06896812d" onClick={onPull} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, cursor: "pointer", zIndex: 5 }} />
-      <div data-ev-id="ev_d0775a1cdd" style={{
+      onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}>
+      <div onClick={onPull} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, cursor: "pointer", zIndex: 5 }} />
+      <div style={{
         position: "absolute", top: "50%", left: "50%",
         width: SIZE * 0.9, height: SIZE * 0.9,
         transform: `translate(calc(-50% + ${pulling ? pullOffset : restOffset}px), -50%)`,
-        transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none", zIndex: 2
+        transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none", zIndex: 2,
       }}>
-        <div data-ev-id="ev_2aa63e61df" style={{ position: "absolute", inset: "3%", borderRadius: "50%", background: dark ? "#e9e7df" : "#f6f4ee", boxShadow: "0 8px 22px rgba(0,0,0,0.3)" }} />
+        <div style={{ position: "absolute", inset: "3%", borderRadius: "50%", background: dark ? "#e9e7df" : "#f6f4ee", boxShadow: "0 8px 22px rgba(0,0,0,0.3)" }} />
         <RealVinyl size={SIZE * 0.9} cover={vinylCover} vinylColor={vinylColor} />
       </div>
-      <div data-ev-id="ev_0bf0c9dcee" style={{
+      <div style={{
         position: "absolute", inset: 0, overflow: "hidden", zIndex: 3,
         borderTopLeftRadius: isLeft ? 4 : 0, borderBottomLeftRadius: isLeft ? 4 : 0,
         borderTopRightRadius: !isLeft ? 4 : 0, borderBottomRightRadius: !isLeft ? 4 : 0,
-        pointerEvents: "none"
+        pointerEvents: "none",
       }}>
-        {hasArt && <img data-ev-id="ev_3448ac9fa9" src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: isLeft ? "left" : "right" }} />}
+        {hasArt && <img src={art} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: isLeft ? "left" : "right" }} />}
       </div>
-      <div data-ev-id="ev_d28e94428c" style={{
+      <div style={{
         position: "absolute", top: 0, bottom: 0, [isLeft ? "right" : "left"]: 0, width: 28,
         background: `linear-gradient(${isLeft ? "90deg" : "270deg"}, transparent, rgba(0,0,0,0.38))`,
-        pointerEvents: "none", zIndex: 4
+        pointerEvents: "none", zIndex: 4,
       } as any} />
-      <div data-ev-id="ev_fbc1c8466e" style={{
+      <div style={{
         position: "absolute", top: "50%", [isLeft ? "left" : "right"]: 10,
         transform: "translateY(-50%)", zIndex: 5, fontSize: 24, color: text,
-        opacity: pulling ? 0 : hasArt ? 0.55 : 0.7,
+        opacity: pulling ? 0 : (hasArt ? 0.55 : 0.7),
         animation: "sleeveArrow 1.4s ease-in-out infinite",
-        textShadow: "0 1px 4px rgba(0,0,0,0.8)"
+        textShadow: "0 1px 4px rgba(0,0,0,0.8)",
       } as any}>{isLeft ? "‹" : "›"}</div>
-      {!hasBothArt && !hasPerSideArt && isLeft &&
-      <div data-ev-id="ev_867d267ffb" style={{
-        position: "absolute", top: "50%", left: "50%",
-        transform: "translate(-10%, -50%)", zIndex: 8,
-        display: "flex", flexDirection: "column", gap: 8, width: 160
-      }}>
-          <div data-ev-id="ev_d66db413b6" style={{ ...menuFont, color: text, opacity: 0.5, marginBottom: 2, textAlign: "center" }}>add gatefold art</div>
-          <label data-ev-id="ev_51bf52fc7a" style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text, cursor: "pointer", textAlign: "center", ...menuFont }}>
+      {!hasBothArt && !hasPerSideArt && isLeft && (
+        <div style={{
+          position: "absolute", top: "50%", left: "50%",
+          transform: "translate(-10%, -50%)", zIndex: 8,
+          display: "flex", flexDirection: "column", gap: 8, width: 160,
+        }}>
+          <div style={{ ...menuFont, color: text, opacity: 0.5, marginBottom: 2, textAlign: "center" }}>add gatefold art</div>
+          <label style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text, cursor: "pointer", textAlign: "center", ...menuFont }}>
             one image (both)
-            <input data-ev-id="ev_5ffcbf0aec" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => readImageFile(e, onSetBoth)} />
+            <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetBoth)} />
           </label>
-          <label data-ev-id="ev_f7bb4222b6" style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text, cursor: "pointer", textAlign: "center", ...menuFont }}>
+          <label style={{ padding: "9px 12px", borderRadius: 10, border, background: panelBg, color: text, cursor: "pointer", textAlign: "center", ...menuFont }}>
             image per side
-            <input data-ev-id="ev_343c6e4c65" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => readImageFile(e, onSetSide)} />
+            <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetSide)} />
           </label>
         </div>
-      }
-      {hasPerSideArt && noArtHere &&
-      <label data-ev-id="ev_cc3fa5391b" style={{
-        position: "absolute", top: "50%", left: "50%",
-        transform: "translate(-50%,-50%)", zIndex: 8,
-        padding: "9px 14px", borderRadius: 10, border, background: panelBg,
-        color: text, cursor: "pointer", ...menuFont
-      }}>
-          add image
-          <input data-ev-id="ev_0f6b9e7fa3" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => readImageFile(e, onSetSide)} />
-        </label>
-      }
-      {ctxMenu &&
-      <>
-          <div data-ev-id="ev_0de43fbe84" style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setCtxMenu(null)} />
-          <div data-ev-id="ev_3d98487c18" style={{
-          position: "fixed", left: ctxMenu.x, top: ctxMenu.y, zIndex: 101,
-          background: panelBg, border, borderRadius: 10, padding: 6,
-          display: "flex", flexDirection: "column", gap: 4,
-          boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)"
+      )}
+      {hasPerSideArt && noArtHere && (
+        <label style={{
+          position: "absolute", top: "50%", left: "50%",
+          transform: "translate(-50%,-50%)", zIndex: 8,
+          padding: "9px 14px", borderRadius: 10, border, background: panelBg,
+          color: text, cursor: "pointer", ...menuFont,
         }}>
-            {hasBothArt &&
-          <>
-                <label data-ev-id="ev_f53bb17d01" style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
-            onClick={() => setCtxMenu(null)}>
+          add image
+          <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => readImageFile(e, onSetSide)} />
+        </label>
+      )}
+      {ctxMenu && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={() => setCtxMenu(null)} />
+          <div style={{
+            position: "fixed", left: ctxMenu.x, top: ctxMenu.y, zIndex: 101,
+            background: panelBg, border, borderRadius: 10, padding: 6,
+            display: "flex", flexDirection: "column", gap: 4,
+            boxShadow: "0 8px 30px rgba(0,0,0,0.4)", backdropFilter: "blur(20px)",
+          }}>
+            {hasBothArt && (
+              <>
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
+                  onClick={() => setCtxMenu(null)}>
                   change both sides
-                  <input data-ev-id="ev_72d82338cc" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => {setCtxMenu(null);readImageFile(e, onSetBoth);}} />
+                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetBoth); }} />
                 </label>
-                <button data-ev-id="ev_a240f3cb1b" style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: dark ? "#ff8a8a" : "#b13030", cursor: "pointer", textAlign: "left", ...menuFont }}
-            onClick={() => {setCtxMenu(null);onClearBoth();}}>remove</button>
+                <button style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: dark ? "#ff8a8a" : "#b13030", cursor: "pointer", textAlign: "left", ...menuFont }}
+                  onClick={() => { setCtxMenu(null); onClearBoth(); }}>remove</button>
               </>
-          }
-            {hasPerSideArt &&
-          <>
-                <label data-ev-id="ev_3eb08b5751" style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
-            onClick={() => setCtxMenu(null)}>
+            )}
+            {hasPerSideArt && (
+              <>
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
+                  onClick={() => setCtxMenu(null)}>
                   change this side
-                  <input data-ev-id="ev_f2e0ceb01c" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => {setCtxMenu(null);readImageFile(e, onSetSide);}} />
+                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetSide); }} />
                 </label>
-                {hasArt &&
-            <button data-ev-id="ev_16634def29" style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: dark ? "#ff8a8a" : "#b13030", cursor: "pointer", textAlign: "left", ...menuFont }}
-            onClick={() => {setCtxMenu(null);onClearSide();}}>remove this side</button>
-            }
+                {hasArt && (
+                  <button style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: dark ? "#ff8a8a" : "#b13030", cursor: "pointer", textAlign: "left", ...menuFont }}
+                    onClick={() => { setCtxMenu(null); onClearSide(); }}>remove this side</button>
+                )}
               </>
-          }
-            {!hasBothArt && !hasPerSideArt &&
-          <>
-                <label data-ev-id="ev_00f3de8df5" style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
-            onClick={() => setCtxMenu(null)}>
+            )}
+            {!hasBothArt && !hasPerSideArt && (
+              <>
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
+                  onClick={() => setCtxMenu(null)}>
                   add image (both)
-                  <input data-ev-id="ev_61d78a1228" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => {setCtxMenu(null);readImageFile(e, onSetBoth);}} />
+                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetBoth); }} />
                 </label>
-                <label data-ev-id="ev_2b9b5600c4" style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
-            onClick={() => setCtxMenu(null)}>
+                <label style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", color: text, ...menuFont, display: "block", whiteSpace: "nowrap" }}
+                  onClick={() => setCtxMenu(null)}>
                   add image (this side)
-                  <input data-ev-id="ev_109363ac45" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => {setCtxMenu(null);readImageFile(e, onSetSide);}} />
+                  <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => { setCtxMenu(null); readImageFile(e, onSetSide); }} />
                 </label>
               </>
-          }
-            <button data-ev-id="ev_022c69fa4e" style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: text, cursor: "pointer", textAlign: "left", opacity: 0.5, ...menuFont }}
-          onClick={() => setCtxMenu(null)}>close</button>
+            )}
+            <button style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "transparent", color: text, cursor: "pointer", textAlign: "left", opacity: 0.5, ...menuFont }}
+              onClick={() => setCtxMenu(null)}>close</button>
           </div>
         </>
-      }
-    </div>);
-
+      )}
+    </div>
+  );
 }
 
 const GOOGLE_CLIENT_ID = ""; // Insert your Google Client ID here to enable the real Google Sign-In.
@@ -2163,11 +2732,11 @@ function decodeJwt(token: string): any {
     const base64Url = token.split(".")[1];
     const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
     const jsonPayload = decodeURIComponent(
-      window.
-      atob(base64).
-      split("").
-      map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).
-      join("")
+      window
+        .atob(base64)
+        .split("")
+        .map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
     );
     return JSON.parse(jsonPayload);
   } catch (e) {
@@ -2200,19 +2769,17 @@ export function Aurae() {
   const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem("aurae_remember")));
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [googleHover, setGoogleHover] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [renameModal, setRenameModal] = useState<any>(null);
   const [songMenu, setSongMenu] = useState<any>(null);
-  const [storageMenu, setStorageMenu] = useState<any>(null);
   const [projectMenu, setProjectMenu] = useState<any>(null);
   const [focusedProjectName, setFocusedProjectName] = useState<string | null>(null);
   const [draggingProject, setDraggingProject] = useState<string | null>(null);
   const [dropTargetProject, setDropTargetProject] = useState<string | null>(null);
   const sideCoverInputRef = useRef<HTMLInputElement | null>(null);
-  const sideCoverTargetRef = useRef<{name: string;side: number;} | null>(null);
+  const sideCoverTargetRef = useRef<{ name: string; side: number } | null>(null);
 
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [tracks, setTracks] = useState<any[]>([]);
@@ -2352,7 +2919,7 @@ export function Aurae() {
             deckStyle: normalizeDeckStyle(data.deckStyle || "classic"),
             splatterStyle: data.splatterStyle === "comet" ? "burst" : data.splatterStyle || "burst",
             pictureVinyl: Boolean(data.pictureVinyl),
-            tracks: (data.tracks || []).map(({ url, ...rest }: any) => rest)
+            tracks: (data.tracks || []).map(({ url, ...rest }: any) => rest),
           };
         }
       }
@@ -2369,7 +2936,7 @@ export function Aurae() {
               repeatSideCovers: Boolean(p.repeatSideCovers),
               deckStyle: normalizeDeckStyle(p.deckStyle || "classic"),
               splatterStyle: p.splatterStyle === "comet" ? "burst" : p.splatterStyle || "burst",
-              pictureVinyl: Boolean(p.pictureVinyl)
+              pictureVinyl: Boolean(p.pictureVinyl),
             };
             await saveProjectToDB(name, meta[name]);
           }
@@ -2382,10 +2949,10 @@ export function Aurae() {
     loadAll();
   }, []);
 
-  useEffect(() => {localStorage.setItem("aurae_folders", JSON.stringify(folders));}, [folders]);
-  useEffect(() => {localStorage.setItem("aurae_project_order", JSON.stringify(projectOrder));}, [projectOrder]);
-  useEffect(() => {localStorage.setItem("aurae_storage_configs", JSON.stringify(storageConfigs));}, [storageConfigs]);
-  useEffect(() => {localStorage.setItem("aurae_theme", theme);}, [theme]);
+  useEffect(() => { localStorage.setItem("aurae_folders", JSON.stringify(folders)); }, [folders]);
+  useEffect(() => { localStorage.setItem("aurae_project_order", JSON.stringify(projectOrder)); }, [projectOrder]);
+  useEffect(() => { localStorage.setItem("aurae_storage_configs", JSON.stringify(storageConfigs)); }, [storageConfigs]);
+  useEffect(() => { localStorage.setItem("aurae_theme", theme); }, [theme]);
 
   useEffect(() => {
     if (stageMode === "equalizer" && playing) {
@@ -2400,10 +2967,7 @@ export function Aurae() {
       const knownDuration = trackDuration(tracks[index]);
       const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : knownDuration;
       setCurrentTime(audio.currentTime || 0);
-      // FIX: Only update duration if we have a valid value, don't overwrite with 0
-      if (audioDuration > 0) {
-        setDuration(audioDuration);
-      }
+      setDuration(audioDuration || 0);
     };
     const end = () => {
       const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
@@ -2426,8 +2990,6 @@ export function Aurae() {
     audio.addEventListener("durationchange", update);
     audio.addEventListener("canplay", update);
     audio.addEventListener("ended", end);
-    // FIX: Call update immediately to initialize duration from track metadata
-    update();
     return () => {
       audio.removeEventListener("timeupdate", update);
       audio.removeEventListener("loadedmetadata", update);
@@ -2451,7 +3013,7 @@ export function Aurae() {
     setView("home");
   }
 
-  const handleGoogleLogin = useCallback((googleUser: {name: string;email: string;sub: string;}) => {
+  const handleGoogleLogin = useCallback((googleUser: { name: string; email: string; sub: string }) => {
     const cleanEmail = normalizeEmail(googleUser.email);
     if (!cleanEmail) return;
 
@@ -2472,8 +3034,6 @@ export function Aurae() {
 
   // Load official Google Identity Services script if GOOGLE_CLIENT_ID is provided
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || view !== "auth") return;
-
     const scriptId = "google-gsi-client";
     let script = document.getElementById(scriptId) as HTMLScriptElement;
     if (!script) {
@@ -2487,26 +3047,30 @@ export function Aurae() {
 
     const initGoogle = () => {
       if (typeof window === "undefined" || !(window as any).google) return;
-      (window as any).google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: (response: any) => {
-          const payload = decodeJwt(response.credential);
-          if (payload) {
-            handleGoogleLogin({
-              name: payload.name || "",
-              email: payload.email || "",
-              sub: payload.sub || ""
-            });
-          }
-        }
-      });
-      const btnDiv = document.getElementById("google-signin-btn");
-      if (btnDiv) {
-        (window as any).google.accounts.id.renderButton(btnDiv, {
-          theme: "outline",
-          size: "large",
-          width: 280
+      
+      // Only initialize GSI if a valid-looking client ID is provided
+      if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com") {
+        (window as any).google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (response: any) => {
+            const payload = decodeJwt(response.credential);
+            if (payload) {
+              handleGoogleLogin({
+                name: payload.name || "",
+                email: payload.email || "",
+                sub: payload.sub || "",
+              });
+            }
+          },
         });
+        const btnDiv = document.getElementById("google-signin-btn");
+        if (btnDiv) {
+          (window as any).google.accounts.id.renderButton(btnDiv, {
+            theme: "outline",
+            size: "large",
+            width: 280,
+          });
+        }
       }
     };
 
@@ -2519,264 +3083,6 @@ export function Aurae() {
       };
     }
   }, [view, handleGoogleLogin]);
-
-  // Listener for the mock Google popup message
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "GOOGLE_MOCK_SUCCESS" && event.data?.payload) {
-        handleGoogleLogin(event.data.payload);
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [handleGoogleLogin]);
-
-  const openMockGooglePopup = useCallback(() => {
-    const width = 500;
-    const height = 620;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-    const popup = window.open(
-      "about:blank",
-      "GoogleSignIn",
-      `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
-    );
-
-    if (popup) {
-      popup.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>Sign in with Google</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    body {
-      font-family: 'Roboto', sans-serif;
-      background-color: #f0f4f9;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      color: #1f1f1f;
-    }
-    .card {
-      background: white;
-      border-radius: 28px;
-      padding: 40px;
-      width: 360px;
-      box-shadow: 0 4px 60px rgba(0,0,0,0.05);
-      border: 1px solid #e0e0e0;
-      text-align: center;
-      box-sizing: border-box;
-    }
-    .google-logo {
-      width: 24px;
-      height: 24px;
-      margin-bottom: 16px;
-    }
-    h1 {
-      font-size: 24px;
-      font-weight: 400;
-      margin: 0 0 8px 0;
-      color: #1f1f1f;
-    }
-    p {
-      font-size: 16px;
-      color: #444746;
-      margin: 0 0 28px 0;
-    }
-    .account-item {
-      display: flex;
-      align-items: center;
-      padding: 12px 16px;
-      border-bottom: 1px solid #e3e3e3;
-      cursor: pointer;
-      transition: background 0.2s;
-      text-align: left;
-    }
-    .account-item:hover {
-      background: #f8fafd;
-    }
-    .account-item:first-child {
-      border-top: 1px solid #e3e3e3;
-    }
-    .avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: #0b57d0;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 500;
-      margin-right: 12px;
-      font-size: 14px;
-    }
-    .account-details {
-      flex-grow: 1;
-    }
-    .name {
-      font-size: 14px;
-      font-weight: 500;
-      color: #1f1f1f;
-    }
-    .email {
-      font-size: 12px;
-      color: #444746;
-    }
-    .custom-input-container {
-      margin-top: 20px;
-      text-align: left;
-      display: none;
-    }
-    .custom-input-container.active {
-      display: block;
-    }
-    input[type="email"], input[type="text"] {
-      width: 100%;
-      padding: 14px;
-      border: 1px solid #747775;
-      border-radius: 4px;
-      font-size: 16px;
-      margin-bottom: 16px;
-      box-sizing: border-box;
-      outline: none;
-      transition: border 0.2s;
-    }
-    input[type="email"]:focus, input[type="text"]:focus {
-      border: 2px solid #0b57d0;
-      padding: 13px;
-    }
-    .btn-group {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 24px;
-    }
-    .btn-text {
-      background: none;
-      border: none;
-      color: #0b57d0;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      padding: 0;
-    }
-    .btn-primary {
-      background: #0b57d0;
-      color: white;
-      border: none;
-      border-radius: 100px;
-      padding: 10px 24px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: box-shadow 0.2s;
-    }
-    .btn-primary:hover {
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    }
-    .footer {
-      font-size: 12px;
-      color: #444746;
-      margin-top: 32px;
-      display: flex;
-      justify-content: space-between;
-    }
-    .footer a {
-      color: #444746;
-      text-decoration: none;
-    }
-    .footer a:hover {
-      text-decoration: underline;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <svg class="google-logo" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-    </svg>
-    
-    <div id="step-choose" style="display:none">
-    </div>
-
-    <div id="step-custom" class="custom-input-container active">
-      <h1 style="text-align:center; margin-bottom: 8px;">Sign in</h1>
-      <p style="text-align:center; margin-bottom: 24px;">with your Google Account</p>
-      <input type="text" id="custom-name" placeholder="Full Name" />
-      <input type="email" id="custom-email" placeholder="Email" />
-      
-      <div class="btn-group">
-        <button class="btn-primary" onclick="submitCustom()">Next</button>
-      </div>
-    </div>
-
-    <div class="footer">
-      <div>
-        <span style="margin-right:12px"><a href="#">Deutsch</a></span>
-      </div>
-      <div>
-        <span style="margin-right:12px"><a href="#">Help</a></span>
-        <span style="margin-right:12px"><a href="#">Privacy</a></span>
-        <span><a href="#">Terms</a></span>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    function selectAccount(name, email) {
-      const payload = {
-        name: name,
-        email: email,
-        sub: 'google-oauth-' + btoa(email).replace(/=/g, ''),
-        picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c'
-      };
-      sendResult(payload);
-    }
-
-    function showCustomInput() {
-      document.getElementById('step-choose').style.display = 'none';
-      document.getElementById('step-custom').classList.add('active');
-    }
-
-    function showChooseAccount() {
-      document.getElementById('step-choose').style.display = 'block';
-      document.getElementById('step-custom').classList.remove('active');
-    }
-
-    function submitCustom() {
-      const name = document.getElementById('custom-name').value.trim();
-      const email = document.getElementById('custom-email').value.trim();
-      if (!name || !email) {
-        alert('Please fill out both Name and Email');
-        return;
-      }
-      if (!email.includes('@') || !email.includes('.')) {
-        alert('Please enter a valid email address');
-        return;
-      }
-      selectAccount(name, email);
-    }
-
-    function sendResult(payload) {
-      if (window.opener) {
-        window.opener.postMessage({ type: 'GOOGLE_MOCK_SUCCESS', payload: payload }, '*');
-      }
-      window.close();
-    }
-  </script>
-</body>
-</html>`);
-      popup.document.close();
-    }
-  }, [handleGoogleLogin]);
 
   function logout() {
     clearSession();
@@ -2858,8 +3164,8 @@ export function Aurae() {
       ...prev,
       [currentUser]: {
         activeId: id,
-        items: [{ id, name: cleanName, wood: storageDraftWood, projects: Object.keys(projectsMeta), createdAt: Date.now() }]
-      }
+        items: [{ id, name: cleanName, wood: storageDraftWood, projects: Object.keys(projectsMeta), createdAt: Date.now() }],
+      },
     }));
   }
 
@@ -2867,7 +3173,7 @@ export function Aurae() {
     if (!currentUser) return;
     setStorageConfigs((prev: any) => ({
       ...prev,
-      [currentUser]: { ...normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta)), activeId: storageId }
+      [currentUser]: { ...normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta)), activeId: storageId },
     }));
     setHoveredProject(null);
   }
@@ -2880,8 +3186,8 @@ export function Aurae() {
         ...prev,
         [currentUser]: {
           ...shelf,
-          items: shelf.items.map((item: any) => item.id === shelf.activeId ? { ...item, [key]: value } : item)
-        }
+          items: shelf.items.map((item: any) => item.id === shelf.activeId ? { ...item, [key]: value } : item),
+        },
       };
     });
   }
@@ -2896,8 +3202,8 @@ export function Aurae() {
         ...prev,
         [currentUser]: {
           activeId: id,
-          items: [...shelf.items, { id, name: cleanName, wood: newStorageWood, projects: [], createdAt: Date.now() }]
-        }
+          items: [...shelf.items, { id, name: cleanName, wood: newStorageWood, projects: [], createdAt: Date.now() }],
+        },
       };
     });
     setHoveredProject(null);
@@ -2917,7 +3223,7 @@ export function Aurae() {
       vinylColor: "#111111", vinylColors: DEFAULT_VINYL_COLORS,
       vinylGradient: "solid", vinylOpacity: 1,
       splatterColor: "#3a7bd5", splatterOn: false, splatterStyle: "burst",
-      deckStyle: "classic", deckColor: "#1a1a1a", pictureVinyl: false
+      deckStyle: "classic", deckColor: "#1a1a1a", pictureVinyl: false,
     };
     setProjectsMeta((prev: any) => ({ ...prev, [clean]: p }));
     if (currentUser) {
@@ -2928,11 +3234,11 @@ export function Aurae() {
           [currentUser]: {
             ...shelf,
             items: shelf.items.map((item: any) =>
-            item.id === shelf.activeId ?
-            { ...item, projects: [clean, ...item.projects.filter((project: string) => project !== clean)] } :
-            { ...item, projects: item.projects.filter((project: string) => project !== clean) }
-            )
-          }
+              item.id === shelf.activeId
+                ? { ...item, projects: [clean, ...item.projects.filter((project: string) => project !== clean)] }
+                : { ...item, projects: item.projects.filter((project: string) => project !== clean) }
+            ),
+          },
         };
       });
     }
@@ -2971,7 +3277,7 @@ export function Aurae() {
       splatterStyle: nextSplatStyle === "comet" ? "burst" : nextSplatStyle,
       deckStyle: normalizeDeckStyle(overrides.deckStyle ?? deckStyle),
       deckColor: overrides.deckColor ?? deckColor,
-      pictureVinyl: overrides.pictureVinyl ?? pictureVinyl
+      pictureVinyl: overrides.pictureVinyl ?? pictureVinyl,
     };
   }
 
@@ -3007,8 +3313,8 @@ export function Aurae() {
     const p: any = await loadProjectFromDB(name);
     if (!p) return;
     const style = normalizeDeckStyle(p.deckStyle || "classic");
-    const restoredColors = Array.isArray(p.vinylColors) && p.vinylColors.length ?
-    p.vinylColors : [p.vinylColor || "#111111", ...DEFAULT_VINYL_COLORS.slice(1)];
+    const restoredColors = Array.isArray(p.vinylColors) && p.vinylColors.length
+      ? p.vinylColors : [p.vinylColor || "#111111", ...DEFAULT_VINYL_COLORS.slice(1)];
     const restoredSideCovers = normalizeSideCovers(p);
     setActiveProject(name);
     setAlbumCover(p.cover || null);
@@ -3019,9 +3325,9 @@ export function Aurae() {
     setGatefoldLeft(p.gatefoldLeft || null);
     setGatefoldRight(p.gatefoldRight || null);
     setGatefoldPerSide(Boolean(p.gatefoldPerSide));
-    setGatefoldPanelArts(Array.isArray(p.gatefoldPanelArts) ?
-    p.gatefoldPanelArts :
-    [p.gatefoldLeft || null, p.gatefoldRight || null, null, null]);
+    setGatefoldPanelArts(Array.isArray(p.gatefoldPanelArts)
+      ? p.gatefoldPanelArts
+      : [p.gatefoldLeft || null, p.gatefoldRight || null, null, null]);
     setVinylColor(restoredColors[0] || "#111111");
     setVinylColors(restoredColors.slice(0, 4));
     setVinylGradient(p.vinylGradient || "radial");
@@ -3057,7 +3363,7 @@ export function Aurae() {
 
   async function applyRenameProject(oldName: string, nextName: string) {
     const clean = nextName.trim();
-    if (!clean || clean === oldName) {setRenameModal(null);return;}
+    if (!clean || clean === oldName) { setRenameModal(null); return; }
     const data: any = await loadProjectFromDB(oldName);
     await saveProjectToDB(clean, data || {});
     await deleteProjectFromDB(oldName);
@@ -3067,77 +3373,53 @@ export function Aurae() {
       delete c[oldName];
       return c;
     });
-    setFolders((prev) => prev.map((f) => ({ ...f, projects: f.projects.map((p: string) => p === oldName ? clean : p) })));
-    setProjectOrder((prev) => prev.map((p) => p === oldName ? clean : p));
+    setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.map((p: string) => p === oldName ? clean : p) })));
+    setProjectOrder(prev => prev.map(p => p === oldName ? clean : p));
     setStorageConfigs((prev: any) => {
       if (!currentUser) return prev;
-      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta).map((name) => name === oldName ? clean : name));
+      const shelf = normalizeStorageShelf(prev[currentUser], Object.keys(projectsMeta).map(name => name === oldName ? clean : name));
       return {
         ...prev,
         [currentUser]: {
           ...shelf,
           items: shelf.items.map((item: any) => ({
             ...item,
-            projects: item.projects.map((project: string) => project === oldName ? clean : project)
-          }))
-        }
+            projects: item.projects.map((project: string) => project === oldName ? clean : project),
+          })),
+        },
       };
     });
-    setHoveredProject((prev) => prev === oldName ? clean : prev);
+    setHoveredProject(prev => prev === oldName ? clean : prev);
     if (activeProject === oldName) setActiveProject(clean);
     setRenameModal(null);
   }
 
   async function deleteProject(name: string) {
     await deleteProjectFromDB(name);
-    setProjectsMeta((prev: any) => {const c = { ...prev };delete c[name];return c;});
-    setFolders((prev) => prev.map((f) => ({ ...f, projects: f.projects.filter((p: string) => p !== name) })));
-    setProjectOrder((prev) => prev.filter((p) => p !== name));
+    setProjectsMeta((prev: any) => { const c = { ...prev }; delete c[name]; return c; });
+    setFolders(prev => prev.map(f => ({ ...f, projects: f.projects.filter((p: string) => p !== name) })));
+    setProjectOrder(prev => prev.filter(p => p !== name));
     setStorageConfigs((prev: any) => {
       if (!currentUser) return prev;
-      const remaining = Object.keys(projectsMeta).filter((project) => project !== name);
+      const remaining = Object.keys(projectsMeta).filter(project => project !== name);
       const shelf = normalizeStorageShelf(prev[currentUser], remaining);
       return {
         ...prev,
         [currentUser]: {
           ...shelf,
-          items: shelf.items.map((item: any) => ({ ...item, projects: item.projects.filter((project: string) => project !== name) }))
-        }
+          items: shelf.items.map((item: any) => ({ ...item, projects: item.projects.filter((project: string) => project !== name) })),
+        },
       };
     });
-    setHoveredProject((prev) => prev === name ? null : prev);
+    setHoveredProject(prev => prev === name ? null : prev);
     if (activeProject === name) setView("home");
-  }
-
-  function deleteStorage(storageId: string) {
-    if (!currentUser) return;
-    setStorageConfigs((prev: any) => {
-      const shelf = prev[currentUser];
-      if (!shelf || !Array.isArray(shelf.items)) return prev;
-      const remaining = shelf.items.filter((item: any) => item.id !== storageId);
-      if (remaining.length === 0) {
-        // Don't delete the last storage, just close the menu
-        setStorageMenu(null);
-        return prev;
-      }
-      const newActiveId = shelf.activeId === storageId ? remaining[0].id : shelf.activeId;
-      return {
-        ...prev,
-        [currentUser]: {
-          ...shelf,
-          activeId: newActiveId,
-          items: remaining
-        }
-      };
-    });
-    setStorageMenu(null);
   }
 
   async function addTracks(e: React.ChangeEvent<HTMLInputElement>) {
     const files: File[] = Array.from(e.target.files || []);
     if (!files.length) return;
     const loaded = await Promise.all(
-      files.map((file) => new Promise<any>((resolve) => {
+      files.map(file => new Promise<any>(resolve => {
         const probeUrl = URL.createObjectURL(file);
         const probe = new Audio(probeUrl);
         const finish = async (dur: number) => {
@@ -3164,7 +3446,7 @@ export function Aurae() {
   }
 
   function addSideCover(side: number, e: React.ChangeEvent<HTMLInputElement>) {
-    readImageFile(e, (result) => {
+    readImageFile(e, result => {
       const next = [...sideCovers];
       next[side - 1] = result;
       setSideCovers(next);
@@ -3208,7 +3490,7 @@ export function Aurae() {
     if (activeProject) saveCurrentProject(tracks, albumCover, { gatefoldCover: null, gatefoldLeft: nextLeft, gatefoldRight: nextRight, gatefoldPerSide: true });
   }
   function clearGatefoldBoth() {
-    setGatefoldCover(null);setGatefoldLeft(null);setGatefoldRight(null);setGatefoldPerSide(false);
+    setGatefoldCover(null); setGatefoldLeft(null); setGatefoldRight(null); setGatefoldPerSide(false);
     if (activeProject) saveCurrentProject(tracks, albumCover, { gatefoldCover: null, gatefoldLeft: null, gatefoldRight: null, gatefoldPerSide: false });
   }
   function clearGatefoldSide(side: "left" | "right") {
@@ -3222,7 +3504,7 @@ export function Aurae() {
 
   function addHomeCover(e: React.ChangeEvent<HTMLInputElement>, projectNameForCover: string) {
     e.stopPropagation();
-    readImageFile(e, async (result) => {
+    readImageFile(e, async result => {
       const existing = (await loadProjectFromDB(projectNameForCover)) || projectsMeta[projectNameForCover] || {};
       const next = { ...existing, homeCover: result };
       await saveProjectToDB(projectNameForCover, next);
@@ -3236,7 +3518,7 @@ export function Aurae() {
   // Updates project.cover so the sleeve and player both show the new image.
   function addMainCoverFor(e: React.ChangeEvent<HTMLInputElement>, projectNameForCover: string) {
     e.stopPropagation();
-    readImageFile(e, async (result) => {
+    readImageFile(e, async result => {
       const existing = (await loadProjectFromDB(projectNameForCover)) || projectsMeta[projectNameForCover] || {};
       const next = { ...existing, cover: result };
       await saveProjectToDB(projectNameForCover, next);
@@ -3250,7 +3532,7 @@ export function Aurae() {
     if (track?.id) deleteBlob(track.id);
     const next = tracks.filter((_, i) => i !== trackIndex);
     saveCurrentProject(next);
-    setIndex((prev) => Math.max(0, Math.min(prev, next.length - 1)));
+    setIndex(prev => Math.max(0, Math.min(prev, next.length - 1)));
     setSongMenu(null);
   }
 
@@ -3295,23 +3577,17 @@ export function Aurae() {
     setPlaying(true);
     setCurrentTime(0);
     setDuration(trackDuration(track));
-
+    
     const audio = audioRef.current;
     if (!audio) return;
     audio.src = track.url;
     audio.preload = "metadata";
     audio.load();
-    audio.play()
-      .then(() => {
-        if (stageMode === "equalizer") {
-          ensureAudioGraph();
-        }
-        audioCtxRef.current?.resume?.().catch(() => {});
-      })
-      .catch((err) => {
-        console.error("Playback failed:", err);
-        setPlaying(false);
-      });
+    ensureAudioGraph();
+    audio.play().catch((err) => {
+      console.error("Playback failed:", err);
+      setPlaying(false);
+    });
   }
 
   function flipVinyl() {
@@ -3340,28 +3616,21 @@ export function Aurae() {
     setPlaying(false);
     setAwaitingVinylChange(false);
     setFlipping(true);
-    setTimeout(() => {setVinylSide(nextSide);setActiveVinyl(Math.ceil(nextSide / 2));}, FLIP_COVER_SWAP);
-    setTimeout(() => {setFlipping(false);setTimeout(() => playTrack(firstTrack), 80);}, FLIP_DURATION);
+    setTimeout(() => { setVinylSide(nextSide); setActiveVinyl(Math.ceil(nextSide / 2)); }, FLIP_COVER_SWAP);
+    setTimeout(() => { setFlipping(false); setTimeout(() => playTrack(firstTrack), 80); }, FLIP_DURATION);
   }
 
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (awaitingVinylChange) {changeVinyl();return;}
-    if (awaitingFlip) {flipVinyl();return;}
-    if (!audio.src && tracks[0]) {playTrack(0);return;}
-    if (playing) {audio.pause();setPlaying(false);} else {
-      audio.play()
-        .then(() => {
-          if (stageMode === "equalizer") ensureAudioGraph();
-          audioCtxRef.current?.resume?.().catch(() => {});
-          setPlaying(true);
-        })
-        .catch(() => setPlaying(false));
-    }
+    if (awaitingVinylChange) { changeVinyl(); return; }
+    if (awaitingFlip) { flipVinyl(); return; }
+    if (!audio.src && tracks[0]) { playTrack(0); return; }
+    if (playing) { audio.pause(); setPlaying(false); }
+    else { ensureAudioGraph(); audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
   }
 
-  function prevTrack() {if (index > 0) playTrack(index - 1);}
+  function prevTrack() { if (index > 0) playTrack(index - 1); }
   function nextTrack() {
     const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
     if (index === lastOfSide) {
@@ -3405,55 +3674,51 @@ export function Aurae() {
 
   if (view === "auth") {
     return (
-      <div data-ev-id="ev_2795d7afce" style={S.auth}>
-        <div data-ev-id="ev_dd9c5c93f3" style={S.panel}>
-          <div data-ev-id="ev_4d984871e6" style={S.logo}>AURAE</div>
-          <input data-ev-id="ev_abad7d8940" style={S.input} placeholder="email" value={email}
-          onChange={(e) => {setEmail(e.target.value);setAuthError("");}}
-          onKeyDown={(e) => {if (e.key === "Enter") login();}} />
-          <input data-ev-id="ev_a8acfdafa3" style={S.input} placeholder="password" type="password" value={password}
-          onChange={(e) => {setPassword(e.target.value);setAuthError("");}}
-          onKeyDown={(e) => {if (e.key === "Enter") login();}} />
-          <label data-ev-id="ev_ee7f7c5ebb" style={S.rememberRow}>
-            <input data-ev-id="ev_91c6523da5" type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} style={S.checkbox} />
+      <div style={S.auth}>
+        <div style={S.panel}>
+          <div style={S.logo}>AURAE</div>
+          <input style={S.input} placeholder="email" value={email}
+            onChange={e => { setEmail(e.target.value); setAuthError(""); }}
+            onKeyDown={e => { if (e.key === "Enter") login(); }} />
+          <input style={S.input} placeholder="password" type="password" value={password}
+            onChange={e => { setPassword(e.target.value); setAuthError(""); }}
+            onKeyDown={e => { if (e.key === "Enter") login(); }} />
+          <label style={S.rememberRow}>
+            <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={S.checkbox} />
             remember me
           </label>
-          {authError && <div data-ev-id="ev_c365661838" style={S.authError}>{authError}</div>}
-          <button data-ev-id="ev_2b651865bb" style={{ ...S.btn, opacity: authLoading ? 0.6 : 1 }} onClick={login} disabled={authLoading}>
+          {authError && <div style={S.authError}>{authError}</div>}
+          <button style={{ ...S.btn, opacity: authLoading ? 0.6 : 1 }} onClick={login} disabled={authLoading}>
             {authLoading ? "checking..." : "login"}
           </button>
-          <button data-ev-id="ev_2cf6fe9386" style={{ ...S.btn, opacity: authLoading ? 0.6 : 1 }} onClick={signup} disabled={authLoading}>
+          <button style={{ ...S.btn, opacity: authLoading ? 0.6 : 1 }} onClick={signup} disabled={authLoading}>
             {authLoading ? "checking..." : "sign up"}
           </button>
-          <div data-ev-id="ev_da53c14270" style={S.separatorRow}>
-            <div data-ev-id="ev_577aeecb58" style={S.separatorLine} />
-            <div data-ev-id="ev_962e7c1a2e" style={S.separatorText}>or</div>
-            <div data-ev-id="ev_5a48fb68e4" style={S.separatorLine} />
+          <div style={S.separatorRow}>
+            <div style={S.separatorLine} />
+            <div style={S.separatorText}>or</div>
+            <div style={S.separatorLine} />
           </div>
-          {GOOGLE_CLIENT_ID ?
-          <div data-ev-id="ev_01614f4e9f" id="google-signin-btn" style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: 4 }} /> :
-
-          <button data-ev-id="ev_b730272448"
-          style={{
-            ...S.googleBtn,
-            ...(googleHover ? { background: dark ? "rgba(255,255,255,0.12)" : "#f8fafd" } : {})
-          }}
-          onMouseEnter={() => setGoogleHover(true)}
-          onMouseLeave={() => setGoogleHover(false)}
-          onClick={openMockGooglePopup}>
-
-              <svg data-ev-id="ev_5e70206bfa" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-                <path data-ev-id="ev_2ede5cca0a" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                <path data-ev-id="ev_60a44aeea3" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                <path data-ev-id="ev_34f9237c0d" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-                <path data-ev-id="ev_ba2e6d2aa3" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
-              </svg>
-              Sign in with Google
-            </button>
-          }
+          {GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com" ? (
+            <div id="google-signin-btn" style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: 4 }} />
+          ) : (
+            <div style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              background: dark ? "rgba(255,200,80,0.12)" : "rgba(255,200,80,0.08)",
+              border: dark ? "1px solid rgba(255,200,80,0.24)" : "1px solid rgba(250,180,50,0.16)",
+              color: text,
+              fontSize: 11,
+              lineHeight: 1.45,
+              textAlign: "center"
+            }}>
+              <strong>Google Sign-In is disabled.</strong><br/>
+              To sign in with your own account, set a valid <code>GOOGLE_CLIENT_ID</code> inside <code>App.tsx</code>.
+            </div>
+          )}
         </div>
-      </div>);
-
+      </div>
+    );
   }
 
   if (view === "home") {
@@ -3464,33 +3729,33 @@ export function Aurae() {
     const storageProjects = (storageConfig?.projects || []).filter((name: string) => projectsMeta[name]);
     const stickyFocus = focusedProjectName && storageProjects.includes(focusedProjectName) ? focusedProjectName : null;
     const focusedProject =
-    (hoveredProject && storageProjects.includes(hoveredProject) ? hoveredProject : null) ||
-    stickyFocus || storageProjects[0] || null;
+      (hoveredProject && storageProjects.includes(hoveredProject) ? hoveredProject : null)
+      || stickyFocus || storageProjects[0] || null;
     const focusedMeta = focusedProject ? projectsMeta[focusedProject] || {} : {};
     const focusedCovers = focusedProject ? normalizeSideCovers(focusedMeta) : [];
     const focusedCover = focusedMeta.cover || focusedCovers[0] || null;
 
     if (!storageConfig) {
       return (
-        <div data-ev-id="ev_54c853ce86" style={S.home}>
-          <div data-ev-id="ev_2ca45e9f5e" style={S.storageSetup}>
-            <div data-ev-id="ev_68841d7b12" style={S.logo}>AURAE OS</div>
-            <div data-ev-id="ev_8a103d74cf" style={S.storageSetupPanel}>
-              <div data-ev-id="ev_74006339e8" style={S.storageSetupTitle}>Create your vinyl storage</div>
-              <div data-ev-id="ev_37c1d5f93e" style={S.storageSetupCopy}>Choose a cabinet style first. Your projects will live here as records.</div>
-              <input data-ev-id="ev_75e4585d6f" style={S.input} value={storageDraftName} onChange={(e) => setStorageDraftName(e.target.value)} placeholder="storage name" />
-              <div data-ev-id="ev_4054da254c" style={S.woodGrid}>
-                {STORAGE_WOODS.map((item) =>
-                <button data-ev-id="ev_ca082c74b9" key={item.id} style={{ ...S.woodChoice, ...(storageDraftWood === item.id ? S.woodChoiceActive : {}) }} onClick={() => setStorageDraftWood(item.id)}>
-                    <span data-ev-id="ev_f4327da18c" style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
+        <div style={S.home}>
+          <div style={S.storageSetup}>
+            <div style={S.logo}>AURAE OS</div>
+            <div style={S.storageSetupPanel}>
+              <div style={S.storageSetupTitle}>Create your vinyl storage</div>
+              <div style={S.storageSetupCopy}>Choose a cabinet style first. Your projects will live here as records.</div>
+              <input style={S.input} value={storageDraftName} onChange={e => setStorageDraftName(e.target.value)} placeholder="storage name" />
+              <div style={S.woodGrid}>
+                {STORAGE_WOODS.map(item => (
+                  <button key={item.id} style={{ ...S.woodChoice, ...(storageDraftWood === item.id ? S.woodChoiceActive : {}) }} onClick={() => setStorageDraftWood(item.id)}>
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
                   </button>
-                )}
+                ))}
               </div>
-              <button data-ev-id="ev_606e4828e9" style={S.btn} onClick={createStorage}>create storage</button>
+              <button style={S.btn} onClick={createStorage}>create storage</button>
             </div>
           </div>
-        </div>);
-
+        </div>
+      );
     }
 
     const totalRecords = storageProjects.length;
@@ -3498,221 +3763,202 @@ export function Aurae() {
     const crateWidth = crateInnerWidth + 88;
 
     return (
-      <div data-ev-id="ev_c5fef06069" style={S.home}>
-        <div data-ev-id="ev_b22f947bc0" style={S.storageHome}>
-          <div data-ev-id="ev_2a710dd738" style={S.storageTopbar}>
-            <div data-ev-id="ev_53860b6cbd" style={S.logo}>AURAE</div>
-            <div data-ev-id="ev_608f7ac3f6" style={S.topBtns}>
-              <button data-ev-id="ev_cb06e0f2f5" style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? "Light" : "Dark"}</button>
-              <button data-ev-id="ev_38c453c372" style={S.btn} onClick={() => setShowStorageCreate(true)}>+ storage</button>
-              <button data-ev-id="ev_46dc399e7a" style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
-              <button data-ev-id="ev_cad6d375de" style={S.btn} onClick={logout}>log out</button>
+      <div style={S.home}>
+        <div style={S.storageHome}>
+          <div style={S.storageTopbar}>
+            <div style={S.logo}>AURAE</div>
+            <div style={S.topBtns}>
+              <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? "Light" : "Dark"}</button>
+              <button style={S.btn} onClick={() => setShowStorageCreate(true)}>+ storage</button>
+              <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
+              <button style={S.btn} onClick={logout}>log out</button>
             </div>
           </div>
-          {!projectsLoaded && <div data-ev-id="ev_aec2de62e2" style={S.loading}>Loading...</div>}
-          <div data-ev-id="ev_1c262dcfed" style={S.storageLayout}>
-            <div data-ev-id="ev_9796b50652" style={S.storageControls}>
-              <div data-ev-id="ev_911fa72d65" style={S.sectionTitle}>Storages</div>
-              <div data-ev-id="ev_c5e7191ea9" style={S.storageTabs}>
-                {storageShelf.items.map((item: any) =>
-                <button data-ev-id="ev_8ff03f83c0" key={item.id} style={{ ...S.storageTab, ...(item.id === storageConfig.id ? S.storageTabActive : {}) }} onClick={() => setActiveStorage(item.id)} onContextMenu={(e) => {e.preventDefault();setStorageMenu({ x: e.clientX, y: e.clientY, id: item.id, name: item.name });}}>
-                    <span data-ev-id="ev_da20891309">{item.name}</span>
-                    <small data-ev-id="ev_d81c29c2f7">{item.projects.filter((name: string) => projectsMeta[name]).length}</small>
+          {!projectsLoaded && <div style={S.loading}>Loading...</div>}
+          <div style={S.storageLayout}>
+            <div style={S.storageControls}>
+              <div style={S.sectionTitle}>Storages</div>
+              <div style={S.storageTabs}>
+                {storageShelf.items.map((item: any) => (
+                  <button key={item.id} style={{ ...S.storageTab, ...(item.id === storageConfig.id ? S.storageTabActive : {}) }} onClick={() => setActiveStorage(item.id)}>
+                    <span>{item.name}</span>
+                    <small>{item.projects.filter((name: string) => projectsMeta[name]).length}</small>
                   </button>
-                )}
+                ))}
               </div>
-              <input data-ev-id="ev_1b63c2e66e" style={S.input} value={storageConfig.name} onChange={(e) => updateActiveStorage("name", e.target.value)} placeholder="storage name" />
-              <div data-ev-id="ev_0107ee5b63" style={S.sectionTitle}>Wood</div>
-              <div data-ev-id="ev_be33fd5e8e" style={S.woodGridCompact}>
-                {STORAGE_WOODS.map((item) =>
-                <button data-ev-id="ev_11a2120808" key={item.id} style={{ ...S.woodChoice, ...(storageConfig.wood === item.id ? S.woodChoiceActive : {}) }} onClick={() => updateActiveStorage("wood", item.id)}>
-                    <span data-ev-id="ev_29cc73112b" style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
+              <input style={S.input} value={storageConfig.name} onChange={e => updateActiveStorage("name", e.target.value)} placeholder="storage name" />
+              <div style={S.sectionTitle}>Wood</div>
+              <div style={S.woodGridCompact}>
+                {STORAGE_WOODS.map(item => (
+                  <button key={item.id} style={{ ...S.woodChoice, ...(storageConfig.wood === item.id ? S.woodChoiceActive : {}) }} onClick={() => updateActiveStorage("wood", item.id)}>
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
                   </button>
-                )}
+                ))}
               </div>
-              {focusedProject &&
-              <div data-ev-id="ev_b6923a220a" style={S.focusPanel}>
-                  <div data-ev-id="ev_2f868d3b61" style={S.focusCoverRow}>
-                    <div data-ev-id="ev_fa805c0537" style={S.focusCover}>
-                      {focusedCover ?
-                    <img data-ev-id="ev_256988a2cd" src={focusedCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> :
-                    <div data-ev-id="ev_340af4d632" style={S.blankCover} />}
+              {focusedProject && (
+                <div style={S.focusPanel}>
+                  <div style={S.focusCoverRow}>
+                    <div style={S.focusCover}>
+                      {focusedCover
+                        ? <img src={focusedCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : <div style={S.blankCover} />}
                     </div>
-                    <div data-ev-id="ev_0f9792c116" style={{ flex: 1, minWidth: 0 }}>
-                      <div data-ev-id="ev_cf7370ed75" style={S.focusTitle}>{focusedProject}</div>
-                      <div data-ev-id="ev_6cd4f9beab" style={S.cardSub}>{focusedMeta.tracks?.length || 0} tracks</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={S.focusTitle}>{focusedProject}</div>
+                      <div style={S.cardSub}>{focusedMeta.tracks?.length || 0} tracks</div>
                     </div>
                   </div>
-                  <div data-ev-id="ev_9135c3839e" style={S.focusActions}>
-                    <button data-ev-id="ev_d52e8a3234" style={S.smallBtn} onClick={() => openProject(focusedProject, "sleeve")}>open sleeve</button>
-                    <button data-ev-id="ev_0dcd4b6ad2" style={S.smallBtn} onClick={() => openProject(focusedProject, "studio")}>open player</button>
+                  <div style={S.focusActions}>
+                    <button style={S.smallBtn} onClick={() => openProject(focusedProject, "sleeve")}>open sleeve</button>
+                    <button style={S.smallBtn} onClick={() => openProject(focusedProject, "studio")}>open player</button>
                     {/* ── CHANGE 3b: "cover art" button calls addMainCoverFor ── */}
-                    <label data-ev-id="ev_0a2980bccf" style={S.smallBtn}>
+                    <label style={S.smallBtn}>
                       cover art
-                      <input data-ev-id="ev_cbb2c27ad7" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => addMainCoverFor(e, focusedProject)} />
+                      <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addMainCoverFor(e, focusedProject)} />
                     </label>
-                    <button data-ev-id="ev_13e3396d31" style={S.smallBtn} onClick={() => setRenameModal({ type: "project", id: focusedProject, value: focusedProject })}>rename</button>
-                    <button data-ev-id="ev_87403b703b" style={S.smallBtn} onClick={() => deleteProject(focusedProject)}>delete</button>
+                    <button style={S.smallBtn} onClick={() => setRenameModal({ type: "project", id: focusedProject, value: focusedProject })}>rename</button>
+                    <button style={S.smallBtn} onClick={() => deleteProject(focusedProject)}>delete</button>
                   </div>
                 </div>
-              }
+              )}
             </div>
-            <div data-ev-id="ev_8681acf1ea" style={S.crateStage}>
-              <div data-ev-id="ev_928b06b891" style={{ ...S.crate, width: crateWidth, ["--storage-face" as any]: wood.face, ["--storage-edge" as any]: wood.edge, ["--storage-line" as any]: wood.line }}>
-                <div data-ev-id="ev_a05053ca63" style={S.crateBack} />
-                <div data-ev-id="ev_e1533a2bbb" style={S.crateFloor} />
-                <div data-ev-id="ev_45dfc3e764" style={S.crateLeftWall} />
-                <div data-ev-id="ev_af92214fcb" style={S.crateRightWall} />
-                <div data-ev-id="ev_dceb159309" style={{ ...S.crateLeg, left: 18, transform: "rotate(18deg)" }} />
-                <div data-ev-id="ev_e4df1f24e7" style={{ ...S.crateLeg, right: 18, transform: "rotate(-18deg)" }} />
-                <div data-ev-id="ev_2652aef612" style={S.crateRecords}>
+            <div style={S.crateStage}>
+              <div style={{ ...S.crate, width: crateWidth, ["--storage-face" as any]: wood.face, ["--storage-edge" as any]: wood.edge, ["--storage-line" as any]: wood.line }}>
+                <div style={S.crateBack} />
+                <div style={S.crateFloor} />
+                <div style={S.crateLeftWall} />
+                <div style={S.crateRightWall} />
+                <div style={{ ...S.crateLeg, left: 18, transform: "rotate(18deg)" }} />
+                <div style={{ ...S.crateLeg, right: 18, transform: "rotate(-18deg)" }} />
+                <div style={S.crateRecords}>
                   {storageProjects.map((name: string) => {
                     const p = projectsMeta[name] || {};
                     const covers = normalizeSideCovers(p);
                     const cover = p.homeCover || p.cover || covers[0] || null;
                     return (
                       <StorageRecord key={name} name={name} cover={cover} spineColor={p.spineColor || null}
-                      isHovered={hoveredProject === name} isFocused={focusedProject === name}
-                      isDragging={draggingProject === name} isDropTarget={dropTargetProject === name && draggingProject !== name}
-                      onPointerEnter={() => handleRecordMouseEnter(name)}
-                      onPointerLeave={handleRecordMouseLeave}
-                      onClick={() => {if (draggingProject) return;openProject(name, "sleeve");}}
-                      onContextMenu={(e: any) => {
-                        e.preventDefault();
-                        const meta = projectsMeta[name] || {};
-                        const trackList = meta.tracks || [];
-                        const sides = computeReleaseSideBoundaries(trackList).length || 1;
-                        setFocusedProjectName(name);
-                        setProjectMenu({ x: e.clientX, y: e.clientY, name, sides });
-                      }}
-                      onDragStart={(e: any) => {
-                        setDraggingProject(name);
-                        try {e.dataTransfer.setData("text/plain", name);} catch {}
-                        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragOver={(e: any) => {
-                        if (!draggingProject || draggingProject === name) return;
-                        e.preventDefault();
-                        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-                        setDropTargetProject(name);
-                      }}
-                      onDragLeave={() => {setDropTargetProject((prev) => prev === name ? null : prev);}}
-                      onDrop={(e: any) => {
-                        e.preventDefault();
-                        if (draggingProject && draggingProject !== name) reorderProjectInStorage(draggingProject, name);
-                        setDropTargetProject(null);
-                      }}
-                      onDragEnd={() => {setDraggingProject(null);setDropTargetProject(null);}}
-                      S={S} />);
-
+                        isHovered={hoveredProject === name} isFocused={focusedProject === name}
+                        isDragging={draggingProject === name} isDropTarget={dropTargetProject === name && draggingProject !== name}
+                        onPointerEnter={() => handleRecordMouseEnter(name)}
+                        onPointerLeave={handleRecordMouseLeave}
+                        onClick={() => { if (draggingProject) return; openProject(name, "sleeve"); }}
+                        onContextMenu={(e: any) => {
+                          e.preventDefault();
+                          const meta = projectsMeta[name] || {};
+                          const trackList = meta.tracks || [];
+                          const sides = computeReleaseSideBoundaries(trackList).length || 1;
+                          setFocusedProjectName(name);
+                          setProjectMenu({ x: e.clientX, y: e.clientY, name, sides });
+                        }}
+                        onDragStart={(e: any) => {
+                          setDraggingProject(name);
+                          try { e.dataTransfer.setData("text/plain", name); } catch {}
+                          if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(e: any) => {
+                          if (!draggingProject || draggingProject === name) return;
+                          e.preventDefault();
+                          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+                          setDropTargetProject(name);
+                        }}
+                        onDragLeave={() => { setDropTargetProject(prev => prev === name ? null : prev); }}
+                        onDrop={(e: any) => {
+                          e.preventDefault();
+                          if (draggingProject && draggingProject !== name) reorderProjectInStorage(draggingProject, name);
+                          setDropTargetProject(null);
+                        }}
+                        onDragEnd={() => { setDraggingProject(null); setDropTargetProject(null); }}
+                        S={S} />
+                    );
                   })}
-                  {!storageProjects.length &&
-                  <div data-ev-id="ev_9d87538cdd" style={S.crateEmpty}>
-                      <div data-ev-id="ev_4c31c43a24">No records yet</div>
-                      <button data-ev-id="ev_07fae4ccf1" style={S.btn} onClick={() => setShowCreate(true)}>create first project</button>
+                  {!storageProjects.length && (
+                    <div style={S.crateEmpty}>
+                      <div>No records yet</div>
+                      <button style={S.btn} onClick={() => setShowCreate(true)}>create first project</button>
                     </div>
-                  }
+                  )}
                 </div>
               </div>
-              <div data-ev-id="ev_7679c6ef12" style={S.crateLabel}>{storageConfig.name} · {storageProjects.length} records</div>
+              <div style={S.crateLabel}>{storageConfig.name} · {storageProjects.length} records</div>
             </div>
           </div>
         </div>
 
-        {showCreate &&
-        <div data-ev-id="ev_a9a577308b" style={OVL} onClick={() => setShowCreate(false)}>
-            <div data-ev-id="ev_404ac2e70e" style={MOD(dark, text)} onClick={(e) => e.stopPropagation()}>
-              <input data-ev-id="ev_e91aa73cb2" autoFocus style={S.input} placeholder="project name" value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-            onKeyDown={(e) => {if (e.key === "Enter") createProject();if (e.key === "Escape") setShowCreate(false);}} />
-              <button data-ev-id="ev_a81b2af8dc" style={S.btn} onClick={() => createProject()}>create</button>
+        {showCreate && (
+          <div style={OVL} onClick={() => setShowCreate(false)}>
+            <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
+              <input autoFocus style={S.input} placeholder="project name" value={projectName}
+                onChange={e => setProjectName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }} />
+              <button style={S.btn} onClick={() => createProject()}>create</button>
             </div>
           </div>
-        }
+        )}
 
-        {showStorageCreate &&
-        <div data-ev-id="ev_d0f66c6d3d" style={OVL} onClick={() => setShowStorageCreate(false)}>
-            <div data-ev-id="ev_b29dbf620f" style={MOD(dark, text)} onClick={(e) => e.stopPropagation()}>
-              <div data-ev-id="ev_af94702979" style={S.modalTitle}>Create storage</div>
-              <input data-ev-id="ev_221b665afe" autoFocus style={S.input} placeholder="storage name" value={newStorageName}
-            onChange={(e) => setNewStorageName(e.target.value)}
-            onKeyDown={(e) => {if (e.key === "Enter") createAdditionalStorage();if (e.key === "Escape") setShowStorageCreate(false);}} />
-              <div data-ev-id="ev_b1928a8eb5" style={S.woodGrid}>
-                {STORAGE_WOODS.map((item) =>
-              <button data-ev-id="ev_c9a2438cc3" key={item.id} style={{ ...S.woodChoice, ...(newStorageWood === item.id ? S.woodChoiceActive : {}) }} onClick={() => setNewStorageWood(item.id)}>
-                    <span data-ev-id="ev_d18d8bb30b" style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
+        {showStorageCreate && (
+          <div style={OVL} onClick={() => setShowStorageCreate(false)}>
+            <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
+              <div style={S.modalTitle}>Create storage</div>
+              <input autoFocus style={S.input} placeholder="storage name" value={newStorageName}
+                onChange={e => setNewStorageName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") createAdditionalStorage(); if (e.key === "Escape") setShowStorageCreate(false); }} />
+              <div style={S.woodGrid}>
+                {STORAGE_WOODS.map(item => (
+                  <button key={item.id} style={{ ...S.woodChoice, ...(newStorageWood === item.id ? S.woodChoiceActive : {}) }} onClick={() => setNewStorageWood(item.id)}>
+                    <span style={{ ...S.woodSwatch, background: item.face, borderColor: item.edge }} />{item.label}
                   </button>
-              )}
+                ))}
               </div>
-              <button data-ev-id="ev_8db800a8ad" style={S.btn} onClick={createAdditionalStorage}>create storage</button>
+              <button style={S.btn} onClick={createAdditionalStorage}>create storage</button>
             </div>
           </div>
-        }
+        )}
 
-        {renameModal &&
-        <div data-ev-id="ev_f012460aa4" style={OVL} onClick={() => setRenameModal(null)}>
-            <div data-ev-id="ev_f6a81794e5" style={MOD(dark, text)} onClick={(e) => e.stopPropagation()}>
-              <div data-ev-id="ev_7e7dd6c64c" style={S.modalTitle}>Rename {renameModal.type === "project" ? "project" : "folder"}</div>
-              <input data-ev-id="ev_535e93895d" autoFocus style={S.input} value={renameModal.value}
-            onChange={(e) => setRenameModal({ ...renameModal, value: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") applyRenameProject(renameModal.id, renameModal.value);
-              if (e.key === "Escape") setRenameModal(null);
-            }} />
-              <div data-ev-id="ev_1a0420a40f" style={{ display: "flex", gap: 8 }}>
-                <button data-ev-id="ev_82332b957b" style={S.btn} onClick={() => applyRenameProject(renameModal.id, renameModal.value)}>save</button>
-                <button data-ev-id="ev_259227bfcf" style={S.btn} onClick={() => setRenameModal(null)}>cancel</button>
+        {renameModal && (
+          <div style={OVL} onClick={() => setRenameModal(null)}>
+            <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
+              <div style={S.modalTitle}>Rename {renameModal.type === "project" ? "project" : "folder"}</div>
+              <input autoFocus style={S.input} value={renameModal.value}
+                onChange={e => setRenameModal({ ...renameModal, value: e.target.value })}
+                onKeyDown={e => {
+                  if (e.key === "Enter") applyRenameProject(renameModal.id, renameModal.value);
+                  if (e.key === "Escape") setRenameModal(null);
+                }} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={S.btn} onClick={() => applyRenameProject(renameModal.id, renameModal.value)}>save</button>
+                <button style={S.btn} onClick={() => setRenameModal(null)}>cancel</button>
               </div>
             </div>
           </div>
-        }
+        )}
 
-        {projectMenu &&
-        <>
-            <div data-ev-id="ev_2a80e2bbae" style={{ position: "fixed", inset: 0, zIndex: 998 }}
-          onClick={() => setProjectMenu(null)}
-          onContextMenu={(e) => {e.preventDefault();setProjectMenu(null);}} />
-            <div data-ev-id="ev_02a827ace8" style={{
-            ...S.menu,
-            left: Math.min(projectMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 220),
-            top: Math.min(projectMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 260),
-            minWidth: 200
-          }}>
-              <div data-ev-id="ev_7e988e0774" style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>{projectMenu.name}</div>
-              <button data-ev-id="ev_a19f575941" style={S.menuBtn} onClick={() => {openProject(projectMenu.name, "sleeve");setProjectMenu(null);}}>open sleeve</button>
-              <button data-ev-id="ev_5b17698be0" style={S.menuBtn} onClick={() => {openProject(projectMenu.name, "studio");setProjectMenu(null);}}>open player</button>
-              <label data-ev-id="ev_b94a0667a9" style={S.menuBtn}>
-                add spine cover
-                <input data-ev-id="ev_94eecc29dc" hidden type="file" accept=".png,.jpg,.jpeg,.webp"
-              onChange={(e) => {const target = projectMenu.name;setProjectMenu(null);addHomeCover(e, target);}} />
-              </label>
-              <button data-ev-id="ev_85b9d10060" style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
-            onClick={() => {deleteProject(projectMenu.name);setProjectMenu(null);}}>delete</button>
-              <button data-ev-id="ev_24564798e6" style={S.menuBtn} onClick={() => setProjectMenu(null)}>close</button>
-            </div>
-          </>
-        }
-
-        {storageMenu &&
-        <>
+        {projectMenu && (
+          <>
             <div style={{ position: "fixed", inset: 0, zIndex: 998 }}
-          onClick={() => setStorageMenu(null)}
-          onContextMenu={(e) => {e.preventDefault();setStorageMenu(null);}} />
+              onClick={() => setProjectMenu(null)}
+              onContextMenu={e => { e.preventDefault(); setProjectMenu(null); }} />
             <div style={{
-            ...S.menu,
-            left: Math.min(storageMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 200),
-            top: Math.min(storageMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 120),
-            minWidth: 180
-          }}>
-              <div style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>{storageMenu.name}</div>
+              ...S.menu,
+              left: Math.min(projectMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 220),
+              top: Math.min(projectMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 260),
+              minWidth: 200,
+            }}>
+              <div style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase" }}>{projectMenu.name}</div>
+              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "sleeve"); setProjectMenu(null); }}>open sleeve</button>
+              <button style={S.menuBtn} onClick={() => { openProject(projectMenu.name, "studio"); setProjectMenu(null); }}>open player</button>
+              <label style={S.menuBtn}>
+                add spine cover
+                <input hidden type="file" accept=".png,.jpg,.jpeg,.webp"
+                  onChange={e => { const target = projectMenu.name; setProjectMenu(null); addHomeCover(e, target); }} />
+              </label>
               <button style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
-            onClick={() => deleteStorage(storageMenu.id)}>delete storage</button>
-              <button style={S.menuBtn} onClick={() => setStorageMenu(null)}>close</button>
+                onClick={() => { deleteProject(projectMenu.name); setProjectMenu(null); }}>delete</button>
+              <button style={S.menuBtn} onClick={() => setProjectMenu(null)}>close</button>
             </div>
           </>
-        }
-      </div>);
-
+        )}
+      </div>
+    );
   }
 
   // ── CHANGE 3c: pass pictureVinyl to SleevePresentation ───────────────
@@ -3765,321 +4011,315 @@ export function Aurae() {
           setFlipping(false);
           setPlaying(false);
           setView("studio");
-        }} />);
-
-
+        }}
+      />
+    );
   }
 
   const playButtonContent = (() => {
-    if (awaitingVinylChange) return <span data-ev-id="ev_627fa347fa" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>🔌 change</span>;
-    if (awaitingFlip) return <span data-ev-id="ev_a1539d7f53" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>🔄 turn</span>;
+    if (awaitingVinylChange) return <span style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>🔌 change</span>;
+    if (awaitingFlip) return <span style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>🔄 turn</span>;
     return playing ? "⏸" : "▶";
   })();
-  const playButtonWidth = awaitingVinylChange || awaitingFlip ? "auto" : 36;
-  const playButtonPadding = awaitingVinylChange || awaitingFlip ? "0 12px" : "0";
-  const playButtonBorderRadius = awaitingVinylChange || awaitingFlip ? 12 : "50%";
+  const playButtonWidth = (awaitingVinylChange || awaitingFlip) ? "auto" : 36;
+  const playButtonPadding = (awaitingVinylChange || awaitingFlip) ? "0 12px" : "0";
+  const playButtonBorderRadius = (awaitingVinylChange || awaitingFlip) ? 12 : "50%";
 
   return (
-    <div data-ev-id="ev_f9382173a6" style={S.app}>
-      <div data-ev-id="ev_c77dc88246" style={S.sidebar}>
-        <div data-ev-id="ev_e710f18c9d" style={S.sidebarHeader}>
-          <div data-ev-id="ev_34a669d02d">
-            <h3 data-ev-id="ev_b60f3e3dd4" style={S.projectTitle}>{activeProject}</h3>
-            <div data-ev-id="ev_69b22382ad" style={S.meta}>{tracks.length} tracks - {totalDur(tracks)}</div>
-            {totalSides > 1 &&
-            <div data-ev-id="ev_91f8fd938f" style={{ ...S.meta, marginTop: 3, opacity: 0.6 }}>
+    <div style={S.app}>
+      <div style={S.sidebar}>
+        <div style={S.sidebarHeader}>
+          <div>
+            <h3 style={S.projectTitle}>{activeProject}</h3>
+            <div style={S.meta}>{tracks.length} tracks - {totalDur(tracks)}</div>
+            {totalSides > 1 && (
+              <div style={{ ...S.meta, marginTop: 3, opacity: 0.6 }}>
                 {totalSides} sides - now on side {vinylSide} - {fmt(getSideDuration(tracks, sideBoundaries, vinylSide))}
               </div>
-            }
+            )}
           </div>
-          <button data-ev-id="ev_b740bf3461" style={S.iconBtn} onClick={() => setView("home")}>home</button>
+          <button style={S.iconBtn} onClick={() => setView("home")}>home</button>
         </div>
-        <div data-ev-id="ev_590628b68b" style={S.segment}>
-          <button data-ev-id="ev_6714868a13" style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }} onClick={() => setSidebarMode("songs")}>songs</button>
-          <button data-ev-id="ev_14c9313222" style={{ ...S.segmentBtn, ...(sidebarMode === "design" ? S.segmentActive : {}) }} onClick={() => setSidebarMode("design")}>design</button>
+        <div style={S.segment}>
+          <button style={{ ...S.segmentBtn, ...(sidebarMode === "songs" ? S.segmentActive : {}) }} onClick={() => setSidebarMode("songs")}>songs</button>
+          <button style={{ ...S.segmentBtn, ...(sidebarMode === "design" ? S.segmentActive : {}) }} onClick={() => setSidebarMode("design")}>design</button>
         </div>
-        {sidebarMode === "songs" ?
-        <>
-            <div data-ev-id="ev_e253294856" style={S.importRow}>
-              <label data-ev-id="ev_dbf6f3f6f0" style={S.btn}>add tracks<input data-ev-id="ev_bfb65eacc2" hidden multiple type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg" onChange={addTracks} /></label>
+        {sidebarMode === "songs" ? (
+          <>
+            <div style={S.importRow}>
+              <label style={S.btn}>add tracks<input hidden multiple type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg" onChange={addTracks} /></label>
             </div>
-            <div data-ev-id="ev_f4963c469a" style={S.coverTools}>
-              <div data-ev-id="ev_31514ca6fd" style={S.coverToolsHeader}>
-                <span data-ev-id="ev_429733e231">side covers</span>
-                {sideCoverButtonCount > 2 &&
-              <button data-ev-id="ev_cde665ac99" style={{ ...S.smallBtn, ...(repeatSideCovers ? S.optionActive : {}) }} onClick={() => setRepeatCovers(!repeatSideCovers)}>
+            <div style={S.coverTools}>
+              <div style={S.coverToolsHeader}>
+                <span>side covers</span>
+                {sideCoverButtonCount > 2 && (
+                  <button style={{ ...S.smallBtn, ...(repeatSideCovers ? S.optionActive : {}) }} onClick={() => setRepeatCovers(!repeatSideCovers)}>
                     repeat 1/2 {repeatSideCovers ? "on" : "off"}
                   </button>
-              }
+                )}
               </div>
-              <div data-ev-id="ev_538775f47d" style={S.sideCoverGrid}>
+              <div style={S.sideCoverGrid}>
                 {Array.from({ length: sideCoverButtonCount }).map((_, i) => {
-                const side = i + 1;
-                const cover = sideCoverFor(side, sideCovers, repeatSideCovers, null);
-                const directCover = sideCovers[i];
-                return (
-                  <div data-ev-id="ev_92e201a673" key={side} style={S.sideCoverItem}>
-                      <label data-ev-id="ev_959db3f8ea" style={S.sideCoverButton}>
-                        <span data-ev-id="ev_edd19643dc" style={S.sideCoverPreview}>
-                          {cover ? <img data-ev-id="ev_b88e99a104" src={cover} alt="" style={S.sideCoverImg} /> : <span data-ev-id="ev_c1a0a8fc24">{side}</span>}
+                  const side = i + 1;
+                  const cover = sideCoverFor(side, sideCovers, repeatSideCovers, null);
+                  const directCover = sideCovers[i];
+                  return (
+                    <div key={side} style={S.sideCoverItem}>
+                      <label style={S.sideCoverButton}>
+                        <span style={S.sideCoverPreview}>
+                          {cover ? <img src={cover} alt="" style={S.sideCoverImg} /> : <span>{side}</span>}
                         </span>
-                        <span data-ev-id="ev_cfc0308570">side {side} cover</span>
-                        <input data-ev-id="ev_17a35af1a3" hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => addSideCover(side, e)} />
+                        <span>side {side} cover</span>
+                        <input hidden type="file" accept=".png,.jpg,.jpeg,.webp" onChange={e => addSideCover(side, e)} />
                       </label>
-                      {directCover && <button data-ev-id="ev_25cf9268ad" style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>clear</button>}
-                    </div>);
-
-              })}
+                      {directCover && <button style={S.clearCoverBtn} onClick={() => clearSideCover(side)}>clear</button>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div data-ev-id="ev_85e9f8ce26" style={S.list}>
+            <div style={S.list}>
               {(() => {
-              const vinylFirstSide = (activeVinyl - 1) * 2 + 1;
-              const vinylLastSide = activeVinyl * 2;
-              const vinylStart = sideBoundaries[vinylFirstSide - 1] ?? 0;
-              const vinylEnd = sideBoundaries[vinylLastSide] ?? tracks.length;
-              const visibleTracks = tracks.slice(vinylStart, vinylEnd);
-              return visibleTracks.map((track, relI) => {
-                const i = vinylStart + relI;
-                const trackSide = getSideForTrack(sideBoundaries, i);
-                const showSideLabel = sideBoundaries[trackSide - 1] === i && totalSides > 1;
-                return (
-                  <React.Fragment key={track.id || `${track.name}-${i}`}>
-                      {showSideLabel &&
-                    <div data-ev-id="ev_80ec4ea118" style={S.sideLabel}>SIDE {trackSide} - {fmt(getSideDuration(tracks, sideBoundaries, trackSide))}</div>
-                    }
-                      <div data-ev-id="ev_9a095feec8" style={{ ...S.track, outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.5)" : "none", opacity: i === index ? 1 : 0.78 }}
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData("aurae_track", String(i))}
-                    onDragOver={(e) => {e.preventDefault();setDragOverTrack(i);}}
-                    onDragLeave={() => setDragOverTrack(null)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setDragOverTrack(null);
-                      const from = Number(e.dataTransfer.getData("aurae_track"));
-                      if (!Number.isFinite(from) || from === i) return;
-                      const next = [...tracks];
-                      const item = next.splice(from, 1)[0];
-                      next.splice(i, 0, item);
-                      saveCurrentProject(next);
-                      if (index === from) setIndex(i);
-                    }}
-                    onClick={() => playTrack(i)}
-                    onContextMenu={(e) => {e.preventDefault();setSongMenu({ x: e.clientX, y: e.clientY, i });}}>
-                        <span data-ev-id="ev_eee83b975b" style={S.dragGrip}>::</span>
-                        <span data-ev-id="ev_ca0db9363f" style={S.trackName}>{track.name}</span>
-                        <span data-ev-id="ev_c19a29fb51" style={S.trackTime}>{fmt(track.duration)}</span>
+                const vinylFirstSide = (activeVinyl - 1) * 2 + 1;
+                const vinylLastSide = activeVinyl * 2;
+                const vinylStart = sideBoundaries[vinylFirstSide - 1] ?? 0;
+                const vinylEnd = sideBoundaries[vinylLastSide] ?? tracks.length;
+                const visibleTracks = tracks.slice(vinylStart, vinylEnd);
+                return visibleTracks.map((track, relI) => {
+                  const i = vinylStart + relI;
+                  const trackSide = getSideForTrack(sideBoundaries, i);
+                  const showSideLabel = (sideBoundaries[trackSide - 1] === i) && totalSides > 1;
+                  return (
+                    <React.Fragment key={track.id || `${track.name}-${i}`}>
+                      {showSideLabel && (
+                        <div style={S.sideLabel}>SIDE {trackSide} - {fmt(getSideDuration(tracks, sideBoundaries, trackSide))}</div>
+                      )}
+                      <div style={{ ...S.track, outline: dragOverTrack === i ? "2px solid rgba(255,255,255,0.5)" : "none", opacity: i === index ? 1 : 0.78 }}
+                        draggable
+                        onDragStart={e => e.dataTransfer.setData("aurae_track", String(i))}
+                        onDragOver={e => { e.preventDefault(); setDragOverTrack(i); }}
+                        onDragLeave={() => setDragOverTrack(null)}
+                        onDrop={e => {
+                          e.preventDefault();
+                          setDragOverTrack(null);
+                          const from = Number(e.dataTransfer.getData("aurae_track"));
+                          if (!Number.isFinite(from) || from === i) return;
+                          const next = [...tracks];
+                          const item = next.splice(from, 1)[0];
+                          next.splice(i, 0, item);
+                          saveCurrentProject(next);
+                          if (index === from) setIndex(i);
+                        }}
+                        onClick={() => playTrack(i)}
+                        onContextMenu={e => { e.preventDefault(); setSongMenu({ x: e.clientX, y: e.clientY, i }); }}>
+                        <span style={S.dragGrip}>::</span>
+                        <span style={S.trackName}>{track.name}</span>
+                        <span style={S.trackTime}>{fmt(track.duration)}</span>
                       </div>
-                    </React.Fragment>);
-
-              });
-            })()}
-              {!tracks.length && <div data-ev-id="ev_9d0b3d6a77" style={S.emptyState}>Add songs and the needle will move across the record.</div>}
+                    </React.Fragment>
+                  );
+                });
+              })()}
+              {!tracks.length && <div style={S.emptyState}>Add songs and the needle will move across the record.</div>}
             </div>
-          </> :
-        stageMode === "equalizer" ?
-        <div data-ev-id="ev_5a9d1ea72a" style={S.designPanel}>
-            <div data-ev-id="ev_e25b09fdf1" style={S.section}>
-              <div data-ev-id="ev_43b6ce09e5" style={S.sectionTitle}>Equalizer shape</div>
-              <div data-ev-id="ev_0f521f619a" style={S.optionGrid}>
-                {EQ_SHAPES.map((item) =>
-              <button data-ev-id="ev_615377e155" key={item.id} style={{ ...S.smallBtn, ...(eqShape === item.id ? S.optionActive : {}) }} onClick={() => setEqShape(item.id)}>{item.label}</button>
-              )}
+          </>
+        ) : stageMode === "equalizer" ? (
+          <div style={S.designPanel}>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Equalizer shape</div>
+              <div style={S.optionGrid}>
+                {EQ_SHAPES.map(item => (
+                  <button key={item.id} style={{ ...S.smallBtn, ...(eqShape === item.id ? S.optionActive : {}) }} onClick={() => setEqShape(item.id)}>{item.label}</button>
+                ))}
               </div>
             </div>
-            <div data-ev-id="ev_173564c6c1" style={S.section}>
-              <div data-ev-id="ev_bb9289c338" style={S.sectionTitle}>Colors</div>
-              <div data-ev-id="ev_73f72adde6" style={S.swatchGrid}>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Colors</div>
+              <div style={S.swatchGrid}>
                 <ColorSwatch value={eqColor} onChange={setEqColor} label="low" dark={dark} />
                 <ColorSwatch value={eqColor2} onChange={setEqColor2} label="high" dark={dark} />
                 <ColorSwatch value={eqBgColor} onChange={setEqBgColor} label="bg" dark={dark} />
               </div>
             </div>
-            <div data-ev-id="ev_0a6aa8521f" style={S.section}>
-              <div data-ev-id="ev_ae4a37b653" style={S.sectionTitle}>Motion</div>
-              <label data-ev-id="ev_245501bc1d" style={S.sliderLabel}>bars ({eqBars})<input data-ev-id="ev_5648652e5d" type="range" min="16" max="128" step="2" value={eqBars} onChange={(e) => setEqBars(Number(e.target.value))} style={S.range} /></label>
-              <label data-ev-id="ev_34e171e9c0" style={S.sliderLabel}>smoothing ({eqSmoothing.toFixed(2)})<input data-ev-id="ev_bf444b0513" type="range" min="0" max="0.95" step="0.01" value={eqSmoothing} onChange={(e) => setEqSmoothing(Number(e.target.value))} style={S.range} /></label>
-              <label data-ev-id="ev_b2826e46ac" style={S.sliderLabel}>glow ({eqGlow.toFixed(2)})<input data-ev-id="ev_b92b8fde5e" type="range" min="0" max="1" step="0.01" value={eqGlow} onChange={(e) => setEqGlow(Number(e.target.value))} style={S.range} /></label>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Motion</div>
+              <label style={S.sliderLabel}>bars ({eqBars})<input type="range" min="16" max="128" step="2" value={eqBars} onChange={e => setEqBars(Number(e.target.value))} style={S.range} /></label>
+              <label style={S.sliderLabel}>smoothing ({eqSmoothing.toFixed(2)})<input type="range" min="0" max="0.95" step="0.01" value={eqSmoothing} onChange={e => setEqSmoothing(Number(e.target.value))} style={S.range} /></label>
+              <label style={S.sliderLabel}>glow ({eqGlow.toFixed(2)})<input type="range" min="0" max="1" step="0.01" value={eqGlow} onChange={e => setEqGlow(Number(e.target.value))} style={S.range} /></label>
             </div>
-          </div> :
-
-        <div data-ev-id="ev_d22d539760" style={S.designPanel}>
-            <div data-ev-id="ev_beb78b4b12" style={S.section}>
-              <div data-ev-id="ev_63cb56ccdc" style={S.sectionTitle}>Picture vinyl</div>
-              <div data-ev-id="ev_b176cd21d5" style={S.pictureRow}>
-                <div data-ev-id="ev_37164680ea" style={{ flex: 1, minWidth: 0 }}>
-                  <div data-ev-id="ev_3316f7db65" style={S.pictureCaption}>Use the side cover as a full disc image. The label is hidden.</div>
-                  {pictureVinyl && !currentVinylCover && <div data-ev-id="ev_277b782e85" style={S.pictureHint}>Add a side cover to see the picture.</div>}
+          </div>
+        ) : (
+          <div style={S.designPanel}>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Picture vinyl</div>
+              <div style={S.pictureRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={S.pictureCaption}>Use the side cover as a full disc image. The label is hidden.</div>
+                  {pictureVinyl && !currentVinylCover && <div style={S.pictureHint}>Add a side cover to see the picture.</div>}
                 </div>
-                <button data-ev-id="ev_09a46d1d8a" style={{ ...S.toggleSwitch, ...(pictureVinyl ? S.toggleSwitchOn : {}) }}
-              onClick={() => upd("pictureVinyl", !pictureVinyl, setPictureVinyl)} aria-pressed={pictureVinyl}>
-                  <span data-ev-id="ev_1aaadce81f" style={{ ...S.toggleKnob, transform: pictureVinyl ? "translateX(22px)" : "translateX(2px)" }} />
+                <button style={{ ...S.toggleSwitch, ...(pictureVinyl ? S.toggleSwitchOn : {}) }}
+                  onClick={() => upd("pictureVinyl", !pictureVinyl, setPictureVinyl)} aria-pressed={pictureVinyl}>
+                  <span style={{ ...S.toggleKnob, transform: pictureVinyl ? "translateX(22px)" : "translateX(2px)" }} />
                 </button>
               </div>
             </div>
-            <div data-ev-id="ev_62344b836f" style={S.section}>
-              <div data-ev-id="ev_6722419ca7" style={S.sectionTitle}>Deck design</div>
-              <div data-ev-id="ev_d7ed5ec0a8" style={S.optionGrid}>
-                {DECK_STYLES.map((style) =>
-              <button data-ev-id="ev_08d889a383" key={style} style={{ ...S.smallBtn, ...(normalizeDeckStyle(deckStyle) === style ? S.optionActive : {}) }} onClick={() => upd("deckStyle", style, setDeckStyle)}>{style}</button>
-              )}
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Deck design</div>
+              <div style={S.optionGrid}>
+                {DECK_STYLES.map(style => (
+                  <button key={style} style={{ ...S.smallBtn, ...(normalizeDeckStyle(deckStyle) === style ? S.optionActive : {}) }} onClick={() => upd("deckStyle", style, setDeckStyle)}>{style}</button>
+                ))}
               </div>
             </div>
-            <div data-ev-id="ev_58a07ec911" style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
-              <div data-ev-id="ev_a861aa9f71" style={S.sectionTitle}>Vinyl colors</div>
-              {pictureVinyl && <div data-ev-id="ev_165feafc38" style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
-              <div data-ev-id="ev_ffaa8b075d" style={S.swatchGrid}>
-                {[0, 1, 2, 3].map((slot) =>
-              <ColorSwatch key={slot} value={vinylColors[slot] || DEFAULT_VINYL_COLORS[slot] || "#111111"}
-              onChange={(v) => updateVinylColor(slot, v)} label={`tone ${slot + 1}`} dark={dark} />
-              )}
+            <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
+              <div style={S.sectionTitle}>Vinyl colors</div>
+              {pictureVinyl && <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
+              <div style={S.swatchGrid}>
+                {[0, 1, 2, 3].map(slot => (
+                  <ColorSwatch key={slot} value={vinylColors[slot] || DEFAULT_VINYL_COLORS[slot] || "#111111"}
+                    onChange={v => updateVinylColor(slot, v)} label={`tone ${slot + 1}`} dark={dark} />
+                ))}
               </div>
-              <div data-ev-id="ev_75a17d65e6" style={S.optionGrid}>
-                {VINYL_GRADIENTS.map((item) =>
-              <button data-ev-id="ev_8ab4ac1e0a" key={item.id} style={{ ...S.smallBtn, ...(vinylGradient === item.id ? S.optionActive : {}) }} onClick={() => upd("vinylGradient", item.id, setVinylGradient)}>{item.label}</button>
-              )}
+              <div style={S.optionGrid}>
+                {VINYL_GRADIENTS.map(item => (
+                  <button key={item.id} style={{ ...S.smallBtn, ...(vinylGradient === item.id ? S.optionActive : {}) }} onClick={() => upd("vinylGradient", item.id, setVinylGradient)}>{item.label}</button>
+                ))}
               </div>
-              <label data-ev-id="ev_56eb0266d6" style={S.sliderLabel}>opacity<input data-ev-id="ev_267032fb1a" type="range" min="0.25" max="1" step="0.01" value={vinylOpacity} onChange={(e) => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)} style={S.range} /></label>
+              <label style={S.sliderLabel}>opacity<input type="range" min="0.25" max="1" step="0.01" value={vinylOpacity} onChange={e => upd("vinylOpacity", Number(e.target.value), setVinylOpacity)} style={S.range} /></label>
             </div>
-            <div data-ev-id="ev_0ba7dc05ea" style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
-              <div data-ev-id="ev_6ab523cd0c" style={S.sectionTitle}>Splatter</div>
-              {pictureVinyl && <div data-ev-id="ev_8734395bda" style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
-              <div data-ev-id="ev_9079161e86" style={S.inlineControls}>
-                <ColorSwatch value={splatterColor} onChange={(v) => upd("splatterColor", v, setSplatterColor)} label="color" dark={dark} />
-                <button data-ev-id="ev_01212154e3" style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}), alignSelf: "flex-end" }} onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}>{splatterOn ? "on" : "off"}</button>
+            <div style={{ ...S.section, opacity: pictureVinyl ? 0.45 : 1 }}>
+              <div style={S.sectionTitle}>Splatter</div>
+              {pictureVinyl && <div style={S.pictureHint}>Disabled while picture vinyl is on.</div>}
+              <div style={S.inlineControls}>
+                <ColorSwatch value={splatterColor} onChange={v => upd("splatterColor", v, setSplatterColor)} label="color" dark={dark} />
+                <button style={{ ...S.smallBtn, ...(splatterOn ? S.optionActive : {}), alignSelf: "flex-end" }} onClick={() => upd("splatterOn", !splatterOn, setSplatterOn)}>{splatterOn ? "on" : "off"}</button>
               </div>
-              <div data-ev-id="ev_5557423583" style={S.optionGrid}>
-                {SPLATTER_STYLES.map((item) =>
-              <button data-ev-id="ev_08f7587c0a" key={item.id} style={{ ...S.smallBtn, ...(splatterStyle === item.id ? S.optionActive : {}) }} onClick={() => upd("splatterStyle", item.id, setSplatterStyle)}>{item.label}</button>
-              )}
+              <div style={S.optionGrid}>
+                {SPLATTER_STYLES.map(item => (
+                  <button key={item.id} style={{ ...S.smallBtn, ...(splatterStyle === item.id ? S.optionActive : {}) }} onClick={() => upd("splatterStyle", item.id, setSplatterStyle)}>{item.label}</button>
+                ))}
               </div>
             </div>
           </div>
-        }
+        )}
       </div>
 
-      <div data-ev-id="ev_9042a778a4" style={S.stage}>
-        {stageMode === "vinyl" ?
-        <div data-ev-id="ev_fb0f1406f1" style={{ position: "relative", width: geometry.width, height: 560 }}>
-            <div data-ev-id="ev_0164338417" style={{ position: "absolute", left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius, width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1 }}>
+      <div style={S.stage}>
+        {stageMode === "vinyl" ? (
+          <div style={{ position: "relative", width: geometry.width, height: 560 }}>
+            <div style={{ position: "absolute", left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius, width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1 }}>
               <VinylDisc
-              radius={vinylRadius} colors={vinylColors} gradient={vinylGradient}
-              opacity={vinylOpacity} splatterOn={splatterOn} splatterColor={splatterColor}
-              splatterStyle={splatterStyle} cover={currentVinylCover} isSingle={isSingle}
-              playing={playing} textColor={text} flipping={flipping} pictureVinyl={pictureVinyl} />
+                radius={vinylRadius} colors={vinylColors} gradient={vinylGradient}
+                opacity={vinylOpacity} splatterOn={splatterOn} splatterColor={splatterColor}
+                splatterStyle={splatterStyle} cover={currentVinylCover} isSingle={isSingle}
+                playing={playing} textColor={text} flipping={flipping} pictureVinyl={pictureVinyl} />
             </div>
             <TurntableDeck style={normalizedDeckStyle} color={deckColor} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={text} progress={sideProgress} />
-            {needsTurn && <button data-ev-id="ev_b311eeb696" style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>}
-            {awaitingVinylChange && !flipping && <button data-ev-id="ev_6396fd1458" style={S.turnBtn} onClick={changeVinyl}>change vinyl</button>}
-          </div> :
-
-        <div data-ev-id="ev_4b8a3f610a" style={{ position: "relative", width: "min(760px, 100%)", height: 480, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {needsTurn && <button style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>}
+            {awaitingVinylChange && !flipping && <button style={S.turnBtn} onClick={changeVinyl}>change vinyl</button>}
+          </div>
+        ) : (
+          <div style={{ position: "relative", width: "min(760px, 100%)", height: 480, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <EqualizerVisualizer analyserRef={analyserRef} shape={eqShape} color={eqColor} color2={eqColor2} bars={eqBars} glow={eqGlow} bgColor={eqBgColor} playing={playing} width={720} height={420} />
           </div>
-        }
-        <div data-ev-id="ev_0de7529f4f" style={S.modeSwitch}>
-          <button data-ev-id="ev_57298d9f42" style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("vinyl")}>vinyl</button>
-          <button data-ev-id="ev_b4b8fd8549" style={{ ...S.modeSwitchBtn, ...(stageMode === "equalizer" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("equalizer")}>EQ</button>
+        )}
+        <div style={S.modeSwitch}>
+          <button style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("vinyl")}>vinyl</button>
+          <button style={{ ...S.modeSwitchBtn, ...(stageMode === "equalizer" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("equalizer")}>EQ</button>
         </div>
       </div>
 
-      <div data-ev-id="ev_d4bd96ae28" style={S.player}>
+      <div style={S.player}>
         {/* Left Section: Now Playing Info */}
-        <div data-ev-id="ev_0cd62ed7e6" style={S.playerLeft}>
-          <div data-ev-id="ev_4aeb2cdb7c" style={S.playerMiniCover}>
-            {currentVinylCover ?
-            <img data-ev-id="ev_33b1658475" src={currentVinylCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> :
-
-            <div data-ev-id="ev_2e8b8a818a" style={S.blankCover} />
-            }
+        <div style={S.playerLeft}>
+          <div style={S.playerMiniCover}>
+            {currentVinylCover ? (
+              <img src={currentVinylCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <div style={S.blankCover} />
+            )}
           </div>
-          <div data-ev-id="ev_ac2396d9ba" style={S.playerTrackInfo}>
-            <div data-ev-id="ev_b54d696a4c" style={S.playerTrackName}>
+          <div style={S.playerTrackInfo}>
+            <div style={S.playerTrackName}>
               {current?.name || "No track selected"}
             </div>
-            <div data-ev-id="ev_46952d315c" style={S.playerTrackMeta}>
-              {tracks.length > 0 ?
-              `Vinyl ${activeVinyl} · Side ${vinylSide === 1 ? 'A' : vinylSide === 2 ? 'B' : vinylSide === 3 ? 'C' : 'D'}` :
-
-              "Aurae OS Player"
-              }
+            <div style={S.playerTrackMeta}>
+              {tracks.length > 0 ? (
+                `Vinyl ${activeVinyl} · Side ${vinylSide === 1 ? 'A' : vinylSide === 2 ? 'B' : vinylSide === 3 ? 'C' : 'D'}`
+              ) : (
+                "Aurae OS Player"
+              )}
             </div>
           </div>
         </div>
 
         {/* Center Section: Playback Controls & Timeline */}
-        <div data-ev-id="ev_17f721bc26" style={S.playerCenter}>
-          <div data-ev-id="ev_1a04bd38be" style={S.playerControls}>
-            <button data-ev-id="ev_a269cac3ec"
-            className="aurae-player-btn"
-            style={S.playerTextBtn}
-            onClick={prevTrack}
-            title="Previous Track">
-
+        <div style={S.playerCenter}>
+          <div style={S.playerControls}>
+            <button
+              className="aurae-player-btn"
+              style={S.playerTextBtn}
+              onClick={prevTrack}
+              title="Previous Track"
+            >
               ⏮
             </button>
-            <button data-ev-id="ev_eabbd5cc8d"
-            className="aurae-player-btn"
-            style={{
-              ...S.playerCircleBtn,
-              width: playButtonWidth,
-              padding: playButtonPadding,
-              borderRadius: playButtonBorderRadius
-            }}
-            onClick={toggle}
-            title={playing ? "Pause" : "Play"}>
-
+            <button
+              className="aurae-player-btn"
+              style={{
+                ...S.playerCircleBtn,
+                width: playButtonWidth,
+                padding: playButtonPadding,
+                borderRadius: playButtonBorderRadius,
+              }}
+              onClick={toggle}
+              title={playing ? "Pause" : "Play"}
+            >
               {playButtonContent}
             </button>
-            <button data-ev-id="ev_6985dcada8"
-            className="aurae-player-btn"
-            style={S.playerTextBtn}
-            onClick={nextTrack}
-            title="Next Track">
-
+            <button
+              className="aurae-player-btn"
+              style={S.playerTextBtn}
+              onClick={nextTrack}
+              title="Next Track"
+            >
               ⏭
             </button>
           </div>
-          <div data-ev-id="ev_7d16a63f69" style={S.playerProgressRow}>
-            <span data-ev-id="ev_3e8afe0f62" style={S.playerTime}>{fmt(currentTime)}</span>
-            <input data-ev-id="ev_64c0025a68"
-            type="range"
-            min="0"
-            max={displayDuration || 0}
-            value={Math.min(currentTime, displayDuration || currentTime || 0)}
-            onChange={seek}
-            style={S.playerRange} />
-
-            <span data-ev-id="ev_cec7e07cef" style={S.playerTime}>{fmt(displayDuration)}</span>
+          <div style={S.playerProgressRow}>
+            <span style={S.playerTime}>{fmt(currentTime)}</span>
+            <input
+              type="range"
+              min="0"
+              max={displayDuration || 0}
+              value={Math.min(currentTime, displayDuration || currentTime || 0)}
+              onChange={seek}
+              style={S.playerRange}
+            />
+            <span style={S.playerTime}>{fmt(displayDuration)}</span>
           </div>
         </div>
 
         {/* Right Section: Format Info & Stats */}
-        <div data-ev-id="ev_9c41dc35d4" style={S.playerRight}>
-          <div data-ev-id="ev_27fd8ed580" style={S.playerBadge}>
+        <div style={S.playerRight}>
+          <div style={S.playerBadge}>
             {isSingle ? "45 RPM" : "33 RPM"}
           </div>
-          <div data-ev-id="ev_ff796f4466" style={S.playerBadge}>
+          <div style={S.playerBadge}>
             {isSingle ? "7\" SINGLE" : isGatefold ? "GATEFOLD" : "12\" LP"}
           </div>
         </div>
       </div>
 
-      {songMenu &&
-      <div data-ev-id="ev_bbf88fcf79" style={{ ...S.menu, left: songMenu.x, top: songMenu.y }}>
-          <button data-ev-id="ev_b7db28b627" style={S.menuBtn} onClick={() => deleteTrack(songMenu.i)}>delete</button>
-          <button data-ev-id="ev_b40de03104" style={S.menuBtn} onClick={() => setSongMenu(null)}>close</button>
+      {songMenu && (
+        <div style={{ ...S.menu, left: songMenu.x, top: songMenu.y }}>
+          <button style={S.menuBtn} onClick={() => deleteTrack(songMenu.i)}>delete</button>
+          <button style={S.menuBtn} onClick={() => setSongMenu(null)}>close</button>
         </div>
-      }
-      {storageMenu &&
-      <div data-ev-id="ev_ec689713cf" style={{ ...S.menu, left: storageMenu.x, top: storageMenu.y }}>
-          <button data-ev-id="ev_1d87686eb7" style={S.menuBtn} onClick={() => deleteStorage(storageMenu.id)}>delete storage</button>
-          <button data-ev-id="ev_f2349344d6" style={S.menuBtn} onClick={() => setStorageMenu(null)}>close</button>
-        </div>
-      }
-      <audio data-ev-id="ev_6904dc19ff" ref={audioRef} />
-    </div>);
-
+      )}
+      <audio ref={audioRef} />
+    </div>
+  );
 }
 
 function makeStyles(dark: boolean, text: string) {
@@ -4087,9 +4327,9 @@ function makeStyles(dark: boolean, text: string) {
   const glassStrong = dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.86)";
   const border = dark ? "1px solid rgba(255,255,255,0.13)" : "1px solid rgba(0,0,0,0.08)";
   const shadow = dark ? "0 24px 70px rgba(0,0,0,0.34)" : "0 24px 70px rgba(60,70,90,0.16)";
-  const pageBg = dark ?
-  "radial-gradient(circle at 16% 12%, rgba(120,160,255,0.12), transparent 28%), radial-gradient(circle at 78% 20%, rgba(255,120,190,0.10), transparent 28%), #070708" :
-  "radial-gradient(circle at 14% 12%, rgba(120,170,255,0.22), transparent 28%), radial-gradient(circle at 82% 16%, rgba(255,160,210,0.18), transparent 32%), #f4f6f8";
+  const pageBg = dark
+    ? "radial-gradient(circle at 16% 12%, rgba(120,160,255,0.12), transparent 28%), radial-gradient(circle at 78% 20%, rgba(255,120,190,0.10), transparent 28%), #070708"
+    : "radial-gradient(circle at 14% 12%, rgba(120,170,255,0.22), transparent 28%), radial-gradient(circle at 82% 16%, rgba(255,160,210,0.18), transparent 32%), #f4f6f8";
   const baseFont = "Courier New, monospace";
   const scrollVars: any = {
     "--aurae-scroll-track": dark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.045)",
@@ -4098,7 +4338,7 @@ function makeStyles(dark: boolean, text: string) {
     "--aurae-scroll-thumb-active": dark ? "rgba(255,255,255,0.56)" : "rgba(0,0,0,0.44)",
     "--aurae-scroll-border": dark ? "rgba(8,8,10,0.92)" : "rgba(245,247,250,0.92)",
     "--player-btn-hover": dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
-    "--player-btn-active": dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.1)"
+    "--player-btn-active": dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.1)",
   };
   return {
     app: { ...scrollVars, display: "flex", height: "100vh", background: pageBg, color: text, fontFamily: baseFont, overflow: "hidden" },
@@ -4113,25 +4353,7 @@ function makeStyles(dark: boolean, text: string) {
     separatorRow: { display: "flex", alignItems: "center", margin: "8px 0 2px", width: "100%" },
     separatorLine: { flex: 1, height: 1, background: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)" },
     separatorText: { padding: "0 10px", color: text, opacity: 0.5, fontSize: 11, fontFamily: baseFont },
-    googleBtn: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 12,
-      padding: "11px 14px",
-      borderRadius: 14,
-      border: dark ? "1px solid rgba(255,255,255,0.16)" : "1px solid #dadce0",
-      background: dark ? "rgba(255,255,255,0.06)" : "#ffffff",
-      color: dark ? "#ffffff" : "#3c4043",
-      cursor: "pointer",
-      fontFamily: "Roboto, Arial, sans-serif",
-      fontSize: 13,
-      fontWeight: 500,
-      boxShadow: dark ? "none" : "0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)",
-      transition: "background-color 0.2s, box-shadow 0.2s",
-      width: "100%",
-      boxSizing: "border-box"
-    },
+
     smallBtn: { padding: "7px 10px", minHeight: 30, borderRadius: 10, border, background: dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.62)", color: text, cursor: "pointer", fontSize: 11, fontFamily: baseFont },
     iconBtn: { padding: "8px 10px", borderRadius: 12, border, background: glass, color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11 },
     home: { ...scrollVars, minHeight: "100vh", overflowY: "auto", background: pageBg, color: text },
@@ -4233,7 +4455,7 @@ function makeStyles(dark: boolean, text: string) {
     playerCircleBtn: { width: 36, height: 36, borderRadius: "50%", border: dark ? "1px solid rgba(255, 255, 255, 0.15)" : "1px solid rgba(0, 0, 0, 0.12)", background: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)", color: text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
     playerTextBtn: { background: "transparent", border: "none", color: text, cursor: "pointer", fontSize: 16, opacity: 0.75, display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "50%" },
     menu: { position: "fixed", zIndex: 999, background: dark ? "rgba(20,20,22,0.94)" : "rgba(255,255,255,0.94)", color: text, border, borderRadius: 14, padding: 8, display: "flex", flexDirection: "column", gap: 6, boxShadow: shadow, backdropFilter: "blur(20px)" },
-    menuBtn: { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont }
+    menuBtn: { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont },
   };
 }
 
@@ -4271,13 +4493,18 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
     ::-webkit-scrollbar-track { background: var(--aurae-scroll-track, transparent); border-radius: 999px; margin: 6px 0; }
     ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(255,255,255,0.24), var(--aurae-scroll-thumb, rgba(150,150,160,0.35))); border-radius: 999px; border: 3px solid var(--aurae-scroll-border, transparent); background-clip: padding-box; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px rgba(0,0,0,0.18); }
     ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(255,255,255,0.30), var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48))); background-clip: padding-box; }
-    ::-webkit-scrollbar-thumb:active { background: linear-gradient(180deg, rgba(255,255,255,0.38), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))); background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:active { background:
+
+      ::-webkit-scrollbar-thumb:active { background: linear-gradient(180deg, rgba(255,255,255,0.38), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))); background-clip: padding-box; }
     .aurae-player-btn { transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s ease, opacity 0.15s ease !important; }
     .aurae-player-btn:hover { opacity: 1 !important; background: var(--player-btn-hover) !important; transform: scale(1.05); }
     .aurae-player-btn:active { background: var(--player-btn-active) !important; transform: scale(0.96); }
   `;
   document.head.appendChild(style);
 }
+
+export default Aurae;
+
 
 export default Aurae;
 
