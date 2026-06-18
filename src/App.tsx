@@ -4493,9 +4493,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
     ::-webkit-scrollbar-track { background: var(--aurae-scroll-track, transparent); border-radius: 999px; margin: 6px 0; }
     ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(255,255,255,0.24), var(--aurae-scroll-thumb, rgba(150,150,160,0.35))); border-radius: 999px; border: 3px solid var(--aurae-scroll-border, transparent); background-clip: padding-box; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px rgba(0,0,0,0.18); }
     ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(255,255,255,0.30), var(--aurae-scroll-thumb-hover, rgba(150,150,160,0.48))); background-clip: padding-box; }
-    ::-webkit-scrollbar-thumb:active { background:
-
-      ::-webkit-scrollbar-thumb:active { background: linear-gradient(180deg, rgba(255,255,255,0.38), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))); background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:active { background: linear-gradient(180deg, rgba(255,255,255,0.38), var(--aurae-scroll-thumb-active, rgba(150,150,160,0.62))); background-clip: padding-box; }
     .aurae-player-btn { transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s ease, opacity 0.15s ease !important; }
     .aurae-player-btn:hover { opacity: 1 !important; background: var(--player-btn-hover) !important; transform: scale(1.05); }
     .aurae-player-btn:active { background: var(--player-btn-active) !important; transform: scale(0.96); }
@@ -4505,8 +4503,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 
 export default Aurae;
 
-
-export default Aurae;
 
 
 
