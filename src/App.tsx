@@ -534,10 +534,10 @@ function deckGeometry(style: string) {
     return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 472, pivotY: 112 };
   }
   if (s === "realistic1") {
-    return { width: 560, height: 560, cx: 238, cy: 292, pivotX: 500, pivotY: 132 };
+    return { width: 760, height: 560, cx: 252, cy: 278, pivotX: 474, pivotY: 96 };
   }
   if (s === "realistic2") {
-    return { width: 560, height: 560, cx: 228, cy: 282, pivotX: 480, pivotY: 112 };
+    return { width: 760, height: 560, cx: 252, cy: 278, pivotX: 470, pivotY: 104 };
   }
   if (["dark", "chrome", "wood"].includes(s)) {
     return { width: 560, height: 560, cx: 240, cy: 290, pivotX: 508, pivotY: 126 };
@@ -553,8 +553,8 @@ function boardPath(style: string) {
   const s = normalizeDeckStyle(style);
   if (s === "chrome") return "M58 20 L502 20 L540 58 L540 500 L502 540 L20 540 L20 58 Z";
   if (s === "dark") return "M20 20 L540 20 L540 540 L20 540 Z";
-  if (s === "realistic1") return "M28 20 Q20 20 20 28 L20 532 Q20 540 28 540 L532 540 Q540 540 540 532 L540 28 Q540 20 532 20 Z";
-  if (s === "realistic2") return "M26 20 Q20 20 20 26 L20 534 Q20 540 26 540 L534 540 Q540 540 540 534 L540 26 Q540 20 534 20 Z";
+  if (s === "realistic1") return "M18 8 Q8 8 8 18 L8 550 Q8 560 18 560 L750 560 Q760 560 760 550 L760 18 Q760 8 750 8 Z";
+  if (s === "realistic2") return "M22 8 Q8 8 8 22 L8 548 Q8 560 22 560 L748 560 Q760 560 760 548 L760 22 Q760 8 748 8 Z";
   if (s === "wood") return "M42 20 Q20 20 20 42 L20 518 Q20 540 42 540 L518 540 Q540 540 540 518 L540 42 Q540 20 518 20 Z";
   if (s === "minimal") return "M20 20 L540 20 L540 540 L20 540 Z";
   return "M48 20 Q20 20 20 48 L20 512 Q20 540 48 540 L512 540 Q540 540 540 512 L540 48 Q540 20 512 20 Z";
@@ -943,138 +943,126 @@ function Tonearm({ id, geometry, stylus, textColor }: any) {
   );
 }
 
-// AT-LP120X-style S-shaped tonearm for realistic1
-function ATLP120XTonearm({ id, geometry, stylus }: any) {
-  const px = geometry.pivotX;
-  const py = geometry.pivotY;
-  const sx = stylus.x;
-  const sy = stylus.y;
+
+// Generic S-shaped tonearm for direct-drive style decks
+function DirectDriveTonearm({ id, geometry, stylus }: any) {
+  const px = geometry.pivotX; const py = geometry.pivotY;
+  const sx = stylus.x; const sy = stylus.y;
   const dx = sx - px; const dy = sy - py;
-  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-  // S-bend path: from pivot, go straight ~60px, then slight offset curve, then straight to headshell
   const armLen = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
   const ux = dx / Math.max(1, armLen); const uy = dy / Math.max(1, armLen);
   const perpX = -uy; const perpY = ux;
-  // Pivot end of arm
-  const start = { x: px + ux * 24, y: py + uy * 24 };
-  // Mid-bend toward stylus
-  const mid1 = { x: px + ux * (armLen * 0.42) + perpX * 12, y: py + uy * (armLen * 0.42) + perpY * 12 };
-  const mid2 = { x: px + ux * (armLen * 0.65) - perpX * 8, y: py + uy * (armLen * 0.65) - perpY * 8 };
-  // Headshell connector point
-  const hEnd = { x: sx - ux * 38, y: sy - uy * 38 };
-  // Build tapered arm polygon (4-sided)
-  const w0 = 6; const wm = 4.5; const w1 = 3;
-  const buildSide = (pts: {x:number,y:number}[], widths: number[], side: 1|-1) =>
-    pts.map((p, i) => ({ x: p.x + perpX * widths[i] * side, y: p.y + perpY * widths[i] * side }));
+  const start = { x: px + ux * 22, y: py + uy * 22 };
+  const mid1 = { x: px + ux * (armLen * 0.40) + perpX * 13, y: py + uy * (armLen * 0.40) + perpY * 13 };
+  const mid2 = { x: px + ux * (armLen * 0.64) - perpX * 9, y: py + uy * (armLen * 0.64) - perpY * 9 };
+  const hEnd = { x: sx - ux * 40, y: sy - uy * 40 };
   const pts = [start, mid1, mid2, hEnd];
-  const ws = [w0, wm, wm, w1];
+  const ws = [6.5, 5.0, 3.8, 2.8];
+  const buildSide = (arr: {x:number,y:number}[], widths: number[], side: 1|-1) =>
+    arr.map((p, i) => ({ x: p.x + perpX * widths[i] * side, y: p.y + perpY * widths[i] * side }));
   const left = buildSide(pts, ws, 1);
   const right = buildSide(pts, ws, -1).reverse();
   const poly = [...left, ...right].map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  // Highlight stripe along top-left of arm
-  const hl = buildSide(pts, ws.map(w => w - 1.5), 1);
-  const hlPoly = [...hl, ...buildSide(pts, ws.map(w => w - 2.8), 1).reverse()]
-    .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  // Counterweight - behind pivot
-  const cwX = px - ux * 38; const cwY = py - uy * 38;
+  const hlLeft = buildSide(pts, ws.map(w => w - 1.2), 1);
+  const hlRight = buildSide(pts, ws.map(w => w - 2.5), 1).reverse();
+  const hlPoly = [...hlLeft, ...hlRight].map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const cwX = px - ux * 42; const cwY = py - uy * 42;
   return (
     <g>
-      {/* Counterweight */}
-      <ellipse cx={cwX} cy={cwY} rx="13" ry="10"
-        transform={`rotate(${angle} ${cwX} ${cwY})`}
-        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" />
-      <ellipse cx={cwX} cy={cwY} rx="5" ry="4"
-        transform={`rotate(${angle} ${cwX} ${cwY})`}
-        fill="rgba(255,255,255,0.18)" />
-      {/* Anti-skate dial label */}
-      <text x={px + 6} y={py - 38} fill="rgba(255,255,255,0.5)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">ANTI-SKATE</text>
-      {/* Bearing pivot base */}
-      <circle cx={px} cy={py} r="20"
-        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.6)" strokeWidth="2"
+      <defs>
+        <radialGradient id={`${id}-cw`} cx="38%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#606268" /><stop offset="60%" stopColor="#35373c" /><stop offset="100%" stopColor="#1c1d20" />
+        </radialGradient>
+        <radialGradient id={`${id}-bearing`} cx="36%" cy="28%" r="68%">
+          <stop offset="0%" stopColor="#5a5c62" /><stop offset="50%" stopColor="#2a2c30" /><stop offset="100%" stopColor="#0e0f11" />
+        </radialGradient>
+        <linearGradient id={`${id}-arm-metal`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#d0d2d8" /><stop offset="35%" stopColor="#9a9da6" /><stop offset="100%" stopColor="#5a5c62" />
+        </linearGradient>
+      </defs>
+      <circle cx={cwX} cy={cwY} r="15" fill={`url(#${id}-cw)`} stroke="rgba(0,0,0,0.75)" strokeWidth="1.8" />
+      <circle cx={cwX} cy={cwY} r="9.5" fill="#1a1b1e" />
+      <circle cx={cwX} cy={cwY} r="5" fill="#111" />
+      <circle cx={cwX - 3} cy={cwY - 3.5} r="2.2" fill="rgba(255,255,255,0.28)" />
+      <circle cx={px} cy={py} r="23" fill={`url(#${id}-bearing)`} stroke="rgba(0,0,0,0.82)" strokeWidth="2"
         filter={`url(#${id}-soft)`} />
-      <circle cx={px} cy={py} r="13" fill="rgba(0,0,0,0.5)" />
-      <circle cx={px} cy={py} r="6" fill="#1e1e1e" />
-      <circle cx={px - 3.5} cy={py - 3.5} r="2.2" fill="rgba(255,255,255,0.7)" />
-      {/* S-shaped arm body */}
-      <polygon points={poly}
-        fill={`url(#${id}-arm)`} stroke="rgba(0,0,0,0.4)" strokeWidth="0.7" strokeLinejoin="round" />
-      {/* Arm highlight */}
-      <polygon points={hlPoly} fill="rgba(255,255,255,0.22)" strokeWidth="0" />
-      {/* Headshell */}
+      <circle cx={px} cy={py} r="15" fill="#0c0d0f" />
+      <circle cx={px} cy={py} r="8" fill="#161718" />
+      <circle cx={px} cy={py} r="3.8" fill="#111" stroke="rgba(255,255,255,0.07)" strokeWidth="0.8" />
+      <circle cx={px - 4.5} cy={py - 5} r="2.8" fill="rgba(255,255,255,0.22)" />
+      <polygon points={poly} fill={`url(#${id}-arm-metal)`} stroke="rgba(0,0,0,0.55)" strokeWidth="0.8" strokeLinejoin="round" />
+      <polygon points={hlPoly} fill="rgba(255,255,255,0.20)" strokeWidth="0" />
       <g transform={`translate(${sx} ${sy}) rotate(${angle})`}>
-        {/* Headshell body - AT-HS6 style */}
-        <path d="M -52 -11 L -18 -13 Q -9 -13 -5 -6 L -1 5 Q -5 13 -14 14 L -52 11 Z"
-          fill="#b5b5b5" stroke="rgba(0,0,0,0.45)" strokeWidth="1.2"
-          filter={`url(#${id}-soft)`} />
-        {/* Cartridge body (AT-VM95E blue) */}
-        <rect x="-46" y="-7" width="26" height="14" rx="3" fill="#1c2b4a" />
-        <rect x="-44" y="-5" width="22" height="5" rx="1.5" fill="rgba(60,120,220,0.6)" />
-        <rect x="-44" y="2" width="22" height="3" rx="1" fill="rgba(40,100,180,0.35)" />
-        {/* Cartridge label */}
-        <text x="-33" y="1" fill="rgba(180,210,255,0.9)" fontSize="4.5"
-          fontFamily="monospace" textAnchor="middle">AT-VM95E</text>
-        {/* Stylus cantilever */}
-        <path d="M -18 6 L -6 4 L -1 0" fill="none" stroke="#888" strokeWidth="1.2" />
-        <path d="M -5 4 L 0 0" fill="none" stroke="#555" strokeWidth="1.5" strokeLinecap="round" />
-        <circle cx="0" cy="0" r="1.8" fill="rgba(140,220,255,0.9)" />
-        {/* Headshell highlight */}
-        <path d="M -50 -9 L -16 -11" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" strokeLinecap="round" />
-        {/* Stylus target light */}
-        <rect x="-52" y="-14" width="6" height="4" rx="1" fill="#f0d060" opacity="0.85" />
-        <circle cx="-49" cy="-12" r="1.5" fill="rgba(255,255,220,0.9)" />
+        <path d="M -52 -10 L -17 -12 Q -8 -12 -4 -6 L 0 5 Q -4 12 -13 12 L -52 10 Z"
+          fill="#b0b2b8" stroke="rgba(0,0,0,0.55)" strokeWidth="1.1" filter={`url(#${id}-soft)`} />
+        <rect x="-47" y="-7" width="26" height="13" rx="2.5" fill="#1e2236" />
+        <rect x="-45" y="-5" width="22" height="5" rx="1.5" fill="rgba(65,115,205,0.55)" />
+        <path d="M -18 6 L -5 3.5 L 0 0" fill="none" stroke="#888" strokeWidth="1.2" />
+        <circle cx="0" cy="0" r="1.9" fill="rgba(140,220,255,0.92)" />
+        <path d="M -50 -8 L -15 -10" stroke="rgba(255,255,255,0.42)" strokeWidth="1.1" strokeLinecap="round" />
       </g>
     </g>
   );
 }
 
-// Technics SL-1200 style S-tonearm for realistic2
-function SL1200Tonearm({ id, geometry, stylus }: any) {
-  const px = geometry.pivotX;
-  const py = geometry.pivotY;
-  const sx = stylus.x;
-  const sy = stylus.y;
+// Generic S-shaped tonearm for belt-drive style decks
+function BeltDriveTonearm({ id, geometry, stylus }: any) {
+  const px = geometry.pivotX; const py = geometry.pivotY;
+  const sx = stylus.x; const sy = stylus.y;
   const dx = sx - px; const dy = sy - py;
-  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
   const armLen = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
   const ux = dx / Math.max(1, armLen); const uy = dy / Math.max(1, armLen);
   const perpX = -uy; const perpY = ux;
   const start = { x: px + ux * 22, y: py + uy * 22 };
-  const mid1 = { x: px + ux * (armLen * 0.44) + perpX * 10, y: py + uy * (armLen * 0.44) + perpY * 10 };
-  const mid2 = { x: px + ux * (armLen * 0.68) - perpX * 7, y: py + uy * (armLen * 0.68) - perpY * 7 };
-  const hEnd = { x: sx - ux * 36, y: sy - uy * 36 };
+  const mid1 = { x: px + ux * (armLen * 0.42) + perpX * 11, y: py + uy * (armLen * 0.42) + perpY * 11 };
+  const mid2 = { x: px + ux * (armLen * 0.66) - perpX * 8, y: py + uy * (armLen * 0.66) - perpY * 8 };
+  const hEnd = { x: sx - ux * 38, y: sy - uy * 38 };
   const pts = [start, mid1, mid2, hEnd];
-  const ws = [7, 5, 4, 3];
-  const buildSide = (pts2: {x:number,y:number}[], widths: number[], side: 1|-1) =>
-    pts2.map((p, i) => ({ x: p.x + perpX * widths[i] * side, y: p.y + perpY * widths[i] * side }));
+  const ws = [7, 5.5, 4.2, 3.0];
+  const buildSide = (arr: {x:number,y:number}[], widths: number[], side: 1|-1) =>
+    arr.map((p, i) => ({ x: p.x + perpX * widths[i] * side, y: p.y + perpY * widths[i] * side }));
   const left = buildSide(pts, ws, 1);
   const right = buildSide(pts, ws, -1).reverse();
   const poly = [...left, ...right].map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const cwX = px - ux * 42; const cwY = py - uy * 42;
+  const hlLeft = buildSide(pts, ws.map(w => w - 1.4), 1);
+  const hlRight = buildSide(pts, ws.map(w => w - 2.8), 1).reverse();
+  const hlPoly = [...hlLeft, ...hlRight].map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const cwX = px - ux * 44; const cwY = py - uy * 44;
   return (
     <g>
-      <circle cx={cwX} cy={cwY} r="15"
-        fill="#d0cfc8" stroke="rgba(0,0,0,0.6)" strokeWidth="2" />
-      <circle cx={cwX} cy={cwY} r="8" fill="#b0afa8" />
-      <circle cx={cwX - 3} cy={cwY - 3} r="2.5" fill="rgba(255,255,255,0.35)" />
-      <circle cx={px} cy={py} r="22"
-        fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.6)" strokeWidth="2"
+      <defs>
+        <radialGradient id={`${id}-cw2`} cx="36%" cy="28%" r="70%">
+          <stop offset="0%" stopColor="#c8cad0" /><stop offset="55%" stopColor="#8a8c94" /><stop offset="100%" stopColor="#4a4c52" />
+        </radialGradient>
+        <radialGradient id={`${id}-bearing2`} cx="38%" cy="30%" r="68%">
+          <stop offset="0%" stopColor="#686a72" /><stop offset="50%" stopColor="#38393e" /><stop offset="100%" stopColor="#141518" />
+        </radialGradient>
+        <linearGradient id={`${id}-arm2`} x1="0" y1="0" x2="0.4" y2="1">
+          <stop offset="0%" stopColor="#e2e4ea" /><stop offset="40%" stopColor="#acacb4" /><stop offset="100%" stopColor="#6a6c74" />
+        </linearGradient>
+      </defs>
+      <circle cx={cwX} cy={cwY} r="17" fill={`url(#${id}-cw2)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.8" />
+      <circle cx={cwX} cy={cwY} r="11" fill="#9a9ca4" />
+      <circle cx={cwX} cy={cwY} r="6" fill="#7a7c84" />
+      <circle cx={cwX - 3} cy={cwY - 4} r="2.5" fill="rgba(255,255,255,0.38)" />
+      <circle cx={px} cy={py} r="24" fill={`url(#${id}-bearing2)`} stroke="rgba(0,0,0,0.72)" strokeWidth="2"
         filter={`url(#${id}-soft)`} />
-      <circle cx={px} cy={py} r="14" fill="rgba(0,0,0,0.55)" />
-      <circle cx={px} cy={py} r="6" fill="#222" />
-      <circle cx={px - 3} cy={py - 3} r="2" fill="rgba(255,255,255,0.65)" />
-      <polygon points={poly}
-        fill={`url(#${id}-arm)`} stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" strokeLinejoin="round" />
+      <circle cx={px} cy={py} r="16" fill="#141518" />
+      <circle cx={px} cy={py} r="9" fill="#1a1b1f" />
+      <circle cx={px} cy={py} r="4" fill="#111" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
+      <circle cx={px - 5} cy={py - 5.5} r="3" fill="rgba(255,255,255,0.26)" />
+      <polygon points={poly} fill={`url(#${id}-arm2)`} stroke="rgba(0,0,0,0.45)" strokeWidth="0.9" strokeLinejoin="round" />
+      <polygon points={hlPoly} fill="rgba(255,255,255,0.22)" strokeWidth="0" />
       <g transform={`translate(${sx} ${sy}) rotate(${angle})`}>
-        <path d="M -48 -10 L -16 -12 Q -9 -12 -5 -6 L -1 5 Q -5 13 -14 13 L -48 10 Z"
-          fill="#cdcdcd" stroke="rgba(0,0,0,0.4)" strokeWidth="1" filter={`url(#${id}-soft)`} />
-        <rect x="-42" y="-7" width="24" height="14" rx="3" fill="#111" />
-        <rect x="-40" y="-5" width="20" height="5" rx="1.5" fill="rgba(200,180,40,0.7)" />
-        <text x="-30" y="1" fill="rgba(255,240,120,0.9)" fontSize="4"
-          fontFamily="monospace" textAnchor="middle">TECHNICS</text>
-        <path d="M -16 6 L -4 4 L 0 0" fill="none" stroke="#999" strokeWidth="1.2" />
-        <circle cx="0" cy="0" r="1.8" fill="rgba(255,200,60,0.9)" />
-        <path d="M -46 -8 L -14 -10" stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeLinecap="round" />
+        <path d="M -50 -10 L -16 -12 Q -8 -12 -4 -5 L 0 5 Q -4 12 -12 12 L -50 10 Z"
+          fill="#c8cacc" stroke="rgba(0,0,0,0.45)" strokeWidth="1" filter={`url(#${id}-soft)`} />
+        <rect x="-44" y="-7" width="24" height="13" rx="2.5" fill="#111" />
+        <rect x="-42" y="-5" width="20" height="5" rx="1.5" fill="rgba(210,170,40,0.55)" />
+        <path d="M -17 6 L -4 3.5 L 0 0" fill="none" stroke="#999" strokeWidth="1.2" />
+        <circle cx="0" cy="0" r="1.9" fill="rgba(255,200,60,0.92)" />
+        <path d="M -48 -8 L -14 -10" stroke="rgba(255,255,255,0.38)" strokeWidth="1.0" strokeLinecap="round" />
       </g>
     </g>
   );
@@ -1082,9 +1070,7 @@ function SL1200Tonearm({ id, geometry, stylus }: any) {
 
 function StandardControls({ id, style, textColor }: any) {
   const s = normalizeDeckStyle(style);
-  if (s === "realistic1" || s === "realistic2" || s === "dark" || s === "chrome" || s === "wood") {
-    return null;
-  }
+  if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) return null;
   if (s !== "minimal") {
     return (
       <g>
@@ -1093,9 +1079,7 @@ function StandardControls({ id, style, textColor }: any) {
           <g key={label}>
             <rect x={62 + i * 58} y="486" width="42" height="18" rx="5"
               fill="rgba(255,255,255,0.12)" stroke="rgba(0,0,0,0.22)" strokeWidth="0.8" />
-            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">
-              {label}
-            </text>
+            <text x={83 + i * 58} y="499" fill={textColor} fontSize="9" fontFamily="monospace" textAnchor="middle">{label}</text>
           </g>
         ))}
       </g>
@@ -1110,301 +1094,445 @@ function StandardControls({ id, style, textColor }: any) {
   );
 }
 
-// AT-LP120X full-detail control panel
-function ATLP120XControls({ id, textColor }: any) {
-  // Strobe dots around platter edge
-  const cx = 238; const cy = 292; const strobeR = 222;
+// Wide-format direct-drive deck (760x560)
+function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
+  const id = "deck-dd";
+  const g = deckGeometry("realistic1");
+  const stylus = groovePoint(g, vinylRadius, progress);
+  const holeR = (platterRadius ?? vinylRadius) + 9;
+  const hole = holePath(g.cx, g.cy, holeR);
+  const board = "M18 8 Q8 8 8 18 L8 550 Q8 560 18 560 L750 560 Q760 560 760 550 L760 18 Q760 8 750 8 Z";
+  const cx = g.cx; const cy = g.cy;
+  // Strobe dots around platter rim
   const strobeDots: React.ReactNode[] = [];
-  const dotCount = 48;
+  const dotCount = 60; const strobeR = holeR + 16;
   for (let i = 0; i < dotCount; i++) {
-    const a = (i / dotCount) * Math.PI * 2 - Math.PI / 2;
-    const bx = cx + Math.cos(a) * strobeR;
-    const by = cy + Math.sin(a) * strobeR;
+    const a = (i / dotCount) * Math.PI * 2;
     strobeDots.push(
-      <rect key={i} x={bx - 1.5} y={by - 1} width="3" height="2"
-        rx="0.5" fill="rgba(255,255,255,0.55)"
-        transform={`rotate(${(i / dotCount) * 360} ${bx} ${by})`} />
+      <rect key={i} x={(cx + Math.cos(a) * strobeR - 1.5).toFixed(1)} y={(cy + Math.sin(a) * strobeR - 1).toFixed(1)}
+        width="3" height="2" rx="0.5" fill="rgba(255,255,255,0.5)"
+        transform={`rotate(${(i / dotCount * 360).toFixed(1)} ${(cx + Math.cos(a) * strobeR).toFixed(1)} ${(cy + Math.sin(a) * strobeR).toFixed(1)})`} />
     );
   }
   return (
-    <g>
-      {/* Outer chassis inner bevel */}
-      <rect x="32" y="32" width="496" height="496" rx="10"
-        fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="2" />
-      <rect x="36" y="36" width="488" height="488" rx="8"
-        fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" />
+    <svg viewBox="0 0 760 560"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
+      <defs>
+        <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="14" stdDeviation="18" floodOpacity="0.55" /></filter>
+        <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.32" /></filter>
+        <filter id={`${id}-glow`}><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        {/* Plinth gradient — matte black with edge lighting */}
+        <linearGradient id={`${id}-plinth`} x1="0" y1="0" x2="0.25" y2="1">
+          <stop offset="0%" stopColor="#3a3d44" />
+          <stop offset="22%" stopColor="#26282e" />
+          <stop offset="55%" stopColor="#1a1c20" />
+          <stop offset="100%" stopColor="#0d0e10" />
+        </linearGradient>
+        {/* Platter gradient — die-cast aluminum */}
+        <radialGradient id={`${id}-platter`} cx="40%" cy="34%" r="72%">
+          <stop offset="0%" stopColor="#525560" />
+          <stop offset="38%" stopColor="#2e3038" />
+          <stop offset="72%" stopColor="#1c1e24" />
+          <stop offset="100%" stopColor="#111318" />
+        </radialGradient>
+        {/* Rubber mat on platter */}
+        <radialGradient id={`${id}-mat`} cx="38%" cy="32%" r="68%">
+          <stop offset="0%" stopColor="#2a2a2c" />
+          <stop offset="60%" stopColor="#1a1a1c" />
+          <stop offset="100%" stopColor="#111112" />
+        </radialGradient>
+        {/* Top-edge highlight on plinth */}
+        <linearGradient id={`${id}-tophl`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
+          <stop offset="30%" stopColor="rgba(255,255,255,0.22)" />
+          <stop offset="70%" stopColor="rgba(255,255,255,0.14)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
+        </linearGradient>
+        {/* Right panel gradient */}
+        <linearGradient id={`${id}-panel`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2a2c32" />
+          <stop offset="50%" stopColor="#1e2026" />
+          <stop offset="100%" stopColor="#141618" />
+        </linearGradient>
+        {/* Knob gradient */}
+        <radialGradient id={`${id}-knob`} cx="35%" cy="28%" r="70%">
+          <stop offset="0%" stopColor="#e2e4e8" /><stop offset="50%" stopColor="#909298" /><stop offset="100%" stopColor="#3a3c42" />
+        </radialGradient>
+        <linearGradient id={`${id}-arm-metal`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#d0d2d8" /><stop offset="35%" stopColor="#9a9da6" /><stop offset="100%" stopColor="#5a5c62" />
+        </linearGradient>
+        <radialGradient id={`${id}-cw`} cx="38%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#606268" /><stop offset="60%" stopColor="#35373c" /><stop offset="100%" stopColor="#1c1d20" />
+        </radialGradient>
+        <radialGradient id={`${id}-bearing`} cx="36%" cy="28%" r="68%">
+          <stop offset="0%" stopColor="#5a5c62" /><stop offset="50%" stopColor="#2a2c30" /><stop offset="100%" stopColor="#0e0f11" />
+        </radialGradient>
+        <radialGradient id={`${id}-startbtn`} cx="38%" cy="28%" r="72%">
+          <stop offset="0%" stopColor="#3a6a3a" /><stop offset="55%" stopColor="#1c4a1c" /><stop offset="100%" stopColor="#0a200a" />
+        </radialGradient>
+        <radialGradient id={`${id}-spindle`} cx="35%" cy="28%" r="68%">
+          <stop offset="0%" stopColor="#d0d2d8" /><stop offset="55%" stopColor="#8a8c92" /><stop offset="100%" stopColor="#4a4c52" />
+        </radialGradient>
+      </defs>
 
-      {/* Top-left: brand plate */}
-      <rect x="42" y="42" width="176" height="38" rx="4"
-        fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.08)" />
-      <text x="54" y="57" fill="rgba(255,255,255,0.85)" fontSize="10"
-        fontFamily="'Arial', sans-serif" fontWeight="bold" letterSpacing="1.5">AUDIO-TECHNICA</text>
-      <text x="54" y="71" fill="rgba(200,210,255,0.65)" fontSize="7.5"
-        fontFamily="monospace" letterSpacing="2.5">AT-LP120X · DIRECT DRIVE</text>
+      {/* Plinth body */}
+      <path d={`${board} ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd"
+        filter={`url(#${id}-shadow)`} />
+
+      {/* Top-edge bevel highlight */}
+      <path d="M18 8 Q8 8 8 18 L8 20 Q8 10 18 10 L750 10 Q760 10 760 20 L760 18 Q760 8 750 8 Z"
+        fill={`url(#${id}-tophl)`} />
+      {/* Left-edge soft highlight */}
+      <path d="M8 18 Q8 8 18 8 L20 8 Q10 8 10 18 L10 550 Q10 560 20 560 L18 560 Q8 560 8 550 Z"
+        fill="rgba(255,255,255,0.06)" />
+      {/* Bottom-edge shadow */}
+      <path d="M8 548 Q8 560 18 560 L750 560 Q760 560 760 548 L760 550 Q760 558 750 558 L18 558 Q10 558 10 550 Z"
+        fill="rgba(0,0,0,0.5)" />
+
+      {/* Right control panel separator */}
+      <rect x="503" y="12" width="2" height="536" fill="rgba(0,0,0,0.6)" />
+      <rect x="505" y="12" width="2" height="536" fill="rgba(255,255,255,0.06)" />
+
+      {/* Platter (aluminum) ring — outer edge */}
+      <circle cx={cx} cy={cy} r={holeR + 28} fill={`url(#${id}-platter)`}
+        stroke="rgba(0,0,0,0.7)" strokeWidth="2" />
+      {/* Platter outer rim highlight */}
+      <circle cx={cx} cy={cy} r={holeR + 27} fill="none"
+        stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
+      <circle cx={cx} cy={cy} r={holeR + 25} fill="none"
+        stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
+
+      {/* Rubber mat */}
+      <circle cx={cx} cy={cy} r={holeR + 18} fill={`url(#${id}-mat)`} />
+      {/* Mat texture rings */}
+      <circle cx={cx} cy={cy} r={holeR + 8} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="6" />
+      <circle cx={cx} cy={cy} r={holeR - 4} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="4" />
 
       {/* Strobe dots */}
       {strobeDots}
 
-      {/* Strobe speed indicator bar (right of platter) */}
-      <rect x="402" y="268" width="56" height="10" rx="3" fill="rgba(0,0,0,0.5)" />
-      <rect x="408" y="270" width="44" height="6" rx="2" fill="rgba(255,255,255,0.06)" />
-      {[0, 14, 28, 42].map(ox => (
-        <rect key={ox} x={410 + ox} y="271" width="8" height="4"
-          rx="1" fill="rgba(255,255,255,0.30)" />
-      ))}
-      <text x="430" y="291" fill="rgba(255,255,255,0.38)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">STROBE</text>
+      {/* Platter center ring details */}
+      <circle cx={cx} cy={cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="8" />
+      <circle cx={cx} cy={cy} r={holeR + 16} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+      <circle cx={cx} cy={cy} r={holeR + 11} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3" />
+      <circle cx={cx} cy={cy} r={holeR + 5} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
 
-      {/* Bottom left control zone - recessed panel */}
-      <rect x="42" y="448" width="316" height="80" rx="6"
-        fill="rgba(0,0,0,0.38)" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+      {/* Right panel */}
+      <rect x="510" y="14" width="242" height="534" rx="4" fill={`url(#${id}-panel)`} />
 
-      {/* START/STOP button */}
-      <circle cx="82" cy="478" r="16" fill="#1a1a1a" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"
+      {/* Start/Stop button */}
+      <circle cx="631" cy="82" r="28" fill="#111418" stroke="rgba(0,0,0,0.9)" strokeWidth="2.5"
         filter={`url(#${id}-soft)`} />
-      <circle cx="82" cy="478" r="12"
-        fill="radial-gradient(circle at 40% 35%, #4a4a4a, #1a1a1a)" />
-      <circle cx="82" cy="478" r="9" fill="#2a2a2a" />
-      <circle cx="82" cy="478" r="6" fill="#222"
-        stroke="rgba(80,200,80,0.7)" strokeWidth="1.5" />
-      <circle cx="82" cy="478" r="3.5" fill="rgba(60,180,60,0.9)" />
-      <text x="82" y="500" fill="rgba(255,255,255,0.5)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">START/STOP</text>
+      <circle cx="631" cy="82" r="22" fill="#0e1012" />
+      <circle cx="631" cy="82" r="16" fill={`url(#${id}-startbtn)`} stroke="rgba(80,200,80,0.4)" strokeWidth="1.2" />
+      <circle cx="631" cy="82" r="9" fill="rgba(50,160,50,0.85)" />
+      <circle cx="631" cy="82" r="4.5" fill="rgba(120,240,120,0.9)" filter={`url(#${id}-glow)`} />
+      <circle cx="626" cy="77" r="2.5" fill="rgba(255,255,255,0.35)" />
+      <text x="631" y="121" fill="rgba(255,255,255,0.45)" fontSize="7.5" fontFamily="monospace" textAnchor="middle" letterSpacing="1">START / STOP</text>
 
-      {/* Speed buttons: 33 / 45 / 78 */}
-      {(["33", "45", "78"] as string[]).map((spd, i) => {
-        const bx = 120 + i * 42; const by = 468;
+      {/* Speed selector buttons 33 / 45 / 78 */}
+      {(["33","45","78"] as string[]).map((spd, i) => {
+        const bx = 518 + i * 52; const by = 138;
         const active = i === 0;
         return (
           <g key={spd}>
-            <rect x={bx} y={by} width="34" height="20" rx="4"
-              fill={active ? "rgba(40,100,200,0.75)" : "rgba(30,30,30,0.8)"}
-              stroke={active ? "rgba(80,150,255,0.6)" : "rgba(255,255,255,0.12)"}
-              strokeWidth="1" />
-            <text x={bx + 17} y={by + 13.5} fill={active ? "#c8dfff" : "rgba(255,255,255,0.55)"}
-              fontSize="8.5" fontFamily="monospace" textAnchor="middle" fontWeight={active ? "bold" : "normal"}>
-              {spd}
-            </text>
+            <rect x={bx} y={by} width="44" height="24" rx="5"
+              fill={active ? "rgba(40,90,200,0.8)" : "rgba(20,22,28,0.85)"}
+              stroke={active ? "rgba(80,140,255,0.7)" : "rgba(255,255,255,0.10)"} strokeWidth="1.2" />
+            <rect x={bx+1} y={by+1} width="42" height="10" rx="4"
+              fill={active ? "rgba(120,180,255,0.15)" : "rgba(255,255,255,0.04)"} />
+            <text x={bx + 22} y={by + 16} fill={active ? "#c8dfff" : "rgba(200,205,215,0.55)"}
+              fontSize="9.5" fontFamily="monospace" textAnchor="middle" fontWeight={active ? "bold" : "normal"}>{spd}</text>
           </g>
         );
       })}
-      <text x="188" y="501" fill="rgba(255,255,255,0.35)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">RPM</text>
+      <text x="609" y="180" fill="rgba(255,255,255,0.30)" fontSize="7" fontFamily="monospace" textAnchor="middle">RPM</text>
 
-      {/* Pitch slider: +/-8% +/-16% */}
-      <rect x="242" y="456" width="48" height="16" rx="3"
-        fill="rgba(20,20,20,0.7)" stroke="rgba(255,255,255,0.1)" />
-      <text x="266" y="467" fill="rgba(255,255,255,0.45)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">±8% ±16%</text>
-
-      {/* Pitch fader */}
-      <rect x="254" y="475" width="7" height="52" rx="3"
-        fill="#0d0d0d" stroke="rgba(255,255,255,0.12)" />
-      <rect x="250" y="491" width="15" height="10" rx="2"
-        fill="#d0d0d0" stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
-      <line x1="250" y1="496" x2="265" y2="496" stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" />
-      <text x="258" y="541" fill="rgba(255,255,255,0.35)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">PITCH</text>
-
-      {/* Tonearm panel: anti-skate, tracking force */}
-      <rect x="416" y="448" width="112" height="78" rx="5"
-        fill="rgba(0,0,0,0.32)" stroke="rgba(255,255,255,0.07)" />
+      {/* Pitch fader slot */}
+      <rect x="518" y="196" width="10" height="200" rx="4" fill="#080a0c" stroke="rgba(255,255,255,0.10)" strokeWidth="1" />
+      {/* Pitch center mark */}
+      <line x1="514" y1="296" x2="530" y2="296" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />
+      {/* Pitch fader knob */}
+      <rect x="514" y="286" width="18" height="20" rx="3.5"
+        fill="#d4d6da" stroke="rgba(0,0,0,0.55)" strokeWidth="1.2" filter={`url(#${id}-soft)`} />
+      <rect x="514" y="286" width="18" height="9" rx="3.5" fill="rgba(255,255,255,0.22)" />
+      <line x1="514" y1="296" x2="532" y2="296" stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
+      <text x="523" y="408" fill="rgba(255,255,255,0.30)" fontSize="7" fontFamily="monospace" textAnchor="middle">PITCH</text>
+      {/* Pitch scale marks */}
+      {[0,1,2,3,4,5,6].map(i => (
+        <g key={i}>
+          <line x1={i===3?"512":"516"} y1={200+i*33} x2="528" y2={200+i*33}
+            stroke={i===3?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.18)"} strokeWidth={i===3?1.2:0.8} />
+          <text x="510" y={204+i*33} fill="rgba(255,255,255,0.25)" fontSize="5.5" fontFamily="monospace" textAnchor="end">
+            {i===0?"+8":i===1?"+4":i===2?"+2":i===3?"0":i===4?"-2":i===5?"-4":"-8"}
+          </text>
+        </g>
+      ))}
 
       {/* Anti-skate dial */}
-      <circle cx="444" cy="474" r="12" fill="#1a1a1a" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-      <circle cx="444" cy="474" r="8" fill="#222" />
-      {/* Dial tick marks */}
+      <circle cx="574" cy="440" r="16" fill="#0c0e12" stroke="rgba(255,255,255,0.13)" strokeWidth="1.2" />
+      <circle cx="574" cy="440" r="11" fill="#141618" />
       {[0,45,90,135,180,225,270,315].map((a,i) => {
-        const ar = a * Math.PI / 180;
-        return <line key={i}
-          x1={444 + Math.cos(ar) * 6} y1={474 + Math.sin(ar) * 6}
-          x2={444 + Math.cos(ar) * 9} y2={474 + Math.sin(ar) * 9}
-          stroke="rgba(255,255,255,0.3)" strokeWidth="0.8" />;
+        const ar = (a-90)*Math.PI/180;
+        return <line key={i} x1={(574+Math.cos(ar)*8).toFixed(1)} y1={(440+Math.sin(ar)*8).toFixed(1)}
+          x2={(574+Math.cos(ar)*12).toFixed(1)} y2={(440+Math.sin(ar)*12).toFixed(1)}
+          stroke="rgba(255,255,255,0.25)" strokeWidth="0.9" />;
       })}
-      <line x1="444" y1="474" x2={444 + Math.cos(-0.8) * 6} y2={474 + Math.sin(-0.8) * 6}
-        stroke="rgba(255,255,255,0.8)" strokeWidth="1.2" strokeLinecap="round" />
-      <text x="444" y="492" fill="rgba(255,255,255,0.4)" fontSize="5.5"
-        fontFamily="monospace" textAnchor="middle">ANTI-SKATE</text>
+      <line x1="574" y1="440" x2={(574+Math.cos(-0.9)*8).toFixed(1)} y2={(440+Math.sin(-0.9)*8).toFixed(1)}
+        stroke="rgba(255,255,255,0.85)" strokeWidth="1.3" strokeLinecap="round" />
+      <text x="574" y="465" fill="rgba(255,255,255,0.30)" fontSize="5.5" fontFamily="monospace" textAnchor="middle">ANTI-SKATE</text>
 
       {/* Tracking force ring */}
-      <circle cx="498" cy="474" r="12" fill="#1a1a1a" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-      <circle cx="498" cy="474" r="8" fill="#222" />
+      <circle cx="630" cy="440" r="16" fill="#0c0e12" stroke="rgba(255,255,255,0.13)" strokeWidth="1.2" />
+      <circle cx="630" cy="440" r="11" fill="#141618" />
       {[0,45,90,135,180,225,270,315].map((a,i) => {
-        const ar = a * Math.PI / 180;
-        return <line key={i}
-          x1={498 + Math.cos(ar) * 6} y1={474 + Math.sin(ar) * 6}
-          x2={498 + Math.cos(ar) * 9} y2={474 + Math.sin(ar) * 9}
-          stroke="rgba(255,255,255,0.3)" strokeWidth="0.8" />;
+        const ar = (a-90)*Math.PI/180;
+        return <line key={i} x1={(630+Math.cos(ar)*8).toFixed(1)} y1={(440+Math.sin(ar)*8).toFixed(1)}
+          x2={(630+Math.cos(ar)*12).toFixed(1)} y2={(440+Math.sin(ar)*12).toFixed(1)}
+          stroke="rgba(255,255,255,0.25)" strokeWidth="0.9" />;
       })}
-      <line x1="498" y1="474" x2={498 + Math.cos(0.5) * 6} y2={474 + Math.sin(0.5) * 6}
-        stroke="rgba(255,255,255,0.8)" strokeWidth="1.2" strokeLinecap="round" />
-      <text x="498" y="492" fill="rgba(255,255,255,0.4)" fontSize="5.5"
-        fontFamily="monospace" textAnchor="middle">TRACKING</text>
+      <line x1="630" y1="440" x2={(630+Math.cos(0.6)*8).toFixed(1)} y2={(440+Math.sin(0.6)*8).toFixed(1)}
+        stroke="rgba(255,255,255,0.85)" strokeWidth="1.3" strokeLinecap="round" />
+      <text x="630" y="465" fill="rgba(255,255,255,0.30)" fontSize="5.5" fontFamily="monospace" textAnchor="middle">TRACKING</text>
 
       {/* Tonearm lift lever */}
-      <rect x="428" y="498" width="80" height="14" rx="4"
-        fill="rgba(20,20,20,0.7)" stroke="rgba(255,255,255,0.1)" />
-      <rect x="456" y="499" width="14" height="12" rx="2"
-        fill="#bbb" stroke="rgba(0,0,0,0.4)" />
-      <text x="468" y="520" fill="rgba(255,255,255,0.35)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">LIFT</text>
+      <rect x="660" y="430" width="70" height="16" rx="4" fill="#0a0c10" stroke="rgba(255,255,255,0.10)" strokeWidth="1" />
+      <rect x="685" y="431" width="18" height="14" rx="2.5" fill="#c8cad0" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+      <line x1="685" y1="438" x2="703" y2="438" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
+      <text x="695" y="460" fill="rgba(255,255,255,0.25)" fontSize="6" fontFamily="monospace" textAnchor="middle">LIFT</text>
 
-      {/* Top-right: USB port + phono/line */}
-      <rect x="428" y="42" width="100" height="52" rx="4"
-        fill="rgba(0,0,0,0.38)" stroke="rgba(255,255,255,0.07)" />
-      <text x="478" y="57" fill="rgba(255,255,255,0.45)" fontSize="6.5"
-        fontFamily="monospace" textAnchor="middle" letterSpacing="1">OUTPUTS</text>
-      {/* USB port */}
-      <rect x="436" y="62" width="22" height="14" rx="2"
-        fill="#141414" stroke="rgba(255,255,255,0.18)" />
-      <rect x="439" y="65" width="16" height="8" rx="1" fill="rgba(40,80,200,0.4)" />
-      <text x="447" y="85" fill="rgba(255,255,255,0.3)" fontSize="5.5"
-        fontFamily="monospace" textAnchor="middle">USB</text>
-      {/* Phono/line switch */}
-      <rect x="464" y="62" width="36" height="14" rx="3"
-        fill="#0d0d0d" stroke="rgba(255,255,255,0.12)" />
-      <rect x="464" y="62" width="18" height="14" rx="3"
-        fill="rgba(40,100,200,0.5)" />
-      <text x="473" y="72" fill="rgba(200,220,255,0.9)" fontSize="5.5"
-        fontFamily="monospace" textAnchor="middle">PH</text>
-      <text x="491" y="72" fill="rgba(255,255,255,0.4)" fontSize="5.5"
-        fontFamily="monospace" textAnchor="middle">LN</text>
-      <text x="482" y="85" fill="rgba(255,255,255,0.3)" fontSize="5.5"
-        fontFamily="monospace" textAnchor="middle">PHONO/LINE</text>
-    </g>
+      {/* Strobe indicator LED */}
+      <rect x="548" y="430" width="16" height="16" rx="3" fill="#080a0c" stroke="rgba(255,255,255,0.10)" />
+      <circle cx="556" cy="438" r="4.5" fill="rgba(255,160,20,0.85)" filter={`url(#${id}-glow)`} />
+      <text x="556" y="458" fill="rgba(255,255,255,0.25)" fontSize="5.5" fontFamily="monospace" textAnchor="middle">STROBE</text>
+
+      {/* Tonearm */}
+      <DirectDriveTonearm id={id} geometry={g} stylus={stylus} />
+
+      {/* Spindle */}
+      <circle cx={cx} cy={cy} r="7" fill={`url(#${id}-spindle)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.2" />
+      <circle cx={cx} cy={cy} r="3.2" fill="#d8dade" />
+      <circle cx={cx-1.5} cy={cy-1.8} r="1.2" fill="rgba(255,255,255,0.9)" />
+    </svg>
   );
 }
 
-// Technics SL-1200 control panel for realistic2
-function SL1200Controls({ id, textColor }: any) {
-  const cx = 248; const cy = 282;
-  // Strobe dots - smaller and tighter
+// Wide-format belt-drive deck (760x560)
+function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
+  const id = "deck-bd";
+  const g = deckGeometry("realistic2");
+  const stylus = groovePoint(g, vinylRadius, progress);
+  const holeR = (platterRadius ?? vinylRadius) + 9;
+  const hole = holePath(g.cx, g.cy, holeR);
+  const board = "M22 8 Q8 8 8 22 L8 548 Q8 560 22 560 L748 560 Q760 560 760 548 L760 22 Q760 8 748 8 Z";
+  const cx = g.cx; const cy = g.cy;
+  // Strobe dots
   const strobeDots: React.ReactNode[] = [];
-  const dotCount = 64;
-  const strobeR = 218;
+  const dotCount = 64; const strobeR = holeR + 16;
   for (let i = 0; i < dotCount; i++) {
-    const a = (i / dotCount) * Math.PI * 2 - Math.PI / 2;
-    const bx = cx + Math.cos(a) * strobeR;
-    const by = cy + Math.sin(a) * strobeR;
-    strobeDots.push(
-      <circle key={i} cx={bx} cy={by} r="1.5" fill="rgba(255,255,255,0.45)" />
-    );
+    const a = (i / dotCount) * Math.PI * 2;
+    strobeDots.push(<circle key={i} cx={(cx+Math.cos(a)*strobeR).toFixed(1)} cy={(cy+Math.sin(a)*strobeR).toFixed(1)} r="1.6" fill="rgba(255,255,255,0.42)" />);
   }
   return (
-    <g>
-      {/* Chassis bevels */}
-      <rect x="20" y="20" width="520" height="520" rx="52"
-        fill="none" stroke="rgba(0,0,0,0.7)" strokeWidth="3" />
-      <rect x="24" y="24" width="512" height="512" rx="50"
-        fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5" />
+    <svg viewBox="0 0 760 560"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}>
+      <defs>
+        <filter id={`${id}-shadow`}><feDropShadow dx="0" dy="14" stdDeviation="18" floodOpacity="0.5" /></filter>
+        <filter id={`${id}-soft`}><feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28" /></filter>
+        <filter id={`${id}-glow`}><feGaussianBlur stdDeviation="1.8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id={`${id}-plinth`} x1="0.05" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor="#e8e4dc" />
+          <stop offset="25%" stopColor="#cec8bc" />
+          <stop offset="60%" stopColor="#b8b2a6" />
+          <stop offset="100%" stopColor="#9a948a" />
+        </linearGradient>
+        <radialGradient id={`${id}-platter`} cx="38%" cy="32%" r="72%">
+          <stop offset="0%" stopColor="#484a50" />
+          <stop offset="40%" stopColor="#2c2e34" />
+          <stop offset="75%" stopColor="#1c1e24" />
+          <stop offset="100%" stopColor="#0e1014" />
+        </radialGradient>
+        <radialGradient id={`${id}-mat`} cx="36%" cy="30%" r="68%">
+          <stop offset="0%" stopColor="#2e2e30" />
+          <stop offset="60%" stopColor="#1e1e20" />
+          <stop offset="100%" stopColor="#141416" />
+        </radialGradient>
+        <linearGradient id={`${id}-tophl`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
+          <stop offset="35%" stopColor="rgba(255,255,255,0.45)" />
+          <stop offset="65%" stopColor="rgba(255,255,255,0.28)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
+        </linearGradient>
+        <linearGradient id={`${id}-panel`} x1="0" y1="0" x2="0.1" y2="1">
+          <stop offset="0%" stopColor="#2c2e34" />
+          <stop offset="50%" stopColor="#1e2028" />
+          <stop offset="100%" stopColor="#14161c" />
+        </linearGradient>
+        <radialGradient id={`${id}-knob`} cx="35%" cy="28%" r="70%">
+          <stop offset="0%" stopColor="#e0e2e6" /><stop offset="50%" stopColor="#8c8e94" /><stop offset="100%" stopColor="#383a40" />
+        </radialGradient>
+        <radialGradient id={`${id}-bearing2`} cx="38%" cy="30%" r="68%">
+          <stop offset="0%" stopColor="#686a72" /><stop offset="50%" stopColor="#38393e" /><stop offset="100%" stopColor="#141518" />
+        </radialGradient>
+        <radialGradient id={`${id}-cw2`} cx="36%" cy="28%" r="70%">
+          <stop offset="0%" stopColor="#c8cad0" /><stop offset="55%" stopColor="#8a8c94" /><stop offset="100%" stopColor="#4a4c52" />
+        </radialGradient>
+        <linearGradient id={`${id}-arm2`} x1="0" y1="0" x2="0.4" y2="1">
+          <stop offset="0%" stopColor="#e2e4ea" /><stop offset="40%" stopColor="#acacb4" /><stop offset="100%" stopColor="#6a6c74" />
+        </linearGradient>
+        <radialGradient id={`${id}-spindle`} cx="35%" cy="28%" r="68%">
+          <stop offset="0%" stopColor="#d0d2d8" /><stop offset="55%" stopColor="#8a8c92" /><stop offset="100%" stopColor="#4a4c52" />
+        </radialGradient>
+        <radialGradient id={`${id}-startbtn`} cx="38%" cy="28%" r="72%">
+          <stop offset="0%" stopColor="#3a6a3a" /><stop offset="55%" stopColor="#1c4a1c" /><stop offset="100%" stopColor="#0a200a" />
+        </radialGradient>
+      </defs>
 
-      {/* Top panel label */}
-      <rect x="46" y="42" width="186" height="36" rx="4"
-        fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.07)" />
-      <text x="58" y="56" fill="rgba(255,255,255,0.9)" fontSize="10.5"
-        fontFamily="'Arial', sans-serif" fontWeight="bold" letterSpacing="1.5">TECHNICS</text>
-      <text x="58" y="70" fill="rgba(220,200,80,0.75)" fontSize="7"
-        fontFamily="monospace" letterSpacing="2">SL-1200MK2 · DIRECT DRIVE</text>
+      {/* Plinth */}
+      <path d={`${board} ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd"
+        filter={`url(#${id}-shadow)`} />
+      {/* Top highlight */}
+      <path d="M22 8 Q8 8 8 22 L8 24 Q8 10 22 10 L748 10 Q760 10 760 24 L760 22 Q760 8 748 8 Z"
+        fill={`url(#${id}-tophl)`} />
+      {/* Left highlight */}
+      <path d="M8 22 Q8 8 22 8 L24 8 Q10 8 10 22 L10 548 Q10 560 24 560 L22 560 Q8 560 8 548 Z"
+        fill="rgba(255,255,255,0.14)" />
+      {/* Bottom shadow */}
+      <path d="M8 546 Q8 560 22 560 L748 560 Q760 560 760 546 L760 548 Q760 558 748 558 L22 558 Q10 558 10 548 Z"
+        fill="rgba(0,0,0,0.35)" />
 
+      {/* Panel divider */}
+      <rect x="503" y="12" width="2" height="536" fill="rgba(0,0,0,0.5)" />
+      <rect x="505" y="12" width="1.5" height="536" fill="rgba(255,255,255,0.10)" />
+
+      {/* Platter */}
+      <circle cx={cx} cy={cy} r={holeR + 28} fill={`url(#${id}-platter)`}
+        stroke="rgba(0,0,0,0.6)" strokeWidth="2" />
+      <circle cx={cx} cy={cy} r={holeR + 26.5} fill="none"
+        stroke="rgba(255,255,255,0.14)" strokeWidth="1.2" />
+      {/* Rubber mat */}
+      <circle cx={cx} cy={cy} r={holeR + 18} fill={`url(#${id}-mat)`} />
+      <circle cx={cx} cy={cy} r={holeR + 9} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="6" />
+      <circle cx={cx} cy={cy} r={holeR - 3} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="4" />
       {/* Strobe dots */}
       {strobeDots}
+      {/* Platter rings */}
+      <circle cx={cx} cy={cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="7" />
+      <circle cx={cx} cy={cy} r={holeR + 16} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.8" />
+      <circle cx={cx} cy={cy} r={holeR + 11} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="2.5" />
+      <circle cx={cx} cy={cy} r={holeR + 5} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
 
-      {/* Pitch fader: right side */}
-      <rect x="432" y="120" width="14" height="260" rx="5"
-        fill="#0a0a0a" stroke="rgba(255,255,255,0.12)" />
-      <rect x="428" y="220" width="22" height="16" rx="3"
-        fill="#d5d5d5" stroke="rgba(0,0,0,0.45)" />
-      <line x1="428" y1="228" x2="450" y2="228" stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
-      {/* Pitch markings */}
-      {[-6,-4,-2,0,2,4,6].map((v, i) => (
-        <g key={v}>
-          <line x1="414" y1={126 + i * 37} x2={v === 0 ? "430" : "422"} y2={126 + i * 37}
-            stroke={v === 0 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)"} strokeWidth={v === 0 ? 1.2 : 0.8} />
-          <text x="410" y={130 + i * 37} fill="rgba(255,255,255,0.35)" fontSize="6"
-            fontFamily="monospace" textAnchor="end">{v > 0 ? `+${v}` : v}</text>
-        </g>
-      ))}
-      <text x="439" y="395" fill="rgba(255,255,255,0.35)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">PITCH</text>
-
-      {/* Bottom control panel */}
-      <rect x="42" y="448" width="360" height="82" rx="6"
-        fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.07)" />
+      {/* Right control panel */}
+      <rect x="510" y="14" width="242" height="534" rx="4" fill={`url(#${id}-panel)`} />
 
       {/* START button */}
-      <circle cx="80" cy="478" r="15" fill="#111" stroke="rgba(255,255,255,0.14)" strokeWidth="1.5" />
-      <circle cx="80" cy="478" r="10" fill="#222" />
-      <circle cx="80" cy="478" r="6" fill="rgba(80,200,80,0.85)" />
-      <text x="80" y="499" fill="rgba(255,255,255,0.45)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">START</text>
+      <circle cx="600" cy="80" r="26" fill="#0e1218" stroke="rgba(0,0,0,0.85)" strokeWidth="2.2" filter={`url(#${id}-soft)`} />
+      <circle cx="600" cy="80" r="20" fill="#0c1016" />
+      <circle cx="600" cy="80" r="14" fill={`url(#${id}-startbtn)`} stroke="rgba(80,200,80,0.35)" strokeWidth="1" />
+      <circle cx="600" cy="80" r="8" fill="rgba(50,160,50,0.88)" />
+      <circle cx="600" cy="80" r="4" fill="rgba(120,240,120,0.92)" filter={`url(#${id}-glow)`} />
+      <circle cx="596" cy="76" r="2.2" fill="rgba(255,255,255,0.32)" />
+      <text x="600" y="116" fill="rgba(255,255,255,0.4)" fontSize="7" fontFamily="monospace" textAnchor="middle" letterSpacing="1">START</text>
 
       {/* STOP button */}
-      <circle cx="130" cy="478" r="15" fill="#111" stroke="rgba(255,255,255,0.14)" strokeWidth="1.5" />
-      <circle cx="130" cy="478" r="10" fill="#222" />
-      <circle cx="130" cy="478" r="6" fill="rgba(200,50,50,0.85)" />
-      <text x="130" y="499" fill="rgba(255,255,255,0.45)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">STOP</text>
+      <circle cx="666" cy="80" r="26" fill="#0e1218" stroke="rgba(0,0,0,0.85)" strokeWidth="2.2" filter={`url(#${id}-soft)`} />
+      <circle cx="666" cy="80" r="20" fill="#0c1016" />
+      <circle cx="666" cy="80" r="14" fill="rgba(30,8,8,0.95)" stroke="rgba(200,60,60,0.35)" strokeWidth="1" />
+      <circle cx="666" cy="80" r="8" fill="rgba(180,45,45,0.88)" />
+      <circle cx="666" cy="80" r="4" fill="rgba(240,100,100,0.92)" filter={`url(#${id}-glow)`} />
+      <circle cx="662" cy="76" r="2.2" fill="rgba(255,255,255,0.28)" />
+      <text x="666" y="116" fill="rgba(255,255,255,0.4)" fontSize="7" fontFamily="monospace" textAnchor="middle" letterSpacing="1">STOP</text>
 
-      {/* Speed selectors */}
-      {(["33", "45"] as string[]).map((spd, i) => {
-        const bx = 170 + i * 50; const by = 467;
+      {/* Speed buttons 33 / 45 */}
+      {(["33","45"] as string[]).map((spd, i) => {
+        const bx = 526 + i * 64; const by = 134;
         const active = i === 0;
         return (
           <g key={spd}>
-            <rect x={bx} y={by} width="42" height="22" rx="4"
-              fill={active ? "rgba(200,170,40,0.6)" : "rgba(30,30,30,0.8)"}
-              stroke={active ? "rgba(230,200,60,0.5)" : "rgba(255,255,255,0.1)"} />
-            <text x={bx + 21} y={by + 15} fill={active ? "#ffe87a" : "rgba(255,255,255,0.45)"}
-              fontSize="9" fontFamily="monospace" textAnchor="middle" fontWeight="bold">
-              {spd}
-            </text>
+            <rect x={bx} y={by} width="56" height="26" rx="6"
+              fill={active ? "rgba(195,160,30,0.75)" : "rgba(16,18,24,0.88)"}
+              stroke={active ? "rgba(230,195,50,0.6)" : "rgba(255,255,255,0.09)"} strokeWidth="1.2" />
+            <rect x={bx+1} y={by+1} width="54" height="11" rx="5"
+              fill={active ? "rgba(255,230,100,0.18)" : "rgba(255,255,255,0.04)"} />
+            <text x={bx + 28} y={by + 17} fill={active ? "#ffe882" : "rgba(200,205,215,0.50)"}
+              fontSize="10" fontFamily="monospace" textAnchor="middle" fontWeight={active ? "bold" : "normal"}>{spd}</text>
           </g>
         );
       })}
+      <text x="609" y="177" fill="rgba(255,255,255,0.28)" fontSize="7" fontFamily="monospace" textAnchor="middle">RPM</text>
 
-      {/* Cue button */}
-      <rect x="280" y="458" width="52" height="36" rx="5"
-        fill="rgba(180,120,20,0.3)" stroke="rgba(220,160,40,0.3)" />
-      <text x="306" y="474" fill="rgba(220,200,80,0.7)" fontSize="8"
-        fontFamily="monospace" textAnchor="middle">CUE</text>
-      <circle cx="306" cy="484" r="5" fill="rgba(220,180,40,0.5)" />
-
-      {/* Strobe indicator light */}
-      <rect x="348" y="460" width="42" height="18" rx="3"
-        fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.08)" />
-      <circle cx="360" cy="469" r="4" fill="rgba(255,120,20,0.8)" />
-      <text x="378" y="472" fill="rgba(255,255,255,0.35)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">STROBE</text>
-
-      {/* Anti-skate + tracking knobs */}
-      <rect x="420" y="442" width="110" height="96" rx="5"
-        fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.06)" />
-      {[{ label: "ANTI-SKATE", cx: 450, cy: 464 }, { label: "TRACKING", cx: 500, cy: 464 }].map(k => (
-        <g key={k.label}>
-          <circle cx={k.cx} cy={k.cy} r="12" fill="#141414" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-          <circle cx={k.cx} cy={k.cy} r="8" fill="#1e1e1e" />
-          {[0,60,120,180,240,300].map((a, i) => {
-            const ar = (a - 90) * Math.PI / 180;
-            return <line key={i}
-              x1={k.cx + Math.cos(ar) * 6} y1={k.cy + Math.sin(ar) * 6}
-              x2={k.cx + Math.cos(ar) * 9} y2={k.cy + Math.sin(ar) * 9}
-              stroke="rgba(255,255,255,0.3)" strokeWidth="0.9" />;
-          })}
-          <line x1={k.cx} y1={k.cy}
-            x2={k.cx + Math.cos(-1.2) * 6} y2={k.cy + Math.sin(-1.2) * 6}
-            stroke="rgba(255,200,60,0.9)" strokeWidth="1.2" strokeLinecap="round" />
-          <text x={k.cx} y={k.cy + 20} fill="rgba(255,255,255,0.35)" fontSize="5"
-            fontFamily="monospace" textAnchor="middle">{k.label}</text>
+      {/* Pitch slider (right edge of panel) */}
+      <rect x="732" y="196" width="10" height="200" rx="4" fill="#080a0e" stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
+      <line x1="728" y1="296" x2="744" y2="296" stroke="rgba(255,255,255,0.4)" strokeWidth="1.1" />
+      <rect x="728" y="286" width="18" height="20" rx="3.5"
+        fill="#c8cace" stroke="rgba(0,0,0,0.55)" strokeWidth="1.2" filter={`url(#${id}-soft)`} />
+      <rect x="728" y="286" width="18" height="9" rx="3.5" fill="rgba(255,255,255,0.20)" />
+      <line x1="728" y1="296" x2="746" y2="296" stroke="rgba(0,0,0,0.32)" strokeWidth="0.9" />
+      {[0,1,2,3,4,5,6].map(i => (
+        <g key={i}>
+          <line x1={i===3?"726":"729"} y1={200+i*33} x2="742" y2={200+i*33}
+            stroke={i===3?"rgba(255,255,255,0.45)":"rgba(255,255,255,0.16)"} strokeWidth={i===3?1.2:0.8} />
+          <text x="724" y={204+i*33} fill="rgba(255,255,255,0.22)" fontSize="5.5" fontFamily="monospace" textAnchor="end">
+            {i===0?"+6":i===1?"+4":i===2?"+2":i===3?"0":i===4?"-2":i===5?"-4":"-6"}
+          </text>
         </g>
       ))}
+      <text x="737" y="412" fill="rgba(255,255,255,0.25)" fontSize="7" fontFamily="monospace" textAnchor="middle">PITCH</text>
+
+      {/* Equalizer / VU meters (decorative) */}
+      <rect x="516" y="200" width="206" height="72" rx="4" fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.06)" />
+      {[0,1,2,3,4,5,6,7].map(i => {
+        const barH = [38,52,46,62,44,58,36,50][i];
+        const col = i < 4 ? `rgba(60,200,80,0.8)` : `rgba(220,180,40,0.8)`;
+        return (
+          <g key={i}>
+            <rect x={524+i*24} y={268-barH} width="16" height={barH} rx="2" fill={col} opacity="0.7" />
+            <rect x={524+i*24} y={268-barH} width="16" height="6" rx="2" fill="rgba(255,255,255,0.3)" />
+          </g>
+        );
+      })}
+      <text x="619" y="283" fill="rgba(255,255,255,0.22)" fontSize="6.5" fontFamily="monospace" textAnchor="middle">LEVEL</text>
+
+      {/* Anti-skate */}
+      <circle cx="565" cy="440" r="16" fill="#0e1018" stroke="rgba(255,255,255,0.11)" strokeWidth="1.2" />
+      <circle cx="565" cy="440" r="10.5" fill="#161820" />
+      {[0,45,90,135,180,225,270,315].map((a,i) => {
+        const ar=(a-90)*Math.PI/180;
+        return <line key={i} x1={(565+Math.cos(ar)*8).toFixed(1)} y1={(440+Math.sin(ar)*8).toFixed(1)}
+          x2={(565+Math.cos(ar)*12).toFixed(1)} y2={(440+Math.sin(ar)*12).toFixed(1)}
+          stroke="rgba(255,255,255,0.22)" strokeWidth="0.9" />;
+      })}
+      <line x1="565" y1="440" x2={(565+Math.cos(-0.9)*8).toFixed(1)} y2={(440+Math.sin(-0.9)*8).toFixed(1)}
+        stroke="rgba(255,200,60,0.9)" strokeWidth="1.3" strokeLinecap="round" />
+      <text x="565" y="465" fill="rgba(255,255,255,0.25)" fontSize="5.5" fontFamily="monospace" textAnchor="middle">ANTI-SKATE</text>
+
+      {/* Tracking */}
+      <circle cx="622" cy="440" r="16" fill="#0e1018" stroke="rgba(255,255,255,0.11)" strokeWidth="1.2" />
+      <circle cx="622" cy="440" r="10.5" fill="#161820" />
+      {[0,45,90,135,180,225,270,315].map((a,i) => {
+        const ar=(a-90)*Math.PI/180;
+        return <line key={i} x1={(622+Math.cos(ar)*8).toFixed(1)} y1={(440+Math.sin(ar)*8).toFixed(1)}
+          x2={(622+Math.cos(ar)*12).toFixed(1)} y2={(440+Math.sin(ar)*12).toFixed(1)}
+          stroke="rgba(255,255,255,0.22)" strokeWidth="0.9" />;
+      })}
+      <line x1="622" y1="440" x2={(622+Math.cos(0.5)*8).toFixed(1)} y2={(440+Math.sin(0.5)*8).toFixed(1)}
+        stroke="rgba(255,200,60,0.9)" strokeWidth="1.3" strokeLinecap="round" />
+      <text x="622" y="465" fill="rgba(255,255,255,0.25)" fontSize="5.5" fontFamily="monospace" textAnchor="middle">TRACKING</text>
+
       {/* Tonearm lift */}
-      <rect x="430" y="492" width="90" height="14" rx="4"
-        fill="rgba(10,10,10,0.7)" stroke="rgba(255,255,255,0.1)" />
-      <rect x="458" y="493" width="14" height="12" rx="2"
-        fill="#cccccc" stroke="rgba(0,0,0,0.4)" />
-      <text x="475" y="516" fill="rgba(255,255,255,0.35)" fontSize="6"
-        fontFamily="monospace" textAnchor="middle">LIFT</text>
-    </g>
+      <rect x="648" y="430" width="72" height="16" rx="4" fill="#0a0c12" stroke="rgba(255,255,255,0.09)" />
+      <rect x="672" y="431" width="18" height="14" rx="2.5" fill="#c0c2c8" stroke="rgba(0,0,0,0.5)" />
+      <line x1="672" y1="438" x2="690" y2="438" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
+      <text x="684" y="458" fill="rgba(255,255,255,0.22)" fontSize="6" fontFamily="monospace" textAnchor="middle">LIFT</text>
+
+      {/* Tonearm */}
+      <BeltDriveTonearm id={id} geometry={g} stylus={stylus} />
+
+      {/* Spindle */}
+      <circle cx={cx} cy={cy} r="7" fill={`url(#${id}-spindle)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.2" />
+      <circle cx={cx} cy={cy} r="3.2" fill="#d8dade" />
+      <circle cx={cx-1.5} cy={cy-1.8} r="1.2" fill="rgba(255,255,255,0.9)" />
+    </svg>
   );
 }
 
@@ -1442,24 +1570,20 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
           <rect x="38" y="38" width="484" height="484" rx="11" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
         </>
       )}
-      {s === "realistic1" && <ATLP120XControls id={id} textColor={textColor} />}
-      {s === "realistic2" && <SL1200Controls id={id} textColor={textColor} />}
       <circle cx={g.cx} cy={g.cy} r={holeR + 20} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="9" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 14} fill="none" stroke="rgba(255,255,255,0.20)" strokeWidth="2.5" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 8} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3.5" />
       <circle cx={g.cx} cy={g.cy} r={holeR + 2} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
-      {(s === "realistic1" || s === "realistic2") ? null : <StandardControls id={id} style={s} textColor={textColor} />}
-      {s === "realistic1"
-        ? <ATLP120XTonearm id={id} geometry={g} stylus={stylus} />
-        : s === "realistic2"
-        ? <SL1200Tonearm id={id} geometry={g} stylus={stylus} />
-        : <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />}
+      <StandardControls id={id} style={s} textColor={textColor} />
+      <Tonearm id={id} geometry={g} stylus={stylus} textColor={textColor} />
       <circle cx={g.cx} cy={g.cy} r="7" fill={`url(#${id}-knob)`} stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
       <circle cx={g.cx} cy={g.cy} r="3" fill="rgba(255,255,255,0.55)" />
       <circle cx={g.cx - 1.5} cy={g.cy - 1.5} r="1.2" fill="rgba(255,255,255,0.85)" />
     </svg>
   );
 }
+
+
 
 function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any) {
   const id = "deck-realistic3";
@@ -1679,6 +1803,12 @@ function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, pr
   const s = normalizeDeckStyle(style);
   if (s === "realistic3") {
     return <Realistic3Deck vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
+  }
+  if (s === "realistic1") {
+    return <DirectDriveDeck vinylRadius={vinylRadius} platterRadius={platterRadius} progress={progress} />;
+  }
+  if (s === "realistic2") {
+    return <BeltDriveDeck vinylRadius={vinylRadius} platterRadius={platterRadius} progress={progress} />;
   }
   return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
 }
@@ -2775,6 +2905,7 @@ export function Aurae() {
   const [renameModal, setRenameModal] = useState<any>(null);
   const [songMenu, setSongMenu] = useState<any>(null);
   const [projectMenu, setProjectMenu] = useState<any>(null);
+  const [storageMenu, setStorageMenu] = useState<any>(null);
   const [focusedProjectName, setFocusedProjectName] = useState<string | null>(null);
   const [draggingProject, setDraggingProject] = useState<string | null>(null);
   const [dropTargetProject, setDropTargetProject] = useState<string | null>(null);
@@ -3084,6 +3215,68 @@ export function Aurae() {
     }
   }, [view, handleGoogleLogin]);
 
+  // Listen for mock Google popup result
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "GOOGLE_MOCK_SUCCESS" && event.data?.payload) {
+        handleGoogleLogin(event.data.payload);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [handleGoogleLogin]);
+
+  const openMockGooglePopup = useCallback(() => {
+    const width = 480; const height = 580;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const popup = window.open("about:blank", "GoogleSignIn",
+      `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`);
+    if (!popup) return;
+    popup.document.write(`<!DOCTYPE html><html><head>
+<title>Sign in with Google</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{font-family:'Roboto',sans-serif;background:#f0f4f9;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;color:#1f1f1f}
+.card{background:#fff;border-radius:28px;padding:36px 40px;width:360px;box-shadow:0 4px 60px rgba(0,0,0,.08);border:1px solid #e0e0e0;text-align:center}
+.google-logo{margin-bottom:12px}
+h1{font-size:22px;font-weight:400;margin:0 0 6px}p{font-size:15px;color:#444746;margin:0 0 24px}
+input{width:100%;padding:13px;border:1px solid #747775;border-radius:4px;font-size:15px;margin-bottom:14px;outline:none;transition:border .2s;font-family:inherit}
+input:focus{border:2px solid #0b57d0;padding:12px}
+label{display:block;text-align:left;font-size:12px;color:#444746;margin-bottom:4px}
+.btn-group{display:flex;justify-content:flex-end;margin-top:20px}
+.btn{background:#0b57d0;color:#fff;border:none;border-radius:100px;padding:10px 24px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit}
+.btn:hover{box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.footer{font-size:11px;color:#444746;margin-top:28px;display:flex;justify-content:space-between}
+.footer a{color:#444746;text-decoration:none}.footer a:hover{text-decoration:underline}
+.err{color:#c62828;font-size:12px;text-align:left;margin:-8px 0 8px}
+</style></head><body><div class="card">
+<svg class="google-logo" viewBox="0 0 24 24" width="28" height="28"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/></svg>
+<h1>Sign in</h1><p>with your Google Account</p>
+<label for="g-name">Full Name</label><input id="g-name" type="text" placeholder="Your Name" autocomplete="name"/>
+<label for="g-email">Email</label><input id="g-email" type="email" placeholder="your@email.com" autocomplete="email"/>
+<div id="g-err" class="err"></div>
+<div class="btn-group"><button class="btn" onclick="submit()">Next</button></div>
+<div class="footer"><div></div><div><a href="#">Help</a>&nbsp;&nbsp;<a href="#">Privacy</a>&nbsp;&nbsp;<a href="#">Terms</a></div></div>
+</div>
+<script>
+function submit(){
+  var name=document.getElementById('g-name').value.trim();
+  var email=document.getElementById('g-email').value.trim();
+  var err=document.getElementById('g-err');
+  if(!name){err.textContent='Please enter your name.';return;}
+  if(!email||!email.includes('@')||!email.includes('.')){err.textContent='Please enter a valid email address.';return;}
+  err.textContent='';
+  var payload={name:name,email:email,sub:'google-oauth-'+btoa(email).replace(/=/g,'')};
+  if(window.opener){window.opener.postMessage({type:'GOOGLE_MOCK_SUCCESS',payload:payload},'*');}
+  window.close();
+}
+document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
+</script></body></html>`);
+    popup.document.close();
+  }, [handleGoogleLogin]);
+
   function logout() {
     clearSession();
     setCurrentUser("");
@@ -3209,6 +3402,19 @@ export function Aurae() {
     setHoveredProject(null);
     setNewStorageName("New Storage");
     setShowStorageCreate(false);
+  }
+
+  function deleteStorage(storageId: string) {
+    if (!currentUser) return;
+    setStorageConfigs((prev: any) => {
+      const shelf = prev[currentUser];
+      if (!shelf || !Array.isArray(shelf.items)) return prev;
+      const remaining = shelf.items.filter((item: any) => item.id !== storageId);
+      if (remaining.length === 0) { setStorageMenu(null); return prev; }
+      const newActiveId = shelf.activeId === storageId ? remaining[0].id : shelf.activeId;
+      return { ...prev, [currentUser]: { ...shelf, activeId: newActiveId, items: remaining } };
+    });
+    setStorageMenu(null);
   }
 
   async function createProject(name = projectName) {
@@ -3583,11 +3789,15 @@ export function Aurae() {
     audio.src = track.url;
     audio.preload = "metadata";
     audio.load();
-    ensureAudioGraph();
-    audio.play().catch((err) => {
-      console.error("Playback failed:", err);
-      setPlaying(false);
-    });
+    audio.play()
+      .then(() => {
+        if (stageMode === "equalizer") ensureAudioGraph();
+        audioCtxRef.current?.resume?.().catch(() => {});
+      })
+      .catch((err) => {
+        console.error("Playback failed:", err);
+        setPlaying(false);
+      });
   }
 
   function flipVinyl() {
@@ -3627,7 +3837,15 @@ export function Aurae() {
     if (awaitingFlip) { flipVinyl(); return; }
     if (!audio.src && tracks[0]) { playTrack(0); return; }
     if (playing) { audio.pause(); setPlaying(false); }
-    else { ensureAudioGraph(); audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
+    else {
+      audio.play()
+        .then(() => {
+          if (stageMode === "equalizer") ensureAudioGraph();
+          audioCtxRef.current?.resume?.().catch(() => {});
+          setPlaying(true);
+        })
+        .catch(() => setPlaying(false));
+    }
   }
 
   function prevTrack() { if (index > 0) playTrack(index - 1); }
@@ -3666,8 +3884,8 @@ export function Aurae() {
 
   const normalizedDeckStyle = normalizeDeckStyle(deckStyle);
   const geometry = deckGeometry(normalizedDeckStyle);
-  const compactDecks = ["realistic1", "realistic2", "dark", "chrome", "wood"].includes(normalizedDeckStyle);
-  const platterRadius = normalizedDeckStyle === "realistic3" ? 168 : compactDecks ? 164 : 188;
+  const compactDecks = ["dark", "chrome", "wood"].includes(normalizedDeckStyle);
+  const platterRadius = ["realistic1", "realistic2", "realistic3"].includes(normalizedDeckStyle) ? 172 : compactDecks ? 164 : 188;
   const vinylRadius = isSingle ? Math.round(platterRadius * 0.64) : platterRadius;
   const current = tracks[index];
   const displayDuration = duration || current?.duration || 0;
@@ -3702,19 +3920,27 @@ export function Aurae() {
           {GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com" ? (
             <div id="google-signin-btn" style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: 4 }} />
           ) : (
-            <div style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              background: dark ? "rgba(255,200,80,0.12)" : "rgba(255,200,80,0.08)",
-              border: dark ? "1px solid rgba(255,200,80,0.24)" : "1px solid rgba(250,180,50,0.16)",
-              color: text,
-              fontSize: 11,
-              lineHeight: 1.45,
-              textAlign: "center"
-            }}>
-              <strong>Google Sign-In is disabled.</strong><br/>
-              To sign in with your own account, set a valid <code>GOOGLE_CLIENT_ID</code> inside <code>App.tsx</code>.
-            </div>
+            <button
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                padding: "11px 14px", borderRadius: 14, width: "100%",
+                border: dark ? "1px solid rgba(255,255,255,0.16)" : "1px solid #dadce0",
+                background: dark ? "rgba(255,255,255,0.06)" : "#ffffff",
+                color: dark ? "#ffffff" : "#3c4043",
+                cursor: "pointer", fontFamily: "Roboto, Arial, sans-serif",
+                fontSize: 13, fontWeight: 500,
+                boxShadow: dark ? "none" : "0 1px 2px rgba(60,64,67,.3),0 1px 3px 1px rgba(60,64,67,.15)",
+                transition: "background .2s"
+              }}
+              onClick={openMockGooglePopup}>
+              <svg viewBox="0 0 24 24" width="18" height="18" style={{ flexShrink: 0 }}>
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+              </svg>
+              Sign in with Google
+            </button>
           )}
         </div>
       </div>
@@ -3780,7 +4006,9 @@ export function Aurae() {
               <div style={S.sectionTitle}>Storages</div>
               <div style={S.storageTabs}>
                 {storageShelf.items.map((item: any) => (
-                  <button key={item.id} style={{ ...S.storageTab, ...(item.id === storageConfig.id ? S.storageTabActive : {}) }} onClick={() => setActiveStorage(item.id)}>
+                  <button key={item.id} style={{ ...S.storageTab, ...(item.id === storageConfig.id ? S.storageTabActive : {}) }}
+                    onClick={() => setActiveStorage(item.id)}
+                    onContextMenu={(e) => { e.preventDefault(); setStorageMenu({ x: e.clientX, y: e.clientY, id: item.id, name: item.name }); }}>
                     <span>{item.name}</span>
                     <small>{item.projects.filter((name: string) => projectsMeta[name]).length}</small>
                   </button>
@@ -3954,6 +4182,25 @@ export function Aurae() {
               <button style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
                 onClick={() => { deleteProject(projectMenu.name); setProjectMenu(null); }}>delete</button>
               <button style={S.menuBtn} onClick={() => setProjectMenu(null)}>close</button>
+            </div>
+          </>
+        )}
+
+        {storageMenu && (
+          <>
+            <div style={{ position: "fixed", inset: 0, zIndex: 998 }}
+              onClick={() => setStorageMenu(null)}
+              onContextMenu={(e) => { e.preventDefault(); setStorageMenu(null); }} />
+            <div style={{
+              ...S.menu,
+              left: Math.min(storageMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 200),
+              top: Math.min(storageMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 110),
+              minWidth: 180, zIndex: 999,
+            }}>
+              <div style={{ padding: "6px 10px 4px", fontSize: 10, opacity: 0.55, letterSpacing: 1, textTransform: "uppercase" }}>{storageMenu.name}</div>
+              <button style={{ ...S.menuBtn, color: dark ? "#ff8a8a" : "#b13030" }}
+                onClick={() => deleteStorage(storageMenu.id)}>delete storage</button>
+              <button style={S.menuBtn} onClick={() => setStorageMenu(null)}>close</button>
             </div>
           </>
         )}
