@@ -1179,6 +1179,32 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
       <path d={`${board} ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd"
         filter={`url(#${id}-shadow)`} />
 
+      {/* Cast-aluminium surface micro-texture (faint speckle dots) on the plinth around the platter */}
+      {Array.from({ length: 220 }).map((_, i) => {
+        const seed = i * 9301 + 49297;
+        const rx = ((seed % 233280) / 233280); const ry = (((seed * 1103) % 233280) / 233280);
+        const x = 16 + rx * 480; const y = 16 + ry * 528;
+        const dxp = x - cx; const dyp = y - cy; const dist = Math.sqrt(dxp*dxp + dyp*dyp);
+        if (dist < holeR + 34 || x > 500) return null;
+        return <circle key={`dd-tex-${i}`} cx={x.toFixed(1)} cy={y.toFixed(1)} r="0.45" fill="rgba(255,255,255,0.05)" />;
+      })}
+      {/* Hairline machining swirl on the deck surface */}
+      <ellipse cx="260" cy="120" rx="220" ry="14" fill="none" stroke="rgba(255,255,255,0.025)" strokeWidth="0.6" />
+      <ellipse cx="260" cy="440" rx="220" ry="14" fill="none" stroke="rgba(255,255,255,0.025)" strokeWidth="0.6" />
+
+      {/* Recessed power switch (rectangular rocker, top-left) */}
+      <rect x="26" y="22" width="44" height="22" rx="3" fill="#0a0c10" stroke="rgba(0,0,0,0.7)" strokeWidth="1" />
+      <rect x="28" y="24" width="40" height="18" rx="2.5" fill="#16181d" />
+      <circle cx="36" cy="33" r="2.5" fill="rgba(220,60,60,0.7)" filter={`url(#${id}-glow)`} />
+      <text x="56" y="37" fill="rgba(255,255,255,0.45)" fontSize="6.5" fontFamily="monospace" textAnchor="middle">PWR</text>
+
+      {/* Pop-up target light (Technics-style arm illuminator) */}
+      <rect x="410" y="80" width="22" height="14" rx="2" fill="#0a0c10" stroke="rgba(0,0,0,0.6)" strokeWidth="0.9" />
+      <rect x="412" y="82" width="18" height="10" rx="1.5" fill="#1a1c22" />
+      <circle cx="421" cy="87" r="3.6" fill="rgba(255,235,160,0.85)" filter={`url(#${id}-glow)`} />
+      <circle cx="421" cy="87" r="1.5" fill="rgba(255,250,220,0.95)" />
+      <text x="421" y="106" fill="rgba(255,255,255,0.35)" fontSize="6" fontFamily="monospace" textAnchor="middle">TARGET</text>
+
       {/* Top-edge bevel highlight */}
       <path d="M18 8 Q8 8 8 18 L8 20 Q8 10 18 10 L750 10 Q760 10 760 20 L760 18 Q760 8 750 8 Z"
         fill={`url(#${id}-tophl)`} />
@@ -1193,9 +1219,12 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
       <rect x="503" y="12" width="2" height="536" fill="rgba(0,0,0,0.6)" />
       <rect x="505" y="12" width="2" height="536" fill="rgba(255,255,255,0.06)" />
 
-      {/* Platter (aluminum) ring — outer edge */}
-      <circle cx={cx} cy={cy} r={holeR + 28} fill={`url(#${id}-platter)`}
-        stroke="rgba(0,0,0,0.7)" strokeWidth="2" />
+      {/* Platter (aluminum) ring — donut so vinyl is visible through the centre */}
+      {(() => {
+        const R = holeR + 28; const r = vinylRadius;
+        const d = `M ${cx - R} ${cy} A ${R} ${R} 0 1 0 ${cx + R} ${cy} A ${R} ${R} 0 1 0 ${cx - R} ${cy} Z M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
+        return <path d={d} fill={`url(#${id}-platter)`} fillRule="evenodd" stroke="rgba(0,0,0,0.7)" strokeWidth="2" />;
+      })()}
       {/* Platter outer rim highlight */}
       <circle cx={cx} cy={cy} r={holeR + 27} fill="none"
         stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
@@ -1231,6 +1260,11 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
       <circle cx={cx} cy={cy} r={holeR + 16} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
       <circle cx={cx} cy={cy} r={holeR + 11} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3" />
       <circle cx={cx} cy={cy} r={holeR + 5} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
+      {/* Specular highlight arc on the platter (stationary glossy reflection) */}
+      <path d={`M ${cx + Math.cos(-2.4) * (holeR + 24)} ${cy + Math.sin(-2.4) * (holeR + 24)} A ${holeR + 24} ${holeR + 24} 0 0 1 ${cx + Math.cos(-1.55) * (holeR + 24)} ${cy + Math.sin(-1.55) * (holeR + 24)}`}
+        fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="3.5" strokeLinecap="round" opacity="0.55" />
+      <path d={`M ${cx + Math.cos(0.7) * (holeR + 24)} ${cy + Math.sin(0.7) * (holeR + 24)} A ${holeR + 24} ${holeR + 24} 0 0 1 ${cx + Math.cos(1.05) * (holeR + 24)} ${cy + Math.sin(1.05) * (holeR + 24)}`}
+        fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="2.2" strokeLinecap="round" opacity="0.6" />
 
       {/* Right panel */}
       <rect x="510" y="14" width="242" height="534" rx="4" fill={`url(#${id}-panel)`} />
@@ -1262,6 +1296,11 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
         );
       })}
       <text x="609" y="180" fill="rgba(255,255,255,0.30)" fontSize="7" fontFamily="monospace" textAnchor="middle">RPM</text>
+      {/* Brand engraving plate */}
+      <rect x="540" y="492" width="186" height="42" rx="3" fill="rgba(0,0,0,0.5)" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      <rect x="540" y="492" width="186" height="2" fill="rgba(255,255,255,0.10)" />
+      <text x="633" y="512" fill="rgba(220,225,235,0.85)" fontSize="13" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight="bold" textAnchor="middle" letterSpacing="3">SL-1210</text>
+      <text x="633" y="526" fill="rgba(180,190,210,0.55)" fontSize="6.5" fontFamily="monospace" textAnchor="middle" letterSpacing="3">DIRECT DRIVE · QUARTZ LOCK</text>
 
       {/* Pitch fader slot */}
       <rect x="518" y="196" width="10" height="200" rx="4" fill="#080a0c" stroke="rgba(255,255,255,0.10)" strokeWidth="1" />
@@ -1401,11 +1440,41 @@ function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
         <radialGradient id={`${id}-startbtn`} cx="38%" cy="28%" r="72%">
           <stop offset="0%" stopColor="#3a6a3a" /><stop offset="55%" stopColor="#1c4a1c" /><stop offset="100%" stopColor="#0a200a" />
         </radialGradient>
+        {/* Wood-grain pattern for the cream / walnut plinth */}
+        <pattern id={`${id}-grain`} x="0" y="0" width="520" height="11" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="2"  x2="520" y2="2"  stroke="rgba(80,55,30,0.10)" strokeWidth="0.8" />
+          <line x1="0" y1="5"  x2="520" y2="5"  stroke="rgba(255,250,235,0.08)" strokeWidth="0.6" />
+          <line x1="0" y1="8"  x2="520" y2="8"  stroke="rgba(70,45,25,0.08)" strokeWidth="0.7" />
+          <line x1="0" y1="10" x2="520" y2="10" stroke="rgba(120,85,50,0.06)" strokeWidth="0.4" />
+        </pattern>
+        <radialGradient id={`${id}-foot`} cx="35%" cy="32%" r="68%">
+          <stop offset="0%" stopColor="#5a4830" /><stop offset="60%" stopColor="#2a1d10" /><stop offset="100%" stopColor="#0d0805" />
+        </radialGradient>
       </defs>
 
       {/* Plinth */}
       <path d={`${board} ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd"
         filter={`url(#${id}-shadow)`} />
+      {/* Wood-grain overlay on the plinth (warm cream lacquered wood) */}
+      <path d={`${board} ${hole}`} fill={`url(#${id}-grain)`} fillRule="evenodd" opacity="0.75" />
+      {/* Subtle vignette darkening at edges */}
+      <path d={`${board} ${hole}`} fill="none" stroke="rgba(60,40,20,0.35)" strokeWidth="2.5" />
+      {/* Four recessed isolation feet (visible from above as dark insets at the corners) */}
+      <circle cx="48"  cy="50"  r="13" fill={`url(#${id}-foot)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.4" />
+      <circle cx="48"  cy="50"  r="8"  fill="#1a120a" stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
+      <circle cx="46"  cy="48"  r="2"  fill="rgba(255,255,255,0.14)" />
+      <circle cx="48"  cy="518" r="13" fill={`url(#${id}-foot)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.4" />
+      <circle cx="48"  cy="518" r="8"  fill="#1a120a" stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
+      <circle cx="46"  cy="516" r="2"  fill="rgba(255,255,255,0.14)" />
+      <circle cx="468" cy="50"  r="13" fill={`url(#${id}-foot)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.4" />
+      <circle cx="468" cy="50"  r="8"  fill="#1a120a" stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
+      <circle cx="466" cy="48"  r="2"  fill="rgba(255,255,255,0.14)" />
+      <circle cx="468" cy="518" r="13" fill={`url(#${id}-foot)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.4" />
+      <circle cx="468" cy="518" r="8"  fill="#1a120a" stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
+      <circle cx="466" cy="516" r="2"  fill="rgba(255,255,255,0.14)" />
+      {/* Brand engraving on the plinth */}
+      <text x="248" y="528" fill="rgba(60,40,20,0.55)" fontSize="11" fontFamily="'Times New Roman', serif" fontStyle="italic" textAnchor="middle" letterSpacing="4">Aurelia · BD-300</text>
+      <text x="248" y="540" fill="rgba(60,40,20,0.35)" fontSize="5.5" fontFamily="monospace" textAnchor="middle" letterSpacing="3">PRECISION BELT-DRIVE TURNTABLE</text>
       {/* Top highlight */}
       <path d="M22 8 Q8 8 8 22 L8 24 Q8 10 22 10 L748 10 Q760 10 760 24 L760 22 Q760 8 748 8 Z"
         fill={`url(#${id}-tophl)`} />
@@ -1420,9 +1489,12 @@ function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
       <rect x="503" y="12" width="2" height="536" fill="rgba(0,0,0,0.5)" />
       <rect x="505" y="12" width="1.5" height="536" fill="rgba(255,255,255,0.10)" />
 
-      {/* Platter */}
-      <circle cx={cx} cy={cy} r={holeR + 28} fill={`url(#${id}-platter)`}
-        stroke="rgba(0,0,0,0.6)" strokeWidth="2" />
+      {/* Platter — donut so vinyl is visible through the centre */}
+      {(() => {
+        const R = holeR + 28; const r = vinylRadius;
+        const d = `M ${cx - R} ${cy} A ${R} ${R} 0 1 0 ${cx + R} ${cy} A ${R} ${R} 0 1 0 ${cx - R} ${cy} Z M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
+        return <path d={d} fill={`url(#${id}-platter)`} fillRule="evenodd" stroke="rgba(0,0,0,0.6)" strokeWidth="2" />;
+      })()}
       <circle cx={cx} cy={cy} r={holeR + 26.5} fill="none"
         stroke="rgba(255,255,255,0.14)" strokeWidth="1.2" />
       {/* Felt slipmat — donut so the vinyl is visible through the centre */}
@@ -1693,6 +1765,20 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
         fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
       <path d={`M10 10 L482 10 L482 550 L10 550 Z ${hole}`}
         fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.65" />
+      {/* Piano-gloss specular highlight across the wood surface */}
+      <path d="M10 10 L482 10 L482 90 Q260 130 10 88 Z"
+        fill="rgba(255,255,255,0.18)" opacity="0.55" />
+      <path d="M10 470 Q260 500 482 472 L482 550 L10 550 Z"
+        fill="rgba(0,0,0,0.22)" opacity="0.6" />
+      {/* Four polished metal corner accents (Marantz / McIntosh style) */}
+      <rect x="20"  y="20"  width="22" height="22" rx="3" fill="none" stroke="rgba(200,180,140,0.55)" strokeWidth="1" />
+      <rect x="450" y="20"  width="22" height="22" rx="3" fill="none" stroke="rgba(200,180,140,0.55)" strokeWidth="1" />
+      <rect x="20"  y="518" width="22" height="22" rx="3" fill="none" stroke="rgba(200,180,140,0.55)" strokeWidth="1" />
+      <rect x="450" y="518" width="22" height="22" rx="3" fill="none" stroke="rgba(200,180,140,0.55)" strokeWidth="1" />
+      <circle cx="31"  cy="31"  r="1.6" fill="rgba(180,160,120,0.7)" />
+      <circle cx="461" cy="31"  r="1.6" fill="rgba(180,160,120,0.7)" />
+      <circle cx="31"  cy="529" r="1.6" fill="rgba(180,160,120,0.7)" />
+      <circle cx="461" cy="529" r="1.6" fill="rgba(180,160,120,0.7)" />
       {/* Plinth inner border */}
       <rect x="16" y="16" width="462" height="528" fill="none"
         stroke="rgba(0,0,0,0.18)" strokeWidth="1.5" />
@@ -1702,6 +1788,17 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
       {/* Divider strip */}
       <rect x="484" y="10" width="3" height="540" fill="#0c0a08" />
       <rect x="487" y="10" width="2" height="540" fill="rgba(255,255,255,0.06)" />
+
+      {/* Tonearm cueing lever (bottom-right of plinth, near the panel) */}
+      <rect x="430" y="500" width="44" height="14" rx="3" fill="#1a1610" stroke="rgba(0,0,0,0.55)" strokeWidth="1" />
+      <rect x="446" y="494" width="12" height="22" rx="2" fill="#c8c2b0" stroke="rgba(0,0,0,0.5)" strokeWidth="0.9" />
+      <line x1="446" y1="500" x2="458" y2="500" stroke="rgba(0,0,0,0.4)" strokeWidth="0.7" />
+      <text x="452" y="488" fill="rgba(60,40,20,0.6)" fontSize="5.5" fontFamily="monospace" textAnchor="middle">CUE</text>
+
+      {/* Brushed-brass serial plate */}
+      <rect x="36" y="500" width="120" height="36" rx="2" fill="rgba(120,95,55,0.18)" stroke="rgba(200,170,110,0.45)" strokeWidth="0.8" />
+      <text x="96" y="516" fill="rgba(60,40,20,0.75)" fontSize="9" fontFamily="'Times New Roman', serif" fontStyle="italic" textAnchor="middle" letterSpacing="2">Aurae</text>
+      <text x="96" y="528" fill="rgba(60,40,20,0.55)" fontSize="5.5" fontFamily="monospace" textAnchor="middle" letterSpacing="2">MODEL HS-700 · No. 04217</text>
 
       {/* Right control panel */}
       <rect x="490" y="10" width="264" height="540" rx="6"
@@ -4595,7 +4692,50 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
           <button style={S.menuBtn} onClick={() => setSongMenu(null)}>close</button>
         </div>
       )}
-      <audio ref={audioRef} />
+      <audio
+        ref={audioRef}
+        onTimeUpdate={(e) => {
+          const a = e.currentTarget;
+          const known = trackDuration(tracks[index]);
+          const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : known;
+          setCurrentTime(a.currentTime || 0);
+          setDuration(dur || 0);
+        }}
+        onLoadedMetadata={(e) => {
+          const a = e.currentTarget;
+          const known = trackDuration(tracks[index]);
+          const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : known;
+          setDuration(dur || 0);
+        }}
+        onDurationChange={(e) => {
+          const a = e.currentTarget;
+          const known = trackDuration(tracks[index]);
+          const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : known;
+          setDuration(dur || 0);
+        }}
+        onCanPlay={(e) => {
+          const a = e.currentTarget;
+          const known = trackDuration(tracks[index]);
+          const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : known;
+          setDuration(dur || 0);
+        }}
+        onEnded={() => {
+          const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
+          if (index === lastOfSide && vinylSide < totalSides) {
+            setPlaying(false);
+            if (vinylSide % 2 === 0) {
+              setGatefoldOpen(true);
+              setView("sleeve");
+            } else {
+              setAwaitingFlip(true);
+            }
+          } else if (index < tracks.length - 1) {
+            playTrack(index + 1);
+          } else {
+            setPlaying(false);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -4780,8 +4920,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
-
-
 
 
 
