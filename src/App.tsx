@@ -1202,11 +1202,26 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
       <circle cx={cx} cy={cy} r={holeR + 25} fill="none"
         stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
 
-      {/* Rubber mat */}
-      <circle cx={cx} cy={cy} r={holeR + 18} fill={`url(#${id}-mat)`} />
-      {/* Mat texture rings */}
-      <circle cx={cx} cy={cy} r={holeR + 8} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="6" />
-      <circle cx={cx} cy={cy} r={holeR - 4} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="4" />
+      {/* Rubber slipmat — donut so the vinyl is visible through the centre */}
+      {(() => {
+        const R = holeR + 18; const r = vinylRadius;
+        const d = `M ${cx - R} ${cy} A ${R} ${R} 0 1 0 ${cx + R} ${cy} A ${R} ${R} 0 1 0 ${cx - R} ${cy} Z M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
+        return <path d={d} fill={`url(#${id}-mat)`} fillRule="evenodd" />;
+      })()}
+      {/* Subtle slipmat radial fibre */}
+      <circle cx={cx} cy={cy} r={vinylRadius + 6} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="1.4 2.6" />
+      <circle cx={cx} cy={cy} r={vinylRadius + 12} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="1 3" />
+      {/* Drop-shadow of the vinyl resting on the mat */}
+      <circle cx={cx} cy={cy + 1.6} r={vinylRadius + 1.8} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="2.6" opacity="0.7" />
+      {/* Brushed-aluminium machining spokes on the outer platter ring */}
+      {Array.from({ length: 144 }).map((_, i) => {
+        const a = (i / 144) * Math.PI * 2;
+        const r1 = holeR + 19; const r2 = holeR + 27;
+        return <line key={`dd-sp-${i}`}
+          x1={(cx + Math.cos(a) * r1).toFixed(1)} y1={(cy + Math.sin(a) * r1).toFixed(1)}
+          x2={(cx + Math.cos(a) * r2).toFixed(1)} y2={(cy + Math.sin(a) * r2).toFixed(1)}
+          stroke="rgba(255,255,255,0.045)" strokeWidth="0.5" />;
+      })}
 
       {/* Strobe dots */}
       {strobeDots}
@@ -1410,10 +1425,26 @@ function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
         stroke="rgba(0,0,0,0.6)" strokeWidth="2" />
       <circle cx={cx} cy={cy} r={holeR + 26.5} fill="none"
         stroke="rgba(255,255,255,0.14)" strokeWidth="1.2" />
-      {/* Rubber mat */}
-      <circle cx={cx} cy={cy} r={holeR + 18} fill={`url(#${id}-mat)`} />
-      <circle cx={cx} cy={cy} r={holeR + 9} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="6" />
-      <circle cx={cx} cy={cy} r={holeR - 3} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="4" />
+      {/* Felt slipmat — donut so the vinyl is visible through the centre */}
+      {(() => {
+        const R = holeR + 18; const r = vinylRadius;
+        const d = `M ${cx - R} ${cy} A ${R} ${R} 0 1 0 ${cx + R} ${cy} A ${R} ${R} 0 1 0 ${cx - R} ${cy} Z M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
+        return <path d={d} fill={`url(#${id}-mat)`} fillRule="evenodd" />;
+      })()}
+      {/* Felt fibre rings */}
+      <circle cx={cx} cy={cy} r={vinylRadius + 5} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="1.2 2.4" />
+      <circle cx={cx} cy={cy} r={vinylRadius + 11} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="0.8 3" />
+      {/* Vinyl resting shadow */}
+      <circle cx={cx} cy={cy + 1.6} r={vinylRadius + 1.8} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="2.6" opacity="0.7" />
+      {/* Brushed machining on outer platter ring */}
+      {Array.from({ length: 144 }).map((_, i) => {
+        const a = (i / 144) * Math.PI * 2;
+        const r1 = holeR + 19; const r2 = holeR + 27;
+        return <line key={`bd-sp-${i}`}
+          x1={(cx + Math.cos(a) * r1).toFixed(1)} y1={(cy + Math.sin(a) * r1).toFixed(1)}
+          x2={(cx + Math.cos(a) * r2).toFixed(1)} y2={(cy + Math.sin(a) * r2).toFixed(1)}
+          stroke="rgba(255,255,255,0.045)" strokeWidth="0.5" />;
+      })}
       {/* Strobe dots */}
       {strobeDots}
       {/* Platter rings */}
@@ -4749,6 +4780,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
 
 
