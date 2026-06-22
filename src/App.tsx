@@ -414,8 +414,8 @@ function sideCoverFor(side: number, covers: any[], repeatFirstPair: boolean, fal
 const DEFAULT_VINYL_COLORS = ["#111111", "#111111", "#111111", "#111111"];
 
 const DECK_STYLES = [
-  "classic", "dark", "chrome", "wood", "minimal",
   "realistic1", "realistic2", "realistic3",
+  "classic", "dark", "chrome", "wood", "minimal",
 ];
 
 const VINYL_GRADIENTS = [
@@ -706,6 +706,16 @@ function VinylDisc({
   const labelSize = Math.round(radius * (isSingle ? 0.58 : 0.75));
   const centerHoleSize = Math.round(radius * (isSingle ? 0.34 : 0.12));
   const isPicture = Boolean(pictureVinyl && cover);
+  const dust = Array.from({ length: 42 }).map((_, i) => {
+    const a = (i * 137.508) * Math.PI / 180;
+    const r = radius * (0.18 + ((i * 47) % 76) / 100);
+    return {
+      left: radius + Math.cos(a) * r,
+      top: radius + Math.sin(a) * r,
+      size: 0.7 + ((i * 13) % 7) * 0.12,
+      opacity: 0.08 + ((i * 19) % 9) * 0.012,
+    };
+  });
 
   return (
     <div style={{
@@ -718,6 +728,7 @@ function VinylDisc({
       overflow: "hidden",
       boxShadow:
         "0 36px 80px rgba(0,0,0,0.72), 0 6px 18px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 0 60px rgba(0,0,0,0.6)",
+      filter: "contrast(1.04) saturate(1.05)",
       animation: flipping
         ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
         : playing
@@ -735,6 +746,11 @@ function VinylDisc({
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.10) 0 0.5px, rgba(0,0,0,0.20) 0.5px 1px, transparent 1px 2.5px)",
         opacity: isPicture ? 0.12 : 0.92, pointerEvents: "none",
+      }} />
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
+        boxShadow: "inset 0 0 0 3px rgba(255,255,255,0.045), inset 0 0 0 7px rgba(0,0,0,0.28), inset 0 0 0 10px rgba(255,255,255,0.025)",
+        pointerEvents: "none",
       }} />
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
@@ -772,6 +788,19 @@ function VinylDisc({
         pointerEvents: "none",
       }} />
       {!isPicture && splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
+      {dust.map((d, i) => (
+        <span key={`dust-${i}`} style={{
+          position: "absolute",
+          left: d.left,
+          top: d.top,
+          width: d.size,
+          height: d.size,
+          borderRadius: "50%",
+          background: "rgba(255,255,255,0.85)",
+          opacity: d.opacity,
+          pointerEvents: "none",
+        }} />
+      ))}
       {!isPicture && (cover ? (
         <img src={cover} alt="" style={{
           position: "absolute",
@@ -3069,7 +3098,7 @@ export function Aurae() {
   const [splatterColor, setSplatterColor] = useState("#3a7bd5");
   const [splatterOn, setSplatterOn] = useState(false);
   const [splatterStyle, setSplatterStyle] = useState("burst");
-  const [deckStyle, setDeckStyle] = useState("classic");
+  const [deckStyle, setDeckStyle] = useState("realistic1");
   const [deckColor, setDeckColor] = useState("#1a1a1a");
   const [vinylSide, setVinylSide] = useState(1);
   const [flipping, setFlipping] = useState(false);
@@ -3557,7 +3586,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
       vinylColor: "#111111", vinylColors: DEFAULT_VINYL_COLORS,
       vinylGradient: "solid", vinylOpacity: 1,
       splatterColor: "#3a7bd5", splatterOn: false, splatterStyle: "burst",
-      deckStyle: "classic", deckColor: "#1a1a1a", pictureVinyl: false,
+      deckStyle: "realistic1", deckColor: "#24272d", pictureVinyl: false,
     };
     setProjectsMeta((prev: any) => ({ ...prev, [clean]: p }));
     if (currentUser) {
@@ -4013,6 +4042,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
   const normalizedDeckStyle = normalizeDeckStyle(deckStyle);
   const geometry = deckGeometry(normalizedDeckStyle);
   const compactDecks = ["dark", "chrome", "wood"].includes(normalizedDeckStyle);
+  const isRealisticDeck = ["realistic1", "realistic2", "realistic3"].includes(normalizedDeckStyle);
   const platterRadius = ["realistic1", "realistic2", "realistic3"].includes(normalizedDeckStyle) ? 172 : compactDecks ? 164 : 188;
   const vinylRadius = isSingle ? Math.round(platterRadius * 0.64) : platterRadius;
   const current = tracks[index];
@@ -4581,7 +4611,27 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
 
       <div style={S.stage}>
         {stageMode === "vinyl" ? (
-          <div style={{ position: "relative", width: geometry.width, height: 560 }}>
+          <div style={{
+            position: "relative",
+            width: geometry.width,
+            height: 560,
+            filter: isRealisticDeck
+              ? "drop-shadow(0 42px 42px rgba(0,0,0,0.44))"
+              : undefined,
+          }}>
+            {isRealisticDeck && (
+              <div style={{
+                position: "absolute",
+                left: 24,
+                right: 24,
+                bottom: -18,
+                height: 72,
+                borderRadius: "50%",
+                background: "radial-gradient(ellipse at center, rgba(0,0,0,0.46) 0%, rgba(0,0,0,0.24) 38%, transparent 72%)",
+                pointerEvents: "none",
+                zIndex: 0,
+              }} />
+            )}
             <div style={{ position: "absolute", left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius, width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1 }}>
               <VinylDisc
                 radius={vinylRadius} colors={vinylColors} gradient={vinylGradient}
@@ -4920,6 +4970,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
 
 
