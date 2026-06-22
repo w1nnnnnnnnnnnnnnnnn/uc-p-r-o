@@ -415,7 +415,7 @@ function sideCoverFor(side: number, covers: any[], repeatFirstPair: boolean, fal
 const DEFAULT_VINYL_COLORS = ["#111111", "#111111", "#111111", "#111111"];
 
 const DECK_STYLES = [
-  "realistic1", "realistic2", "realistic3",
+  "directdrive", "beltdrive", "modern",
   "classic", "dark", "chrome", "wood", "minimal",
 ];
 
@@ -3493,6 +3493,17 @@ export function Aurae() {
   const [vinylSide, setVinylSide] = useState(1);
   const [flipping, setFlipping] = useState(false);
   const [awaitingFlip, setAwaitingFlip] = useState(false);
+
+  // Synchronize play state with time update more robustly to prevent 0s stuck bug
+  useEffect(() => {
+    if (!playing || !audioRef.current) return;
+    const int = setInterval(() => {
+      const a = audioRef.current;
+      if (a && a.currentTime > 0) setCurrentTime(a.currentTime);
+    }, 250);
+    return () => clearInterval(int);
+  }, [playing]);
+
   const [pictureVinyl, setPictureVinyl] = useState(false);
 
   const [stageMode, setStageMode] = useState<"vinyl" | "equalizer">("vinyl");
@@ -5372,6 +5383,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
 
 
