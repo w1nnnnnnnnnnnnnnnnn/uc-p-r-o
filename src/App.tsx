@@ -1994,8 +1994,8 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     const scene = new THREE.Scene();
     scene.background = null;
 
-    const camera = new THREE.PerspectiveCamera(34, 760 / 560, 0.1, 100);
-    camera.position.set(4.7, 5.1, 6.8);
+    const camera = new THREE.PerspectiveCamera(30, 760 / 560, 0.1, 100);
+    camera.position.set(0.35, 7.4, 4.4);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -2033,34 +2033,88 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     const makeMat = (color: number, roughness: number, metalness = 0) =>
       new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
-    const baseMat = makeMat(deckStyle === "realistic2" ? 0xd5d0c5 : 0x202329, 0.43, 0.15);
+    const isLp120 = deckStyle === "realistic1";
+    const isRetro = deckStyle === "realistic2";
+    const isModern = deckStyle === "realistic3";
+    const baseColor = isLp120 ? 0xb9bec4 : isRetro ? 0x80512f : 0x0d1016;
+    const panelColor = isLp120 ? 0x171a20 : isRetro ? 0x211713 : 0x151a24;
+    const trimColor = isLp120 ? 0xd4d7dc : isRetro ? 0xd0a45d : 0x8aa7ff;
+
+    const baseMat = makeMat(baseColor, isRetro ? 0.5 : 0.34, isRetro ? 0.03 : 0.22);
     const blackRubber = makeMat(0x050505, 0.78, 0.02);
     const brushedMetal = makeMat(0xaeb3b9, 0.26, 0.82);
     const darkMetal = makeMat(0x242832, 0.34, 0.65);
+    const panelMat = makeMat(panelColor, 0.31, isRetro ? 0.08 : 0.35);
+    const trimMat = makeMat(trimColor, isRetro ? 0.28 : 0.22, isRetro ? 0.6 : 0.78);
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x0b1118, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.82 });
+    const ledGreenMat = new THREE.MeshStandardMaterial({ color: 0x65ff7a, emissive: 0x2ee84f, emissiveIntensity: 1.9, roughness: 0.2 });
+    const ledAmberMat = new THREE.MeshStandardMaterial({ color: 0xffb13d, emissive: 0xff8a18, emissiveIntensity: 1.7, roughness: 0.25 });
     const vinylColor = new THREE.Color(colorsRef.current?.[0] || "#080808");
     const vinylMat = new THREE.MeshStandardMaterial({ color: vinylColor, roughness: 0.35, metalness: 0.02 });
     const labelMat = new THREE.MeshStandardMaterial({ color: 0xe6dfcd, roughness: 0.58, metalness: 0.02 });
+    const addBox = (size: [number, number, number], pos: [number, number, number], material: THREE.Material, parent: THREE.Group | THREE.Scene = root) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
+      mesh.position.set(pos[0], pos[1], pos[2]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    };
+    const addCylinder = (radius: number, height: number, pos: [number, number, number], material: THREE.Material, segments = 64, parent: THREE.Group | THREE.Scene = root) => {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, segments), material);
+      mesh.position.set(pos[0], pos[1], pos[2]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    };
 
     const root = new THREE.Group();
-    root.rotation.y = -0.16;
+    root.rotation.y = -0.02;
     scene.add(root);
 
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.42, 4.75), baseMat);
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(6.75, 0.46, 4.9), baseMat);
     plinth.position.y = -0.28;
     plinth.castShadow = true;
     plinth.receiveShadow = true;
     root.add(plinth);
 
-    const bevel = new THREE.Mesh(new THREE.BoxGeometry(6.75, 0.08, 4.9), makeMat(0x0e1014, 0.48, 0.2));
+    const bevel = new THREE.Mesh(new THREE.BoxGeometry(6.92, 0.12, 5.08), makeMat(isRetro ? 0x3a2214 : 0x0e1014, 0.48, isRetro ? 0.04 : 0.2));
     bevel.position.y = -0.55;
     bevel.castShadow = true;
     root.add(bevel);
 
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.48, 4.45), makeMat(0x111317, 0.34, 0.32));
-    panel.position.set(2.23, -0.02, 0);
+    const topInset = addBox([6.28, 0.045, 4.44], [0, -0.018, 0], makeMat(isRetro ? 0x9b6138 : isLp120 ? 0xc8ccd1 : 0x111722, isRetro ? 0.55 : 0.37, isRetro ? 0.04 : 0.18));
+    topInset.castShadow = false;
+
+    if (isRetro) {
+      for (let i = 0; i < 18; i++) {
+        const z = -2.02 + i * 0.24;
+        const grain = addBox([6.05, 0.012, 0.012], [0, 0.018 + (i % 2) * 0.002, z], makeMat(i % 3 === 0 ? 0x5e351e : 0xb07042, 0.72, 0));
+        grain.castShadow = false;
+        grain.receiveShadow = false;
+      }
+      addBox([6.35, 0.04, 0.055], [0, 0.03, -2.22], trimMat);
+      addBox([6.35, 0.04, 0.055], [0, 0.03, 2.22], trimMat);
+      addBox([0.055, 0.04, 4.4], [-3.08, 0.03, 0], trimMat);
+      addBox([0.055, 0.04, 4.4], [3.08, 0.03, 0], trimMat);
+    }
+
+    if (isModern) {
+      for (let i = 0; i < 9; i++) {
+        const strip = addBox([0.018, 0.014, 4.12], [-2.8 + i * 0.32, 0.025, 0], makeMat(0x273044, 0.42, 0.3));
+        strip.castShadow = false;
+      }
+    }
+
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(isRetro ? 1.46 : 1.78, 0.5, isRetro ? 4.05 : 4.45), panelMat);
+    panel.position.set(isRetro ? 2.36 : 2.23, -0.0, 0);
     panel.castShadow = true;
     panel.receiveShadow = true;
     root.add(panel);
+
+    addBox([0.035, 0.055, isRetro ? 4.12 : 4.52], [isRetro ? 1.58 : 1.28, 0.27, 0], makeMat(isRetro ? 0xc99b58 : 0x06070a, 0.28, 0.55));
+    addBox([isRetro ? 1.28 : 1.56, 0.035, 0.045], [isRetro ? 2.36 : 2.23, 0.275, -2.0], trimMat);
 
     const platter = new THREE.Mesh(new THREE.CylinderGeometry(1.72, 1.76, 0.26, 160), brushedMetal);
     platter.position.set(-1.18, 0.12, 0.1);
@@ -2074,6 +2128,19 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     mat.castShadow = true;
     mat.receiveShadow = true;
     root.add(mat);
+
+    for (let i = 0; i < 72; i++) {
+      const a = (i / 72) * Math.PI * 2;
+      const dot = addBox([0.055, 0.018, 0.018], [
+        -1.18 + Math.cos(a) * 1.86,
+        0.39,
+        0.1 + Math.sin(a) * 1.86,
+      ], makeMat(isRetro ? 0xc8b07c : 0xe1e4e8, 0.24, 0.85));
+      dot.rotation.y = -a;
+      dot.castShadow = false;
+    }
+
+    addCylinder(1.82, 0.03, [-1.18, 0.395, 0.1], makeMat(0x0a0a0a, 0.7, 0.04), 160);
 
     const recordGroup = new THREE.Group();
     recordGroup.position.set(-1.18, 0.39, 0.1);
@@ -2107,10 +2174,11 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
 
     const pivot = new THREE.Group();
     pivot.position.set(1.92, 0.46, -1.48);
+    pivot.rotation.y = 0.36;
     root.add(pivot);
     armRef.current = pivot;
 
-    const bearing = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.29, 0.24, 64), darkMetal);
+    const bearing = new THREE.Mesh(new THREE.CylinderGeometry(isRetro ? 0.22 : 0.25, isRetro ? 0.26 : 0.29, 0.24, 64), isRetro ? trimMat : darkMetal);
     bearing.castShadow = true;
     pivot.add(bearing);
 
@@ -2120,7 +2188,12 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     counter.castShadow = true;
     pivot.add(counter);
 
-    const armCurve = new THREE.CatmullRomCurve3([
+    const armCurve = new THREE.CatmullRomCurve3(isRetro ? [
+      new THREE.Vector3(-0.04, 0.12, 0),
+      new THREE.Vector3(-0.55, 0.2, 0.28),
+      new THREE.Vector3(-1.55, 0.18, 0.74),
+      new THREE.Vector3(-2.34, 0.12, 0.98),
+    ] : [
       new THREE.Vector3(-0.04, 0.1, 0),
       new THREE.Vector3(-0.42, 0.18, 0.34),
       new THREE.Vector3(-1.38, 0.18, 0.92),
@@ -2130,7 +2203,7 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     armTube.castShadow = true;
     pivot.add(armTube);
 
-    const headshell = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 0.28), darkMetal);
+    const headshell = new THREE.Mesh(new THREE.BoxGeometry(isRetro ? 0.36 : 0.42, 0.08, isRetro ? 0.22 : 0.28), isRetro ? makeMat(0x1a1410, 0.38, 0.2) : darkMetal);
     headshell.position.set(-2.43, 0.08, 1.1);
     headshell.rotation.y = -0.26;
     headshell.castShadow = true;
@@ -2146,10 +2219,9 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     needle.castShadow = true;
     stylus.add(needle);
 
-    const knobPositions = [
-      [2.26, 0.36, -1.75], [2.72, 0.36, -1.75], [2.26, 0.36, -1.2],
-      [2.72, 0.36, -1.2], [2.5, 0.36, 1.35],
-    ];
+    const knobPositions = isRetro
+      ? [[2.04, 0.36, -1.38], [2.68, 0.36, -1.38], [2.04, 0.36, 1.14], [2.68, 0.36, 1.14], [2.36, 0.36, 1.7]]
+      : [[2.26, 0.36, -1.75], [2.72, 0.36, -1.75], [2.26, 0.36, -1.2], [2.72, 0.36, -1.2], [2.5, 0.36, 1.35]];
     knobPositions.forEach(([x, y, z], i) => {
       const knob = new THREE.Mesh(new THREE.CylinderGeometry(i === 4 ? 0.22 : 0.15, i === 4 ? 0.22 : 0.15, 0.12, 48), darkMetal);
       knob.position.set(x, y, z);
@@ -2157,17 +2229,53 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
       root.add(knob);
     });
 
-    const startButton = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.09, 64), makeMat(0x166722, 0.32, 0.12));
-    startButton.position.set(2.46, 0.38, -0.36);
+    const startPos: [number, number, number] = isLp120 ? [-2.78, 0.39, 1.82] : isRetro ? [2.35, 0.39, 1.72] : [2.5, 0.39, -1.72];
+    const startButton = new THREE.Mesh(new THREE.CylinderGeometry(isRetro ? 0.22 : 0.26, isRetro ? 0.22 : 0.26, 0.09, 64), makeMat(isModern ? 0x2456ff : 0x166722, 0.32, 0.12));
+    startButton.position.set(startPos[0], startPos[1], startPos[2]);
     startButton.castShadow = true;
     root.add(startButton);
 
     const led = new THREE.Mesh(
       new THREE.SphereGeometry(0.07, 24, 16),
-      new THREE.MeshStandardMaterial({ color: 0x65ff7a, emissive: 0x2ee84f, emissiveIntensity: 1.8, roughness: 0.2 })
+      isModern ? new THREE.MeshStandardMaterial({ color: 0x7fa0ff, emissive: 0x376dff, emissiveIntensity: 1.8, roughness: 0.2 }) : ledGreenMat
     );
-    led.position.set(2.46, 0.48, -0.36);
+    led.position.set(startPos[0], startPos[1] + 0.1, startPos[2]);
     root.add(led);
+
+    if (isLp120) {
+      addBox([0.64, 0.055, 0.22], [-2.78, 0.38, 1.32], darkMetal);
+      [["33", -3.05], ["45", -2.78], ["78", -2.51]].forEach(([, x], i) => {
+        const btn = addBox([0.18, 0.07, 0.24], [Number(x), 0.43, 1.32], i === 0 ? ledGreenMat : darkMetal);
+        btn.castShadow = true;
+      });
+      addBox([0.18, 0.055, 1.58], [2.82, 0.41, 0.16], blackRubber);
+      addBox([0.34, 0.12, 0.2], [2.82, 0.51, -0.1], brushedMetal);
+      for (let i = 0; i < 9; i++) addBox([0.11, 0.025, 0.015], [2.82, 0.49, -0.63 + i * 0.17], trimMat);
+      addCylinder(0.08, 0.22, [-2.78, 0.44, -1.84], ledAmberMat, 32);
+      addBox([0.18, 0.28, 0.18], [-2.78, 0.52, -1.84], glassMat);
+      addBox([0.48, 0.04, 0.22], [0.64, 0.42, -1.92], darkMetal);
+      addCylinder(0.08, 0.08, [0.64, 0.48, -1.92], ledAmberMat, 32);
+    } else if (isRetro) {
+      addBox([1.05, 0.06, 0.42], [2.36, 0.4, -1.9], glassMat);
+      for (let i = 0; i < 9; i++) {
+        const level = i < 6 ? 0x30d667 : i < 8 ? 0xe1cc3f : 0xec4d39;
+        addBox([0.055, 0.045 + i * 0.006, 0.08], [1.92 + i * 0.11, 0.47, -1.9], makeMat(level, 0.3, 0.08));
+      }
+      addBox([1.04, 0.05, 0.18], [2.36, 0.42, -0.58], trimMat);
+      addBox([0.12, 0.055, 1.0], [1.98, 0.43, 0.14], blackRubber);
+      addBox([0.12, 0.055, 1.0], [2.36, 0.43, 0.14], blackRubber);
+      addBox([0.12, 0.055, 1.0], [2.74, 0.43, 0.14], blackRubber);
+      addBox([0.26, 0.11, 0.16], [1.98, 0.52, -0.08], trimMat);
+      addBox([0.26, 0.11, 0.16], [2.36, 0.52, 0.16], trimMat);
+      addBox([0.26, 0.11, 0.16], [2.74, 0.52, -0.18], trimMat);
+    } else {
+      addBox([1.18, 0.055, 0.36], [2.36, 0.4, -1.2], glassMat);
+      for (let i = 0; i < 12; i++) addBox([0.045, 0.08 + Math.sin(i) * 0.035, 0.08], [1.86 + i * 0.09, 0.49, -1.2], makeMat(i > 8 ? 0xff4f6d : 0x69a6ff, 0.22, 0.15));
+      addBox([0.16, 0.06, 1.65], [2.86, 0.42, 0.34], blackRubber);
+      addBox([0.38, 0.12, 0.22], [2.86, 0.52, 0.05], makeMat(0xa5b8ff, 0.2, 0.65));
+      addCylinder(0.12, 0.08, [1.84, 0.44, 1.72], ledAmberMat, 48);
+      addCylinder(0.12, 0.08, [2.18, 0.44, 1.72], ledGreenMat, 48);
+    }
 
     const feet = [[-2.9, -0.69, -1.98], [2.9, -0.69, -1.98], [-2.9, -0.69, 1.98], [2.9, -0.69, 1.98]];
     feet.forEach(([x, y, z]) => {
@@ -2222,7 +2330,7 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
       platter.rotation.y -= spin * 0.72;
 
       const p = Math.max(0, Math.min(1, progressRef.current || 0));
-      const targetRot = -0.48 - p * 0.42;
+      const targetRot = 0.36 - p * 0.23;
       if (pivot) pivot.rotation.y += (targetRot - pivot.rotation.y) * 0.08;
       if (stylusRef.current) stylusRef.current.position.y += ((playingRef.current ? -0.03 : 0.08) - stylusRef.current.position.y) * 0.09;
       led.scale.setScalar(playingRef.current ? 1 + Math.sin(now * 0.012) * 0.08 : 0.72);
