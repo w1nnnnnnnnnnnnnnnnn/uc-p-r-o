@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import * as THREE from "three";
 
 // ----------------------------------------------------------------------------
 // Inline auth helpers (previously imported from ./secureAuth).
@@ -1968,6 +1969,287 @@ function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, pr
     return <BeltDriveDeck vinylRadius={vinylRadius} platterRadius={platterRadius} progress={progress} />;
   }
   return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
+}
+
+function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }: any) {
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const recordRef = useRef<THREE.Group | null>(null);
+  const platterRef = useRef<THREE.Mesh | null>(null);
+  const armRef = useRef<THREE.Group | null>(null);
+  const stylusRef = useRef<THREE.Group | null>(null);
+  const playingRef = useRef(Boolean(playing));
+  const progressRef = useRef(Number(progress || 0));
+  const coverRef = useRef(cover);
+  const colorsRef = useRef(vinylColors);
+
+  useEffect(() => { playingRef.current = Boolean(playing); }, [playing]);
+  useEffect(() => { progressRef.current = Number(progress || 0); }, [progress]);
+  useEffect(() => { coverRef.current = cover; }, [cover]);
+  useEffect(() => { colorsRef.current = vinylColors; }, [vinylColors]);
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+
+    const scene = new THREE.Scene();
+    scene.background = null;
+
+    const camera = new THREE.PerspectiveCamera(34, 760 / 560, 0.1, 100);
+    camera.position.set(4.7, 5.1, 6.8);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(mount.clientWidth || 760, mount.clientHeight || 560);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    mount.appendChild(renderer.domElement);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envScene = new THREE.Scene();
+    envScene.background = new THREE.Color(0x2b3038);
+    scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+
+    const hemi = new THREE.HemisphereLight(0xe9f1ff, 0x111111, 1.1);
+    scene.add(hemi);
+    const key = new THREE.DirectionalLight(0xffffff, 3.2);
+    key.position.set(-3.5, 6.8, 4.6);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.near = 0.5;
+    key.shadow.camera.far = 18;
+    key.shadow.camera.left = -6;
+    key.shadow.camera.right = 6;
+    key.shadow.camera.top = 6;
+    key.shadow.camera.bottom = -6;
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0x8ab6ff, 1.1);
+    rim.position.set(4, 3, -5);
+    scene.add(rim);
+
+    const makeMat = (color: number, roughness: number, metalness = 0) =>
+      new THREE.MeshStandardMaterial({ color, roughness, metalness });
+
+    const baseMat = makeMat(deckStyle === "realistic2" ? 0xd5d0c5 : 0x202329, 0.43, 0.15);
+    const blackRubber = makeMat(0x050505, 0.78, 0.02);
+    const brushedMetal = makeMat(0xaeb3b9, 0.26, 0.82);
+    const darkMetal = makeMat(0x242832, 0.34, 0.65);
+    const vinylColor = new THREE.Color(colorsRef.current?.[0] || "#080808");
+    const vinylMat = new THREE.MeshStandardMaterial({ color: vinylColor, roughness: 0.35, metalness: 0.02 });
+    const labelMat = new THREE.MeshStandardMaterial({ color: 0xe6dfcd, roughness: 0.58, metalness: 0.02 });
+
+    const root = new THREE.Group();
+    root.rotation.y = -0.16;
+    scene.add(root);
+
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.42, 4.75), baseMat);
+    plinth.position.y = -0.28;
+    plinth.castShadow = true;
+    plinth.receiveShadow = true;
+    root.add(plinth);
+
+    const bevel = new THREE.Mesh(new THREE.BoxGeometry(6.75, 0.08, 4.9), makeMat(0x0e1014, 0.48, 0.2));
+    bevel.position.y = -0.55;
+    bevel.castShadow = true;
+    root.add(bevel);
+
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.48, 4.45), makeMat(0x111317, 0.34, 0.32));
+    panel.position.set(2.23, -0.02, 0);
+    panel.castShadow = true;
+    panel.receiveShadow = true;
+    root.add(panel);
+
+    const platter = new THREE.Mesh(new THREE.CylinderGeometry(1.72, 1.76, 0.26, 160), brushedMetal);
+    platter.position.set(-1.18, 0.12, 0.1);
+    platter.castShadow = true;
+    platter.receiveShadow = true;
+    root.add(platter);
+    platterRef.current = platter;
+
+    const mat = new THREE.Mesh(new THREE.CylinderGeometry(1.58, 1.58, 0.08, 160), blackRubber);
+    mat.position.set(-1.18, 0.31, 0.1);
+    mat.castShadow = true;
+    mat.receiveShadow = true;
+    root.add(mat);
+
+    const recordGroup = new THREE.Group();
+    recordGroup.position.set(-1.18, 0.39, 0.1);
+    root.add(recordGroup);
+    recordRef.current = recordGroup;
+
+    const record = new THREE.Mesh(new THREE.CylinderGeometry(1.47, 1.47, 0.055, 192), vinylMat);
+    record.castShadow = true;
+    record.receiveShadow = true;
+    recordGroup.add(record);
+
+    for (let i = 0; i < 38; i++) {
+      const r = 0.52 + i * 0.023;
+      const groove = new THREE.Mesh(
+        new THREE.TorusGeometry(r, i % 7 === 0 ? 0.0048 : 0.0032, 8, 160),
+        new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.02 })
+      );
+      groove.rotation.x = Math.PI / 2;
+      groove.position.y = 0.034 + i * 0.00015;
+      recordGroup.add(groove);
+    }
+
+    const label = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.066, 96), labelMat);
+    label.position.y = 0.012;
+    recordGroup.add(label);
+
+    const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.34, 48), brushedMetal);
+    spindle.position.set(-1.18, 0.58, 0.1);
+    spindle.castShadow = true;
+    root.add(spindle);
+
+    const pivot = new THREE.Group();
+    pivot.position.set(1.92, 0.46, -1.48);
+    root.add(pivot);
+    armRef.current = pivot;
+
+    const bearing = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.29, 0.24, 64), darkMetal);
+    bearing.castShadow = true;
+    pivot.add(bearing);
+
+    const counter = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.34, 48), brushedMetal);
+    counter.rotation.z = Math.PI / 2;
+    counter.position.set(0.36, 0.06, 0.15);
+    counter.castShadow = true;
+    pivot.add(counter);
+
+    const armCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.04, 0.1, 0),
+      new THREE.Vector3(-0.42, 0.18, 0.34),
+      new THREE.Vector3(-1.38, 0.18, 0.92),
+      new THREE.Vector3(-2.28, 0.12, 1.08),
+    ]);
+    const armTube = new THREE.Mesh(new THREE.TubeGeometry(armCurve, 80, 0.035, 16, false), brushedMetal);
+    armTube.castShadow = true;
+    pivot.add(armTube);
+
+    const headshell = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 0.28), darkMetal);
+    headshell.position.set(-2.43, 0.08, 1.1);
+    headshell.rotation.y = -0.26;
+    headshell.castShadow = true;
+    pivot.add(headshell);
+
+    const stylus = new THREE.Group();
+    stylus.position.set(-2.62, 0.005, 1.17);
+    pivot.add(stylus);
+    stylusRef.current = stylus;
+    const needle = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.22, 20), makeMat(0xdddddd, 0.24, 0.9));
+    needle.rotation.x = Math.PI;
+    needle.position.y = -0.12;
+    needle.castShadow = true;
+    stylus.add(needle);
+
+    const knobPositions = [
+      [2.26, 0.36, -1.75], [2.72, 0.36, -1.75], [2.26, 0.36, -1.2],
+      [2.72, 0.36, -1.2], [2.5, 0.36, 1.35],
+    ];
+    knobPositions.forEach(([x, y, z], i) => {
+      const knob = new THREE.Mesh(new THREE.CylinderGeometry(i === 4 ? 0.22 : 0.15, i === 4 ? 0.22 : 0.15, 0.12, 48), darkMetal);
+      knob.position.set(x, y, z);
+      knob.castShadow = true;
+      root.add(knob);
+    });
+
+    const startButton = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.09, 64), makeMat(0x166722, 0.32, 0.12));
+    startButton.position.set(2.46, 0.38, -0.36);
+    startButton.castShadow = true;
+    root.add(startButton);
+
+    const led = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 24, 16),
+      new THREE.MeshStandardMaterial({ color: 0x65ff7a, emissive: 0x2ee84f, emissiveIntensity: 1.8, roughness: 0.2 })
+    );
+    led.position.set(2.46, 0.48, -0.36);
+    root.add(led);
+
+    const feet = [[-2.9, -0.69, -1.98], [2.9, -0.69, -1.98], [-2.9, -0.69, 1.98], [2.9, -0.69, 1.98]];
+    feet.forEach(([x, y, z]) => {
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.18, 48), blackRubber);
+      foot.position.set(x, y, z);
+      foot.castShadow = true;
+      root.add(foot);
+    });
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(12, 9),
+      new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.34 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.81;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    let coverTexture: THREE.Texture | null = null;
+    const loadCover = () => {
+      if (!coverRef.current) return;
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => {
+        if (coverTexture) coverTexture.dispose();
+        coverTexture = new THREE.Texture(image);
+        coverTexture.colorSpace = THREE.SRGBColorSpace;
+        coverTexture.needsUpdate = true;
+        label.material = new THREE.MeshStandardMaterial({ map: coverTexture, roughness: 0.55, metalness: 0.02 });
+      };
+      image.src = coverRef.current;
+    };
+    loadCover();
+
+    const resize = () => {
+      const width = mount.clientWidth || 760;
+      const height = mount.clientHeight || 560;
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    };
+    const ro = new ResizeObserver(resize);
+    ro.observe(mount);
+
+    let raf = 0;
+    let last = performance.now();
+    const animate = (now: number) => {
+      const dt = Math.min(0.04, (now - last) / 1000);
+      last = now;
+      const spin = playingRef.current ? dt * 3.45 : dt * 0.22;
+      recordGroup.rotation.y -= spin;
+      platter.rotation.y -= spin * 0.72;
+
+      const p = Math.max(0, Math.min(1, progressRef.current || 0));
+      const targetRot = -0.48 - p * 0.42;
+      if (pivot) pivot.rotation.y += (targetRot - pivot.rotation.y) * 0.08;
+      if (stylusRef.current) stylusRef.current.position.y += ((playingRef.current ? -0.03 : 0.08) - stylusRef.current.position.y) * 0.09;
+      led.scale.setScalar(playingRef.current ? 1 + Math.sin(now * 0.012) * 0.08 : 0.72);
+      renderer.render(scene, camera);
+      raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      mount.removeChild(renderer.domElement);
+      scene.traverse(obj => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+        if (Array.isArray(material)) material.forEach(m => m.dispose());
+        else material?.dispose();
+      });
+      coverTexture?.dispose();
+      scene.environment?.dispose();
+      renderer.dispose();
+      pmrem.dispose();
+    };
+  }, [deckStyle, cover, vinylColors?.[0]]);
+
+  return <div ref={mountRef} style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }} />;
 }
 
 function EqualizerVisualizer({
@@ -4632,14 +4914,26 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
                 zIndex: 0,
               }} />
             )}
-            <div style={{ position: "absolute", left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius, width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1 }}>
-              <VinylDisc
-                radius={vinylRadius} colors={vinylColors} gradient={vinylGradient}
-                opacity={vinylOpacity} splatterOn={splatterOn} splatterColor={splatterColor}
-                splatterStyle={splatterStyle} cover={currentVinylCover} isSingle={isSingle}
-                playing={playing} textColor={text} flipping={flipping} pictureVinyl={pictureVinyl} />
-            </div>
-            <TurntableDeck style={normalizedDeckStyle} color={deckColor} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={text} progress={sideProgress} />
+            {isRealisticDeck ? (
+              <ThreeTurntableDeck
+                playing={playing}
+                progress={sideProgress}
+                cover={currentVinylCover}
+                deckStyle={normalizedDeckStyle}
+                vinylColors={vinylColors}
+              />
+            ) : (
+              <>
+                <div style={{ position: "absolute", left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius, width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1 }}>
+                  <VinylDisc
+                    radius={vinylRadius} colors={vinylColors} gradient={vinylGradient}
+                    opacity={vinylOpacity} splatterOn={splatterOn} splatterColor={splatterColor}
+                    splatterStyle={splatterStyle} cover={currentVinylCover} isSingle={isSingle}
+                    playing={playing} textColor={text} flipping={flipping} pictureVinyl={pictureVinyl} />
+                </div>
+                <TurntableDeck style={normalizedDeckStyle} color={deckColor} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={text} progress={sideProgress} />
+              </>
+            )}
             {needsTurn && <button style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>}
             {awaitingVinylChange && !flipping && <button style={S.turnBtn} onClick={changeVinyl}>change vinyl</button>}
           </div>
@@ -4970,6 +5264,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
 
 
