@@ -1973,10 +1973,10 @@ function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, pr
 
 function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }: any) {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const recordRef = useRef<THREE.Group | null>(null);
+  const recordGroupRef = useRef<THREE.Group | null>(null);
   const platterRef = useRef<THREE.Mesh | null>(null);
-  const armRef = useRef<THREE.Group | null>(null);
-  const stylusRef = useRef<THREE.Group | null>(null);
+  const basePivotRef = useRef<THREE.Group | null>(null);
+  const armPivotRef = useRef<THREE.Group | null>(null);
   const playingRef = useRef(Boolean(playing));
   const progressRef = useRef(Number(progress || 0));
   const coverRef = useRef(cover);
@@ -1994,8 +1994,9 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     const scene = new THREE.Scene();
     scene.background = null;
 
-    const camera = new THREE.PerspectiveCamera(30, 760 / 560, 0.1, 100);
-    camera.position.set(0.35, 7.4, 4.4);
+    // Adjusted camera to prevent cutoff and ensure perfect top-down
+    const camera = new THREE.PerspectiveCamera(28, 760 / 560, 0.1, 100);
+    camera.position.set(0, 14.5, 0.001);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -2005,319 +2006,255 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
+    renderer.toneMappingExposure = 1.15;
     mount.appendChild(renderer.domElement);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envScene = new THREE.Scene();
-    envScene.background = new THREE.Color(0x2b3038);
+    envScene.background = new THREE.Color(0x353a42);
     scene.environment = pmrem.fromScene(envScene, 0.04).texture;
 
-    const hemi = new THREE.HemisphereLight(0xe9f1ff, 0x111111, 1.1);
+    const hemi = new THREE.HemisphereLight(0xe9f1ff, 0x111111, 1.2);
     scene.add(hemi);
-    const key = new THREE.DirectionalLight(0xffffff, 3.2);
-    key.position.set(-3.5, 6.8, 4.6);
+    const key = new THREE.DirectionalLight(0xffffff, 3.8);
+    key.position.set(-4.5, 8.8, 5.6);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 0.5;
-    key.shadow.camera.far = 18;
+    key.shadow.camera.far = 20;
     key.shadow.camera.left = -6;
     key.shadow.camera.right = 6;
     key.shadow.camera.top = 6;
     key.shadow.camera.bottom = -6;
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0x8ab6ff, 1.1);
-    rim.position.set(4, 3, -5);
+
+    const rim = new THREE.DirectionalLight(0x8ab6ff, 1.4);
+    rim.position.set(4, 5, -6);
     scene.add(rim);
 
     const makeMat = (color: number, roughness: number, metalness = 0) =>
       new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
-    const isLp120 = deckStyle === "realistic1";
-    const isRetro = deckStyle === "realistic2";
-    const isModern = deckStyle === "realistic3";
-    const baseColor = isLp120 ? 0xb9bec4 : isRetro ? 0x80512f : 0x0d1016;
-    const panelColor = isLp120 ? 0x171a20 : isRetro ? 0x211713 : 0x151a24;
-    const trimColor = isLp120 ? 0xd4d7dc : isRetro ? 0xd0a45d : 0x8aa7ff;
+    const isDirectDrive = deckStyle === "directdrive" || deckStyle === "realistic1";
+    const isBeltDrive = deckStyle === "beltdrive" || deckStyle === "realistic2";
+    
+    const baseColor = isDirectDrive ? 0xb4b9bf : isBeltDrive ? 0x6e4122 : 0x0c0d12;
+    const panelColor = isDirectDrive ? 0x14161a : isBeltDrive ? 0x1e1511 : 0x12151c;
+    const trimColor = isDirectDrive ? 0xd0d4da : isBeltDrive ? 0xc49b56 : 0x7a97ff;
 
-    const baseMat = makeMat(baseColor, isRetro ? 0.5 : 0.34, isRetro ? 0.03 : 0.22);
-    const blackRubber = makeMat(0x050505, 0.78, 0.02);
-    const brushedMetal = makeMat(0xaeb3b9, 0.26, 0.82);
-    const darkMetal = makeMat(0x242832, 0.34, 0.65);
-    const panelMat = makeMat(panelColor, 0.31, isRetro ? 0.08 : 0.35);
-    const trimMat = makeMat(trimColor, isRetro ? 0.28 : 0.22, isRetro ? 0.6 : 0.78);
-    const glassMat = new THREE.MeshStandardMaterial({ color: 0x0b1118, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.82 });
-    const ledGreenMat = new THREE.MeshStandardMaterial({ color: 0x65ff7a, emissive: 0x2ee84f, emissiveIntensity: 1.9, roughness: 0.2 });
-    const ledAmberMat = new THREE.MeshStandardMaterial({ color: 0xffb13d, emissive: 0xff8a18, emissiveIntensity: 1.7, roughness: 0.25 });
+    const baseMat = makeMat(baseColor, isBeltDrive ? 0.6 : 0.3, isBeltDrive ? 0.02 : 0.28);
+    const blackRubber = makeMat(0x0a0a0a, 0.85, 0.02);
+    const brushedMetal = makeMat(0xbcbfc4, 0.32, 0.88);
+    const darkMetal = makeMat(0x22252c, 0.45, 0.7);
+    const panelMat = makeMat(panelColor, 0.35, isBeltDrive ? 0.05 : 0.4);
     const vinylColor = new THREE.Color(colorsRef.current?.[0] || "#080808");
-    const vinylMat = new THREE.MeshStandardMaterial({ color: vinylColor, roughness: 0.35, metalness: 0.02 });
-    const labelMat = new THREE.MeshStandardMaterial({ color: 0xe6dfcd, roughness: 0.58, metalness: 0.02 });
-    const addBox = (size: [number, number, number], pos: [number, number, number], material: THREE.Material, parent: THREE.Group | THREE.Scene = root) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
-      mesh.position.set(pos[0], pos[1], pos[2]);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      parent.add(mesh);
-      return mesh;
-    };
-    const addCylinder = (radius: number, height: number, pos: [number, number, number], material: THREE.Material, segments = 64, parent: THREE.Group | THREE.Scene = root) => {
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, segments), material);
-      mesh.position.set(pos[0], pos[1], pos[2]);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      parent.add(mesh);
-      return mesh;
-    };
+    const vinylMat = new THREE.MeshStandardMaterial({ color: vinylColor, roughness: 0.28, metalness: 0.15 });
+    const labelMat = new THREE.MeshStandardMaterial({ color: 0xeae1ce, roughness: 0.6, metalness: 0.01 });
 
     const root = new THREE.Group();
-    root.rotation.y = -0.02;
     scene.add(root);
 
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(6.75, 0.46, 4.9), baseMat);
+    const addBox = (size: [number, number, number], pos: [number, number, number], material: THREE.Material, parent: THREE.Group = root) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+      mesh.position.set(...pos);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    };
+    const addCyl = (radius: number, height: number, pos: [number, number, number], material: THREE.Material, parent: THREE.Group = root) => {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 64), material);
+      mesh.position.set(...pos);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    };
+
+    // Wider, deeper rectangular base
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(8.6, 0.46, 6.2), baseMat);
     plinth.position.y = -0.28;
     plinth.castShadow = true;
     plinth.receiveShadow = true;
     root.add(plinth);
 
-    const bevel = new THREE.Mesh(new THREE.BoxGeometry(6.92, 0.12, 5.08), makeMat(isRetro ? 0x3a2214 : 0x0e1014, 0.48, isRetro ? 0.04 : 0.2));
+    const bevel = new THREE.Mesh(new THREE.BoxGeometry(8.75, 0.12, 6.35), makeMat(isBeltDrive ? 0x321e12 : 0x0b0d10, 0.5, 0.1));
     bevel.position.y = -0.55;
-    bevel.castShadow = true;
     root.add(bevel);
 
-    const topInset = addBox([6.28, 0.045, 4.44], [0, -0.018, 0], makeMat(isRetro ? 0x9b6138 : isLp120 ? 0xc8ccd1 : 0x111722, isRetro ? 0.55 : 0.37, isRetro ? 0.04 : 0.18));
+    const topInset = addBox([8.1, 0.045, 5.7], [0, -0.018, 0], makeMat(isBeltDrive ? 0x8a5530 : isDirectDrive ? 0xc2c6cc : 0x0f131a, 0.4, 0.1));
     topInset.castShadow = false;
 
-    if (isRetro) {
-      for (let i = 0; i < 18; i++) {
-        const z = -2.02 + i * 0.24;
-        const grain = addBox([6.05, 0.012, 0.012], [0, 0.018 + (i % 2) * 0.002, z], makeMat(i % 3 === 0 ? 0x5e351e : 0xb07042, 0.72, 0));
-        grain.castShadow = false;
-        grain.receiveShadow = false;
-      }
-      addBox([6.35, 0.04, 0.055], [0, 0.03, -2.22], trimMat);
-      addBox([6.35, 0.04, 0.055], [0, 0.03, 2.22], trimMat);
-      addBox([0.055, 0.04, 4.4], [-3.08, 0.03, 0], trimMat);
-      addBox([0.055, 0.04, 4.4], [3.08, 0.03, 0], trimMat);
-    }
-
-    if (isModern) {
-      for (let i = 0; i < 9; i++) {
-        const strip = addBox([0.018, 0.014, 4.12], [-2.8 + i * 0.32, 0.025, 0], makeMat(0x273044, 0.42, 0.3));
-        strip.castShadow = false;
-      }
-    }
-
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(isRetro ? 1.46 : 1.78, 0.5, isRetro ? 4.05 : 4.45), panelMat);
-    panel.position.set(isRetro ? 2.36 : 2.23, -0.0, 0);
-    panel.castShadow = true;
+    // Right-side detail panel
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 5.5), panelMat);
+    panel.position.set(3.0, 0, 0);
     panel.receiveShadow = true;
     root.add(panel);
 
-    addBox([0.035, 0.055, isRetro ? 4.12 : 4.52], [isRetro ? 1.58 : 1.28, 0.27, 0], makeMat(isRetro ? 0xc99b58 : 0x06070a, 0.28, 0.55));
-    addBox([isRetro ? 1.28 : 1.56, 0.035, 0.045], [isRetro ? 2.36 : 2.23, 0.275, -2.0], trimMat);
-
-    const platter = new THREE.Mesh(new THREE.CylinderGeometry(1.72, 1.76, 0.26, 160), brushedMetal);
-    platter.position.set(-1.18, 0.12, 0.1);
-    platter.castShadow = true;
+    // Platter shifted left
+    const pX = -1.5;
+    const platter = new THREE.Mesh(new THREE.CylinderGeometry(2.15, 2.2, 0.26, 128), brushedMetal);
+    platter.position.set(pX, 0.12, 0);
     platter.receiveShadow = true;
+    platter.castShadow = true;
     root.add(platter);
     platterRef.current = platter;
 
-    const mat = new THREE.Mesh(new THREE.CylinderGeometry(1.58, 1.58, 0.08, 160), blackRubber);
-    mat.position.set(-1.18, 0.31, 0.1);
-    mat.castShadow = true;
+    const mat = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.05, 0.08, 128), blackRubber);
+    mat.position.set(pX, 0.31, 0);
     mat.receiveShadow = true;
     root.add(mat);
 
-    for (let i = 0; i < 72; i++) {
-      const a = (i / 72) * Math.PI * 2;
-      const dot = addBox([0.055, 0.018, 0.018], [
-        -1.18 + Math.cos(a) * 1.86,
+    // Strobe dots highly detailed
+    for (let i = 0; i < 90; i++) {
+      const a = (i / 90) * Math.PI * 2;
+      const dot = addBox([0.06, 0.02, 0.022], [
+        pX + Math.cos(a) * 2.12,
         0.39,
-        0.1 + Math.sin(a) * 1.86,
-      ], makeMat(isRetro ? 0xc8b07c : 0xe1e4e8, 0.24, 0.85));
+        Math.sin(a) * 2.12,
+      ], brushedMetal);
       dot.rotation.y = -a;
       dot.castShadow = false;
     }
 
-    addCylinder(1.82, 0.03, [-1.18, 0.395, 0.1], makeMat(0x0a0a0a, 0.7, 0.04), 160);
+    addCyl(2.15, 0.03, [pX, 0.395, 0], makeMat(0x050505, 0.7, 0.04));
 
+    // Record Group
     const recordGroup = new THREE.Group();
-    recordGroup.position.set(-1.18, 0.39, 0.1);
+    recordGroup.position.set(pX, 0.39, 0);
     root.add(recordGroup);
-    recordRef.current = recordGroup;
+    recordGroupRef.current = recordGroup;
 
-    const record = new THREE.Mesh(new THREE.CylinderGeometry(1.47, 1.47, 0.055, 192), vinylMat);
-    record.castShadow = true;
+    const record = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 0.055, 128), vinylMat);
     record.receiveShadow = true;
     recordGroup.add(record);
 
-    for (let i = 0; i < 38; i++) {
-      const r = 0.52 + i * 0.023;
+    // Highly realistic vinyl grooves
+    for (let i = 0; i < 48; i++) {
+      const r = 0.65 + i * 0.026;
       const groove = new THREE.Mesh(
-        new THREE.TorusGeometry(r, i % 7 === 0 ? 0.0048 : 0.0032, 8, 160),
-        new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.02 })
+        new THREE.TorusGeometry(r, i % 9 === 0 ? 0.0055 : 0.0035, 12, 128),
+        new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 0.3, metalness: 0.25 })
       );
       groove.rotation.x = Math.PI / 2;
-      groove.position.y = 0.034 + i * 0.00015;
+      groove.position.y = 0.034 + i * 0.0001;
       recordGroup.add(groove);
     }
 
-    const label = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.066, 96), labelMat);
+    const label = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.066, 64), labelMat);
     label.position.y = 0.012;
     recordGroup.add(label);
 
-    const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.34, 48), brushedMetal);
-    spindle.position.set(-1.18, 0.58, 0.1);
+    const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.45, 32), brushedMetal);
+    spindle.position.set(pX, 0.58, 0);
     spindle.castShadow = true;
     root.add(spindle);
 
-    const pivot = new THREE.Group();
-    pivot.position.set(1.92, 0.46, -1.48);
-    pivot.rotation.y = 0.36;
-    root.add(pivot);
-    armRef.current = pivot;
+    // Realistic Extra Details
+    addCyl(0.24, 0.35, [pX - 2.2, 0.3, 1.8], brushedMetal); // Strobe Tower Base
+    addCyl(0.18, 0.38, [pX - 2.2, 0.35, 1.8], darkMetal); // Strobe Tower Top
+    const strobeLight = addBox([0.08, 0.1, 0.1], [pX - 2.05, 0.45, 1.8], makeMat(0xff2a2a, 0.2, 0.8));
+    strobeLight.rotation.y = 0.5;
 
-    const bearing = new THREE.Mesh(new THREE.CylinderGeometry(isRetro ? 0.22 : 0.25, isRetro ? 0.26 : 0.29, 0.24, 64), isRetro ? trimMat : darkMetal);
-    bearing.castShadow = true;
-    pivot.add(bearing);
+    // Start/Stop
+    addBox([0.5, 0.1, 0.35], [pX - 1.8, 0.3, 2.4], brushedMetal);
+    addBox([0.45, 0.12, 0.3], [pX - 1.8, 0.32, 2.4], darkMetal);
+    
+    // 33/45 RPM
+    addBox([0.25, 0.08, 0.18], [pX - 1.1, 0.3, 2.5], brushedMetal);
+    addBox([0.25, 0.08, 0.18], [pX - 0.7, 0.3, 2.5], brushedMetal);
 
-    const counter = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.34, 48), brushedMetal);
-    counter.rotation.z = Math.PI / 2;
-    counter.position.set(0.36, 0.06, 0.15);
-    counter.castShadow = true;
-    pivot.add(counter);
+    // 45 Adapter
+    addCyl(0.2, 0.2, [pX - 2.1, 0.35, -2.1], brushedMetal);
+    addCyl(0.06, 0.25, [pX - 2.1, 0.35, -2.1], darkMetal);
 
-    const armCurve = new THREE.CatmullRomCurve3(isRetro ? [
-      new THREE.Vector3(-0.04, 0.12, 0),
-      new THREE.Vector3(-0.55, 0.2, 0.28),
-      new THREE.Vector3(-1.55, 0.18, 0.74),
-      new THREE.Vector3(-2.34, 0.12, 0.98),
-    ] : [
-      new THREE.Vector3(-0.04, 0.1, 0),
-      new THREE.Vector3(-0.42, 0.18, 0.34),
-      new THREE.Vector3(-1.38, 0.18, 0.92),
-      new THREE.Vector3(-2.28, 0.12, 1.08),
+    // Pitch Slider
+    addBox([0.35, 0.05, 1.8], [3.2, 0.3, 1.4], darkMetal);
+    addBox([0.1, 0.06, 1.7], [3.2, 0.31, 1.4], makeMat(0x0a0a0a, 0.9));
+    addBox([0.2, 0.18, 0.3], [3.2, 0.4, 1.4], brushedMetal); // Slider handle
+
+    // Tonearm Base
+    const armX = 2.0;
+    const armZ = -1.8;
+    addCyl(0.8, 0.15, [armX, 0.3, armZ], darkMetal);
+    addCyl(0.65, 0.25, [armX, 0.35, armZ], brushedMetal);
+    
+    // Anti-skate dial
+    addCyl(0.15, 0.15, [armX + 0.6, 0.38, armZ + 0.3], darkMetal);
+
+    // Tonearm Gimbal (Pan)
+    const basePivot = new THREE.Group();
+    basePivot.position.set(armX, 0.6, armZ);
+    root.add(basePivot);
+    basePivotRef.current = basePivot;
+
+    const gimbalRing = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.18, 64), brushedMetal);
+    gimbalRing.castShadow = true;
+    basePivot.add(gimbalRing);
+
+    // Arm Lift (Vertical tilt)
+    const armPivot = new THREE.Group();
+    basePivot.add(armPivot);
+    armPivotRef.current = armPivot;
+
+    // Counterweight
+    const counterWeight = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.45, 48), darkMetal);
+    counterWeight.rotation.z = Math.PI / 2;
+    counterWeight.position.set(0.5, 0, 0);
+    counterWeight.castShadow = true;
+    armPivot.add(counterWeight);
+    
+    const cwMark = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.08, 48), brushedMetal);
+    cwMark.rotation.z = Math.PI / 2;
+    cwMark.position.set(0.35, 0, 0);
+    armPivot.add(cwMark);
+
+    // Tonearm tube (S-shape curve towards platter)
+    const armCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.04, 0, 0),
+      new THREE.Vector3(-0.8, 0, 0.35),
+      new THREE.Vector3(-1.8, 0, 1.1),
+      new THREE.Vector3(-2.8, 0, 1.25),
     ]);
-    const armTube = new THREE.Mesh(new THREE.TubeGeometry(armCurve, 80, 0.035, 16, false), brushedMetal);
+    const armTube = new THREE.Mesh(new THREE.TubeGeometry(armCurve, 80, 0.04, 16, false), brushedMetal);
     armTube.castShadow = true;
-    pivot.add(armTube);
+    armPivot.add(armTube);
 
-    const headshell = new THREE.Mesh(new THREE.BoxGeometry(isRetro ? 0.36 : 0.42, 0.08, isRetro ? 0.22 : 0.28), isRetro ? makeMat(0x1a1410, 0.38, 0.2) : darkMetal);
-    headshell.position.set(-2.43, 0.08, 1.1);
-    headshell.rotation.y = -0.26;
+    // Headshell connector
+    const connector = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.12, 16), darkMetal);
+    connector.rotation.z = Math.PI / 2;
+    connector.position.set(-2.8, 0, 1.25);
+    armPivot.add(connector);
+
+    // Headshell
+    const headshellGroup = new THREE.Group();
+    headshellGroup.position.set(-2.95, 0, 1.3);
+    headshellGroup.rotation.y = -0.3; // Angle of headshell
+    armPivot.add(headshellGroup);
+
+    const headshell = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.06, 0.28), darkMetal);
     headshell.castShadow = true;
-    pivot.add(headshell);
+    headshellGroup.add(headshell);
 
-    const stylus = new THREE.Group();
-    stylus.position.set(-2.62, 0.005, 1.17);
-    pivot.add(stylus);
-    stylusRef.current = stylus;
-    const needle = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.22, 20), makeMat(0xdddddd, 0.24, 0.9));
-    needle.rotation.x = Math.PI;
-    needle.position.y = -0.12;
-    needle.castShadow = true;
-    stylus.add(needle);
+    // Finger lift
+    const fingerLift = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.15), brushedMetal);
+    fingerLift.position.set(-0.1, 0, 0.18);
+    headshellGroup.add(fingerLift);
 
-    const knobPositions = isRetro
-      ? [[2.04, 0.36, -1.38], [2.68, 0.36, -1.38], [2.04, 0.36, 1.14], [2.68, 0.36, 1.14], [2.36, 0.36, 1.7]]
-      : [[2.26, 0.36, -1.75], [2.72, 0.36, -1.75], [2.26, 0.36, -1.2], [2.72, 0.36, -1.2], [2.5, 0.36, 1.35]];
-    knobPositions.forEach(([x, y, z], i) => {
-      const knob = new THREE.Mesh(new THREE.CylinderGeometry(i === 4 ? 0.22 : 0.15, i === 4 ? 0.22 : 0.15, 0.12, 48), darkMetal);
-      knob.position.set(x, y, z);
-      knob.castShadow = true;
-      root.add(knob);
-    });
+    // Stylus cartridge
+    const cartridge = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.15, 0.18), makeMat(0xcc1111, 0.4, 0.2));
+    cartridge.position.set(0, -0.1, 0);
+    cartridge.castShadow = true;
+    headshellGroup.add(cartridge);
 
-    const startPos: [number, number, number] = isLp120 ? [-2.78, 0.39, 1.82] : isRetro ? [2.35, 0.39, 1.72] : [2.5, 0.39, -1.72];
-    const startButton = new THREE.Mesh(new THREE.CylinderGeometry(isRetro ? 0.22 : 0.26, isRetro ? 0.22 : 0.26, 0.09, 64), makeMat(isModern ? 0x2456ff : 0x166722, 0.32, 0.12));
-    startButton.position.set(startPos[0], startPos[1], startPos[2]);
-    startButton.castShadow = true;
-    root.add(startButton);
-
-    const led = new THREE.Mesh(
-      new THREE.SphereGeometry(0.07, 24, 16),
-      isModern ? new THREE.MeshStandardMaterial({ color: 0x7fa0ff, emissive: 0x376dff, emissiveIntensity: 1.8, roughness: 0.2 }) : ledGreenMat
-    );
-    led.position.set(startPos[0], startPos[1] + 0.1, startPos[2]);
-    root.add(led);
-
-    if (isLp120) {
-      addBox([0.64, 0.055, 0.22], [-2.78, 0.38, 1.32], darkMetal);
-      [["33", -3.05], ["45", -2.78], ["78", -2.51]].forEach(([, x], i) => {
-        const btn = addBox([0.18, 0.07, 0.24], [Number(x), 0.43, 1.32], i === 0 ? ledGreenMat : darkMetal);
-        btn.castShadow = true;
-      });
-      addBox([0.18, 0.055, 1.58], [2.82, 0.41, 0.16], blackRubber);
-      addBox([0.34, 0.12, 0.2], [2.82, 0.51, -0.1], brushedMetal);
-      for (let i = 0; i < 9; i++) addBox([0.11, 0.025, 0.015], [2.82, 0.49, -0.63 + i * 0.17], trimMat);
-      addCylinder(0.08, 0.22, [-2.78, 0.44, -1.84], ledAmberMat, 32);
-      addBox([0.18, 0.28, 0.18], [-2.78, 0.52, -1.84], glassMat);
-      addBox([0.48, 0.04, 0.22], [0.64, 0.42, -1.92], darkMetal);
-      addCylinder(0.08, 0.08, [0.64, 0.48, -1.92], ledAmberMat, 32);
-    } else if (isRetro) {
-      addBox([1.05, 0.06, 0.42], [2.36, 0.4, -1.9], glassMat);
-      for (let i = 0; i < 9; i++) {
-        const level = i < 6 ? 0x30d667 : i < 8 ? 0xe1cc3f : 0xec4d39;
-        addBox([0.055, 0.045 + i * 0.006, 0.08], [1.92 + i * 0.11, 0.47, -1.9], makeMat(level, 0.3, 0.08));
-      }
-      addBox([1.04, 0.05, 0.18], [2.36, 0.42, -0.58], trimMat);
-      addBox([0.12, 0.055, 1.0], [1.98, 0.43, 0.14], blackRubber);
-      addBox([0.12, 0.055, 1.0], [2.36, 0.43, 0.14], blackRubber);
-      addBox([0.12, 0.055, 1.0], [2.74, 0.43, 0.14], blackRubber);
-      addBox([0.26, 0.11, 0.16], [1.98, 0.52, -0.08], trimMat);
-      addBox([0.26, 0.11, 0.16], [2.36, 0.52, 0.16], trimMat);
-      addBox([0.26, 0.11, 0.16], [2.74, 0.52, -0.18], trimMat);
-    } else {
-      addBox([1.18, 0.055, 0.36], [2.36, 0.4, -1.2], glassMat);
-      for (let i = 0; i < 12; i++) addBox([0.045, 0.08 + Math.sin(i) * 0.035, 0.08], [1.86 + i * 0.09, 0.49, -1.2], makeMat(i > 8 ? 0xff4f6d : 0x69a6ff, 0.22, 0.15));
-      addBox([0.16, 0.06, 1.65], [2.86, 0.42, 0.34], blackRubber);
-      addBox([0.38, 0.12, 0.22], [2.86, 0.52, 0.05], makeMat(0xa5b8ff, 0.2, 0.65));
-      addCylinder(0.12, 0.08, [1.84, 0.44, 1.72], ledAmberMat, 48);
-      addCylinder(0.12, 0.08, [2.18, 0.44, 1.72], ledGreenMat, 48);
-    }
-
-    const feet = [[-2.9, -0.69, -1.98], [2.9, -0.69, -1.98], [-2.9, -0.69, 1.98], [2.9, -0.69, 1.98]];
-    feet.forEach(([x, y, z]) => {
-      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.18, 48), blackRubber);
-      foot.position.set(x, y, z);
-      foot.castShadow = true;
-      root.add(foot);
-    });
-
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(12, 9),
-      new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.34 })
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -0.81;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
-    let coverTexture: THREE.Texture | null = null;
-    const loadCover = () => {
-      if (!coverRef.current) return;
-      const image = new Image();
-      image.crossOrigin = "anonymous";
-      image.onload = () => {
-        if (coverTexture) coverTexture.dispose();
-        coverTexture = new THREE.Texture(image);
-        coverTexture.colorSpace = THREE.SRGBColorSpace;
-        coverTexture.needsUpdate = true;
-        label.material = new THREE.MeshStandardMaterial({ map: coverTexture, roughness: 0.55, metalness: 0.02 });
-      };
-      image.src = coverRef.current;
-    };
-    loadCover();
-
-    const resize = () => {
-      const width = mount.clientWidth || 760;
-      const height = mount.clientHeight || 560;
-      renderer.setSize(width, height);
-      camera.aspect = width / height;
+    const ro = new ResizeObserver(() => {
+      if (!mount) return;
+      const w = mount.clientWidth || 760;
+      const h = mount.clientHeight || 560;
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-    };
-    const ro = new ResizeObserver(resize);
+    });
     ro.observe(mount);
 
     let raf = 0;
@@ -2325,15 +2262,23 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     const animate = (now: number) => {
       const dt = Math.min(0.04, (now - last) / 1000);
       last = now;
-      const spin = playingRef.current ? dt * 3.45 : dt * 0.22;
-      recordGroup.rotation.y -= spin;
-      platter.rotation.y -= spin * 0.72;
 
+      const spin = playingRef.current ? dt * 3.45 : dt * 0.22;
+      if (recordGroupRef.current) recordGroupRef.current.rotation.y -= spin;
+      if (platterRef.current) platterRef.current.rotation.y -= spin * 0.72;
+
+      // Flawless Tonearm Mechanics
       const p = Math.max(0, Math.min(1, progressRef.current || 0));
-      const targetRot = 0.36 - p * 0.23;
-      if (pivot) pivot.rotation.y += (targetRot - pivot.rotation.y) * 0.08;
-      if (stylusRef.current) stylusRef.current.position.y += ((playingRef.current ? -0.03 : 0.08) - stylusRef.current.position.y) * 0.09;
-      led.scale.setScalar(playingRef.current ? 1 + Math.sin(now * 0.012) * 0.08 : 0.72);
+      const targetPan = playingRef.current ? 0.35 - (p * 0.25) : 0.65;
+      const targetLift = playingRef.current ? 0.015 : -0.06;
+
+      if (basePivotRef.current) {
+        basePivotRef.current.rotation.y += (targetPan - basePivotRef.current.rotation.y) * 0.08;
+      }
+      if (armPivotRef.current) {
+        armPivotRef.current.rotation.z += (targetLift - armPivotRef.current.rotation.z) * 0.12;
+      }
+
       renderer.render(scene, camera);
       raf = requestAnimationFrame(animate);
     };
@@ -2350,7 +2295,6 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
         if (Array.isArray(material)) material.forEach(m => m.dispose());
         else material?.dispose();
       });
-      coverTexture?.dispose();
       scene.environment?.dispose();
       renderer.dispose();
       pmrem.dispose();
@@ -2360,7 +2304,7 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
   return <div ref={mountRef} style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }} />;
 }
 
-function EqualizerVisualizer({
+  function EqualizerVisualizer({
   analyserRef, shape, color, color2, bars, glow, bgColor, playing, width, height,
 }: any) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -5383,7 +5327,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
-
 
 
 
