@@ -2014,10 +2014,11 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     envScene.background = new THREE.Color(0x353a42);
     scene.environment = pmrem.fromScene(envScene, 0.04).texture;
 
-    const hemi = new THREE.HemisphereLight(0xe9f1ff, 0x111111, 1.2);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x333344, 1.8);
     scene.add(hemi);
     const key = new THREE.DirectionalLight(0xffffff, 3.8);
-    key.position.set(-4.5, 8.8, 5.6);
+    key.position.set(-2.5, 12.0, 3.5);
+    key.shadow.bias = -0.001; // Fix shadow acne
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 0.5;
@@ -2029,7 +2030,7 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     scene.add(key);
 
     const rim = new THREE.DirectionalLight(0x8ab6ff, 1.4);
-    rim.position.set(4, 5, -6);
+    rim.position.set(3.5, 10.0, -4.5);
     scene.add(rim);
 
     const makeMat = (color: number, roughness: number, metalness = 0) =>
@@ -2043,12 +2044,12 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     const trimColor = isDirectDrive ? 0xd0d4da : isBeltDrive ? 0xc49b56 : 0x7a97ff;
 
     const baseMat = makeMat(baseColor, isBeltDrive ? 0.6 : 0.3, isBeltDrive ? 0.02 : 0.28);
-    const blackRubber = makeMat(0x0a0a0a, 0.85, 0.02);
+    const blackRubber = makeMat(0x242629, 0.9, 0.05);
     const brushedMetal = makeMat(0xbcbfc4, 0.32, 0.88);
     const darkMetal = makeMat(0x22252c, 0.45, 0.7);
     const panelMat = makeMat(panelColor, 0.35, isBeltDrive ? 0.05 : 0.4);
     const vinylColor = new THREE.Color(colorsRef.current?.[0] || "#080808");
-    const vinylMat = new THREE.MeshStandardMaterial({ color: vinylColor, roughness: 0.28, metalness: 0.15 });
+    const vinylMat = new THREE.MeshStandardMaterial({ color: vinylColor, roughness: 0.15, metalness: 0.6 });
     const labelMat = new THREE.MeshStandardMaterial({ color: 0xeae1ce, roughness: 0.6, metalness: 0.01 });
 
     const root = new THREE.Group();
@@ -2096,7 +2097,7 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     const platter = new THREE.Mesh(new THREE.CylinderGeometry(2.15, 2.2, 0.26, 128), brushedMetal);
     platter.position.set(pX, 0.12, 0);
     platter.receiveShadow = true;
-    platter.castShadow = true;
+    platter.castShadow = false;
     root.add(platter);
     platterRef.current = platter;
 
@@ -2134,7 +2135,7 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
       const r = 0.65 + i * 0.026;
       const groove = new THREE.Mesh(
         new THREE.TorusGeometry(r, i % 9 === 0 ? 0.0055 : 0.0035, 12, 128),
-        new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 0.3, metalness: 0.25 })
+        new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.2, metalness: 0.8 })
       );
       groove.rotation.x = Math.PI / 2;
       groove.position.y = 0.034 + i * 0.0001;
@@ -2267,17 +2268,36 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
       if (recordGroupRef.current) recordGroupRef.current.rotation.y -= spin;
       if (platterRef.current) platterRef.current.rotation.y -= spin * 0.72;
 
-      // Flawless Tonearm Mechanics
+      // Flawless Sequenced Tonearm Mechanics (Lift -> Pan -> Drop)
+      const currentPan = basePivotRef.current ? basePivotRef.current.rotation.y : 0;
+      const currentLift = armPivotRef.current ? armPivotRef.current.rotation.z : 0;
       const p = Math.max(0, Math.min(1, progressRef.current || 0));
-      const targetPan = playingRef.current ? 0.35 - (p * 0.25) : 0.65;
-      const targetLift = playingRef.current ? 0.015 : -0.06;
+      const playing = playingRef.current;
+      
+      const desiredPan = playing ? 0.45 - (p * 0.50) : 0.65; 
+      let targetPan = currentPan;
+      let targetLift = -0.06; // UP position
 
-      if (basePivotRef.current) {
-        basePivotRef.current.rotation.y += (targetPan - basePivotRef.current.rotation.y) * 0.08;
+      if (playing) {
+         if (Math.abs(currentPan - desiredPan) > 0.02) {
+            targetPan = desiredPan; // Pan to target
+            targetLift = -0.06; // Keep it up while panning
+         } else {
+            targetPan = desiredPan; // Track the groove
+            targetLift = 0.002; // Gently drop onto record
+         }
+      } else {
+         if (currentLift > -0.05) {
+            targetPan = currentPan; // Don't pan yet!
+            targetLift = -0.06; // Lift it!
+         } else {
+            targetPan = 0.65; // Now pan to rest
+            targetLift = -0.06; // Keep it up
+         }
       }
-      if (armPivotRef.current) {
-        armPivotRef.current.rotation.z += (targetLift - armPivotRef.current.rotation.z) * 0.12;
-      }
+
+      if (basePivotRef.current) basePivotRef.current.rotation.y += (targetPan - currentPan) * 0.12;
+      if (armPivotRef.current) armPivotRef.current.rotation.z += (targetLift - currentLift) * 0.15;
 
       renderer.render(scene, camera);
       raf = requestAnimationFrame(animate);
@@ -5327,10 +5347,3 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
-
-
-
-
-
-
-
