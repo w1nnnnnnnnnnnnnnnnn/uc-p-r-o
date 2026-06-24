@@ -524,20 +524,20 @@ function normalizeStorageShelf(raw: any, projectNames: string[] = []) {
 // Deck helpers
 
 function normalizeDeckStyle(style: string) {
-  if (style === "realistic") return "realistic1";
+  if (style === "realistic") return "directdrive";
   if (DECK_STYLES.includes(style)) return style;
   return "classic";
 }
 
 function deckGeometry(style: string) {
   const s = normalizeDeckStyle(style);
-  if (s === "realistic3") {
+  if (s === "modern") {
     return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 472, pivotY: 112 };
   }
-  if (s === "realistic1") {
+  if (s === "directdrive") {
     return { width: 760, height: 560, cx: 252, cy: 278, pivotX: 474, pivotY: 96 };
   }
-  if (s === "realistic2") {
+  if (s === "beltdrive") {
     return { width: 760, height: 560, cx: 252, cy: 278, pivotX: 470, pivotY: 104 };
   }
   if (["dark", "chrome", "wood"].includes(s)) {
@@ -554,8 +554,8 @@ function boardPath(style: string) {
   const s = normalizeDeckStyle(style);
   if (s === "chrome") return "M58 20 L502 20 L540 58 L540 500 L502 540 L20 540 L20 58 Z";
   if (s === "dark") return "M20 20 L540 20 L540 540 L20 540 Z";
-  if (s === "realistic1") return "M18 8 Q8 8 8 18 L8 550 Q8 560 18 560 L750 560 Q760 560 760 550 L760 18 Q760 8 750 8 Z";
-  if (s === "realistic2") return "M22 8 Q8 8 8 22 L8 548 Q8 560 22 560 L748 560 Q760 560 760 548 L760 22 Q760 8 748 8 Z";
+  if (s === "directdrive") return "M18 8 Q8 8 8 18 L8 550 Q8 560 18 560 L750 560 Q760 560 760 550 L760 18 Q760 8 750 8 Z";
+  if (s === "beltdrive") return "M22 8 Q8 8 8 22 L8 548 Q8 560 22 560 L748 560 Q760 560 760 548 L760 22 Q760 8 748 8 Z";
   if (s === "wood") return "M42 20 Q20 20 20 42 L20 518 Q20 540 42 540 L518 540 Q540 540 540 518 L540 42 Q540 20 518 20 Z";
   if (s === "minimal") return "M20 20 L540 20 L540 540 L20 540 Z";
   return "M48 20 Q20 20 20 48 L20 512 Q20 540 48 540 L512 540 Q540 540 540 512 L540 48 Q540 20 512 20 Z";
@@ -568,8 +568,8 @@ function deckBase(style: string, color: string) {
   if (s === "chrome") return "#b8bec4";
   if (s === "wood") return "#8b5a32";
   if (s === "minimal") return "#ffffff";
-  if (s === "realistic1") return color || "#25272b";
-  if (s === "realistic2") return color || "#d8d2c7";
+  if (s === "directdrive") return color || "#25272b";
+  if (s === "beltdrive") return color || "#d8d2c7";
   return color || "#1a1a1a";
 }
 
@@ -864,14 +864,14 @@ function DeckDefs({ id, style, color }: any) {
             <stop offset="56%" stopColor="#9b6537" />
             <stop offset="100%" stopColor="#b47b47" />
           </>
-        ) : s === "realistic1" ? (
+        ) : s === "directdrive" ? (
           <>
             <stop offset="0%" stopColor={lighten(base, 34)} />
             <stop offset="34%" stopColor={base} />
             <stop offset="72%" stopColor={darken(base, 34)} />
             <stop offset="100%" stopColor="#090a0d" />
           </>
-        ) : s === "realistic2" ? (
+        ) : s === "beltdrive" ? (
           <>
             <stop offset="0%" stopColor={lighten(base, 28)} />
             <stop offset="42%" stopColor={base} />
@@ -1100,7 +1100,7 @@ function BeltDriveTonearm({ id, geometry, stylus }: any) {
 
 function StandardControls({ id, style, textColor }: any) {
   const s = normalizeDeckStyle(style);
-  if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) return null;
+  if (["directdrive", "beltdrive", "dark", "chrome", "wood"].includes(s)) return null;
   if (s !== "minimal") {
     return (
       <g>
@@ -1127,7 +1127,7 @@ function StandardControls({ id, style, textColor }: any) {
 // Wide-format direct-drive deck (760x560)
 function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
   const id = "deck-dd";
-  const g = deckGeometry("realistic1");
+  const g = deckGeometry("directdrive");
   const stylus = groovePoint(g, vinylRadius, progress);
   const holeR = (platterRadius ?? vinylRadius) + 9;
   const hole = holePath(g.cx, g.cy, holeR);
@@ -1404,7 +1404,7 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
 // Wide-format belt-drive deck (760x560)
 function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
   const id = "deck-bd";
-  const g = deckGeometry("realistic2");
+  const g = deckGeometry("beltdrive");
   const stylus = groovePoint(g, vinylRadius, progress);
   const holeR = (platterRadius ?? vinylRadius) + 9;
   const hole = holePath(g.cx, g.cy, holeR);
@@ -1720,7 +1720,7 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
 
 function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any) {
   const id = "deck-realistic3";
-  const g = deckGeometry("realistic3");
+  const g = deckGeometry("modern");
   const stylus = groovePoint(g, vinylRadius, progress);
   const holeR = (platterRadius ?? vinylRadius) + 7;
   const hole = holePath(g.cx, g.cy, holeR);
@@ -1959,13 +1959,13 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
 
 function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, progress }: any) {
   const s = normalizeDeckStyle(style);
-  if (s === "realistic3") {
+  if (s === "modern") {
     return <Realistic3Deck vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
   }
-  if (s === "realistic1") {
+  if (s === "directdrive") {
     return <DirectDriveDeck vinylRadius={vinylRadius} platterRadius={platterRadius} progress={progress} />;
   }
-  if (s === "realistic2") {
+  if (s === "beltdrive") {
     return <BeltDriveDeck vinylRadius={vinylRadius} platterRadius={platterRadius} progress={progress} />;
   }
   return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
@@ -2035,8 +2035,8 @@ function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }
     const makeMat = (color: number, roughness: number, metalness = 0) =>
       new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
-    const isDirectDrive = deckStyle === "directdrive" || deckStyle === "realistic1";
-    const isBeltDrive = deckStyle === "beltdrive" || deckStyle === "realistic2";
+    const isDirectDrive = deckStyle === "directdrive" || deckStyle === "directdrive";
+    const isBeltDrive = deckStyle === "beltdrive" || deckStyle === "beltdrive";
     
     const baseColor = isDirectDrive ? 0xb4b9bf : isBeltDrive ? 0x6e4122 : 0x0c0d12;
     const panelColor = isDirectDrive ? 0x14161a : isBeltDrive ? 0x1e1511 : 0x12151c;
@@ -3432,7 +3432,7 @@ export function Aurae() {
   const [splatterColor, setSplatterColor] = useState("#3a7bd5");
   const [splatterOn, setSplatterOn] = useState(false);
   const [splatterStyle, setSplatterStyle] = useState("burst");
-  const [deckStyle, setDeckStyle] = useState("realistic1");
+  const [deckStyle, setDeckStyle] = useState("directdrive");
   const [deckColor, setDeckColor] = useState("#1a1a1a");
   const [vinylSide, setVinylSide] = useState(1);
   const [flipping, setFlipping] = useState(false);
@@ -3931,7 +3931,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
       vinylColor: "#111111", vinylColors: DEFAULT_VINYL_COLORS,
       vinylGradient: "solid", vinylOpacity: 1,
       splatterColor: "#3a7bd5", splatterOn: false, splatterStyle: "burst",
-      deckStyle: "realistic1", deckColor: "#24272d", pictureVinyl: false,
+      deckStyle: "directdrive", deckColor: "#24272d", pictureVinyl: false,
     };
     setProjectsMeta((prev: any) => ({ ...prev, [clean]: p }));
     if (currentUser) {
@@ -4387,8 +4387,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
   const normalizedDeckStyle = normalizeDeckStyle(deckStyle);
   const geometry = deckGeometry(normalizedDeckStyle);
   const compactDecks = ["dark", "chrome", "wood"].includes(normalizedDeckStyle);
-  const isRealisticDeck = ["realistic1", "realistic2", "realistic3"].includes(normalizedDeckStyle);
-  const platterRadius = ["realistic1", "realistic2", "realistic3"].includes(normalizedDeckStyle) ? 172 : compactDecks ? 164 : 188;
+  const isRealisticDeck = ["directdrive", "beltdrive", "modern"].includes(normalizedDeckStyle);
+  const platterRadius = ["directdrive", "beltdrive", "modern"].includes(normalizedDeckStyle) ? 172 : compactDecks ? 164 : 188;
   const vinylRadius = isSingle ? Math.round(platterRadius * 0.64) : platterRadius;
   const current = tracks[index];
   const displayDuration = duration || current?.duration || 0;
@@ -5327,6 +5327,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
 
 
