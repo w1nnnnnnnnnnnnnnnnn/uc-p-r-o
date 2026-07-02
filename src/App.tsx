@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import * as THREE from "three";
 
 // ----------------------------------------------------------------------------
 // Inline auth helpers (previously imported from ./secureAuth).
@@ -415,8 +414,8 @@ function sideCoverFor(side: number, covers: any[], repeatFirstPair: boolean, fal
 const DEFAULT_VINYL_COLORS = ["#111111", "#111111", "#111111", "#111111"];
 
 const DECK_STYLES = [
-  "directdrive", "beltdrive", "modern",
   "classic", "dark", "chrome", "wood", "minimal",
+  "realistic1", "realistic2", "realistic3",
 ];
 
 const VINYL_GRADIENTS = [
@@ -524,20 +523,20 @@ function normalizeStorageShelf(raw: any, projectNames: string[] = []) {
 // Deck helpers
 
 function normalizeDeckStyle(style: string) {
-  if (style === "realistic") return "directdrive";
+  if (style === "realistic") return "realistic1";
   if (DECK_STYLES.includes(style)) return style;
   return "classic";
 }
 
 function deckGeometry(style: string) {
   const s = normalizeDeckStyle(style);
-  if (s === "modern") {
+  if (s === "realistic3") {
     return { width: 760, height: 560, cx: 265, cy: 285, pivotX: 472, pivotY: 112 };
   }
-  if (s === "directdrive") {
+  if (s === "realistic1") {
     return { width: 760, height: 560, cx: 252, cy: 278, pivotX: 474, pivotY: 96 };
   }
-  if (s === "beltdrive") {
+  if (s === "realistic2") {
     return { width: 760, height: 560, cx: 252, cy: 278, pivotX: 470, pivotY: 104 };
   }
   if (["dark", "chrome", "wood"].includes(s)) {
@@ -554,8 +553,8 @@ function boardPath(style: string) {
   const s = normalizeDeckStyle(style);
   if (s === "chrome") return "M58 20 L502 20 L540 58 L540 500 L502 540 L20 540 L20 58 Z";
   if (s === "dark") return "M20 20 L540 20 L540 540 L20 540 Z";
-  if (s === "directdrive") return "M18 8 Q8 8 8 18 L8 550 Q8 560 18 560 L750 560 Q760 560 760 550 L760 18 Q760 8 750 8 Z";
-  if (s === "beltdrive") return "M22 8 Q8 8 8 22 L8 548 Q8 560 22 560 L748 560 Q760 560 760 548 L760 22 Q760 8 748 8 Z";
+  if (s === "realistic1") return "M18 8 Q8 8 8 18 L8 550 Q8 560 18 560 L750 560 Q760 560 760 550 L760 18 Q760 8 750 8 Z";
+  if (s === "realistic2") return "M22 8 Q8 8 8 22 L8 548 Q8 560 22 560 L748 560 Q760 560 760 548 L760 22 Q760 8 748 8 Z";
   if (s === "wood") return "M42 20 Q20 20 20 42 L20 518 Q20 540 42 540 L518 540 Q540 540 540 518 L540 42 Q540 20 518 20 Z";
   if (s === "minimal") return "M20 20 L540 20 L540 540 L20 540 Z";
   return "M48 20 Q20 20 20 48 L20 512 Q20 540 48 540 L512 540 Q540 540 540 512 L540 48 Q540 20 512 20 Z";
@@ -568,8 +567,8 @@ function deckBase(style: string, color: string) {
   if (s === "chrome") return "#b8bec4";
   if (s === "wood") return "#8b5a32";
   if (s === "minimal") return "#ffffff";
-  if (s === "directdrive") return color || "#25272b";
-  if (s === "beltdrive") return color || "#d8d2c7";
+  if (s === "realistic1") return color || "#25272b";
+  if (s === "realistic2") return color || "#d8d2c7";
   return color || "#1a1a1a";
 }
 
@@ -707,16 +706,6 @@ function VinylDisc({
   const labelSize = Math.round(radius * (isSingle ? 0.58 : 0.75));
   const centerHoleSize = Math.round(radius * (isSingle ? 0.34 : 0.12));
   const isPicture = Boolean(pictureVinyl && cover);
-  const dust = Array.from({ length: 42 }).map((_, i) => {
-    const a = (i * 137.508) * Math.PI / 180;
-    const r = radius * (0.18 + ((i * 47) % 76) / 100);
-    return {
-      left: radius + Math.cos(a) * r,
-      top: radius + Math.sin(a) * r,
-      size: 0.7 + ((i * 13) % 7) * 0.12,
-      opacity: 0.08 + ((i * 19) % 9) * 0.012,
-    };
-  });
 
   return (
     <div style={{
@@ -729,7 +718,6 @@ function VinylDisc({
       overflow: "hidden",
       boxShadow:
         "0 36px 80px rgba(0,0,0,0.72), 0 6px 18px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.09), inset 0 0 60px rgba(0,0,0,0.6)",
-      filter: "contrast(1.04) saturate(1.05)",
       animation: flipping
         ? `vinylFlip ${FLIP_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
         : playing
@@ -747,11 +735,6 @@ function VinylDisc({
         position: "absolute", inset: 0, borderRadius: "50%",
         background: "repeating-radial-gradient(circle, rgba(255,255,255,0.10) 0 0.5px, rgba(0,0,0,0.20) 0.5px 1px, transparent 1px 2.5px)",
         opacity: isPicture ? 0.12 : 0.92, pointerEvents: "none",
-      }} />
-      <div style={{
-        position: "absolute", inset: 0, borderRadius: "50%",
-        boxShadow: "inset 0 0 0 3px rgba(255,255,255,0.045), inset 0 0 0 7px rgba(0,0,0,0.28), inset 0 0 0 10px rgba(255,255,255,0.025)",
-        pointerEvents: "none",
       }} />
       <div style={{
         position: "absolute", inset: 0, borderRadius: "50%",
@@ -789,19 +772,6 @@ function VinylDisc({
         pointerEvents: "none",
       }} />
       {!isPicture && splatterOn && <SplatterOverlay color={splatterColor} style={splatterStyle} />}
-      {dust.map((d, i) => (
-        <span key={`dust-${i}`} style={{
-          position: "absolute",
-          left: d.left,
-          top: d.top,
-          width: d.size,
-          height: d.size,
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.85)",
-          opacity: d.opacity,
-          pointerEvents: "none",
-        }} />
-      ))}
       {!isPicture && (cover ? (
         <img src={cover} alt="" style={{
           position: "absolute",
@@ -864,14 +834,14 @@ function DeckDefs({ id, style, color }: any) {
             <stop offset="56%" stopColor="#9b6537" />
             <stop offset="100%" stopColor="#b47b47" />
           </>
-        ) : s === "directdrive" ? (
+        ) : s === "realistic1" ? (
           <>
             <stop offset="0%" stopColor={lighten(base, 34)} />
             <stop offset="34%" stopColor={base} />
             <stop offset="72%" stopColor={darken(base, 34)} />
             <stop offset="100%" stopColor="#090a0d" />
           </>
-        ) : s === "beltdrive" ? (
+        ) : s === "realistic2" ? (
           <>
             <stop offset="0%" stopColor={lighten(base, 28)} />
             <stop offset="42%" stopColor={base} />
@@ -1100,7 +1070,7 @@ function BeltDriveTonearm({ id, geometry, stylus }: any) {
 
 function StandardControls({ id, style, textColor }: any) {
   const s = normalizeDeckStyle(style);
-  if (["directdrive", "beltdrive", "dark", "chrome", "wood"].includes(s)) return null;
+  if (["realistic1", "realistic2", "dark", "chrome", "wood"].includes(s)) return null;
   if (s !== "minimal") {
     return (
       <g>
@@ -1127,20 +1097,20 @@ function StandardControls({ id, style, textColor }: any) {
 // Wide-format direct-drive deck (760x560)
 function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
   const id = "deck-dd";
-  const g = deckGeometry("directdrive");
+  const g = deckGeometry("realistic1");
   const stylus = groovePoint(g, vinylRadius, progress);
   const holeR = (platterRadius ?? vinylRadius) + 9;
   const hole = holePath(g.cx, g.cy, holeR);
   const board = "M18 8 Q8 8 8 18 L8 550 Q8 560 18 560 L750 560 Q760 560 760 550 L760 18 Q760 8 750 8 Z";
   const cx = g.cx; const cy = g.cy;
-  // Strobe dots around platter rim
+  // Strobe dots — on plinth surface just outside the platter hole
   const strobeDots: React.ReactNode[] = [];
-  const dotCount = 60; const strobeR = holeR + 16;
+  const dotCount = 60; const strobeR = holeR + 12;
   for (let i = 0; i < dotCount; i++) {
     const a = (i / dotCount) * Math.PI * 2;
     strobeDots.push(
       <rect key={i} x={(cx + Math.cos(a) * strobeR - 1.5).toFixed(1)} y={(cy + Math.sin(a) * strobeR - 1).toFixed(1)}
-        width="3" height="2" rx="0.5" fill="rgba(255,255,255,0.5)"
+        width="3" height="2" rx="0.5" fill="rgba(255,255,255,0.45)"
         transform={`rotate(${(i / dotCount * 360).toFixed(1)} ${(cx + Math.cos(a) * strobeR).toFixed(1)} ${(cy + Math.sin(a) * strobeR).toFixed(1)})`} />
     );
   }
@@ -1209,32 +1179,6 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
       <path d={`${board} ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd"
         filter={`url(#${id}-shadow)`} />
 
-      {/* Cast-aluminium surface micro-texture (faint speckle dots) on the plinth around the platter */}
-      {Array.from({ length: 220 }).map((_, i) => {
-        const seed = i * 9301 + 49297;
-        const rx = ((seed % 233280) / 233280); const ry = (((seed * 1103) % 233280) / 233280);
-        const x = 16 + rx * 480; const y = 16 + ry * 528;
-        const dxp = x - cx; const dyp = y - cy; const dist = Math.sqrt(dxp*dxp + dyp*dyp);
-        if (dist < holeR + 34 || x > 500) return null;
-        return <circle key={`dd-tex-${i}`} cx={x.toFixed(1)} cy={y.toFixed(1)} r="0.45" fill="rgba(255,255,255,0.05)" />;
-      })}
-      {/* Hairline machining swirl on the deck surface */}
-      <ellipse cx="260" cy="120" rx="220" ry="14" fill="none" stroke="rgba(255,255,255,0.025)" strokeWidth="0.6" />
-      <ellipse cx="260" cy="440" rx="220" ry="14" fill="none" stroke="rgba(255,255,255,0.025)" strokeWidth="0.6" />
-
-      {/* Recessed power switch (rectangular rocker, top-left) */}
-      <rect x="26" y="22" width="44" height="22" rx="3" fill="#0a0c10" stroke="rgba(0,0,0,0.7)" strokeWidth="1" />
-      <rect x="28" y="24" width="40" height="18" rx="2.5" fill="#16181d" />
-      <circle cx="36" cy="33" r="2.5" fill="rgba(220,60,60,0.7)" filter={`url(#${id}-glow)`} />
-      <text x="56" y="37" fill="rgba(255,255,255,0.45)" fontSize="6.5" fontFamily="monospace" textAnchor="middle">PWR</text>
-
-      {/* Pop-up target light (Technics-style arm illuminator) */}
-      <rect x="410" y="80" width="22" height="14" rx="2" fill="#0a0c10" stroke="rgba(0,0,0,0.6)" strokeWidth="0.9" />
-      <rect x="412" y="82" width="18" height="10" rx="1.5" fill="#1a1c22" />
-      <circle cx="421" cy="87" r="3.6" fill="rgba(255,235,160,0.85)" filter={`url(#${id}-glow)`} />
-      <circle cx="421" cy="87" r="1.5" fill="rgba(255,250,220,0.95)" />
-      <text x="421" y="106" fill="rgba(255,255,255,0.35)" fontSize="6" fontFamily="monospace" textAnchor="middle">TARGET</text>
-
       {/* Top-edge bevel highlight */}
       <path d="M18 8 Q8 8 8 18 L8 20 Q8 10 18 10 L750 10 Q760 10 760 20 L760 18 Q760 8 750 8 Z"
         fill={`url(#${id}-tophl)`} />
@@ -1249,52 +1193,14 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
       <rect x="503" y="12" width="2" height="536" fill="rgba(0,0,0,0.6)" />
       <rect x="505" y="12" width="2" height="536" fill="rgba(255,255,255,0.06)" />
 
-      {/* Platter (aluminum) ring — donut so vinyl is visible through the centre */}
-      {(() => {
-        const R = holeR + 28; const r = vinylRadius;
-        const d = `M ${cx - R} ${cy} A ${R} ${R} 0 1 0 ${cx + R} ${cy} A ${R} ${R} 0 1 0 ${cx - R} ${cy} Z M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
-        return <path d={d} fill={`url(#${id}-platter)`} fillRule="evenodd" stroke="rgba(0,0,0,0.7)" strokeWidth="2" />;
-      })()}
-      {/* Platter outer rim highlight */}
-      <circle cx={cx} cy={cy} r={holeR + 27} fill="none"
-        stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <circle cx={cx} cy={cy} r={holeR + 25} fill="none"
-        stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
-
-      {/* Rubber slipmat — donut so the vinyl is visible through the centre */}
-      {(() => {
-        const R = holeR + 18; const r = vinylRadius;
-        const d = `M ${cx - R} ${cy} A ${R} ${R} 0 1 0 ${cx + R} ${cy} A ${R} ${R} 0 1 0 ${cx - R} ${cy} Z M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
-        return <path d={d} fill={`url(#${id}-mat)`} fillRule="evenodd" />;
-      })()}
-      {/* Subtle slipmat radial fibre */}
-      <circle cx={cx} cy={cy} r={vinylRadius + 6} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="1.4 2.6" />
-      <circle cx={cx} cy={cy} r={vinylRadius + 12} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="1 3" />
-      {/* Drop-shadow of the vinyl resting on the mat */}
-      <circle cx={cx} cy={cy + 1.6} r={vinylRadius + 1.8} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="2.6" opacity="0.7" />
-      {/* Brushed-aluminium machining spokes on the outer platter ring */}
-      {Array.from({ length: 144 }).map((_, i) => {
-        const a = (i / 144) * Math.PI * 2;
-        const r1 = holeR + 19; const r2 = holeR + 27;
-        return <line key={`dd-sp-${i}`}
-          x1={(cx + Math.cos(a) * r1).toFixed(1)} y1={(cy + Math.sin(a) * r1).toFixed(1)}
-          x2={(cx + Math.cos(a) * r2).toFixed(1)} y2={(cy + Math.sin(a) * r2).toFixed(1)}
-          stroke="rgba(255,255,255,0.045)" strokeWidth="0.5" />;
-      })}
-
-      {/* Strobe dots */}
+      {/* Platter rim — concentric ring strokes around hole (no fill, vinyl visible through hole) */}
+      <circle cx={cx} cy={cy} r={holeR + 3} fill="none" stroke="rgba(0,0,0,0.70)" strokeWidth="7" />
+      <circle cx={cx} cy={cy} r={holeR + 2} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="2" />
+      <circle cx={cx} cy={cy} r={holeR - 2} fill="none" stroke="rgba(0,0,0,0.50)" strokeWidth="3" />
+      {/* Strobe dots — on plinth just outside hole */}
       {strobeDots}
-
-      {/* Platter center ring details */}
-      <circle cx={cx} cy={cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="8" />
-      <circle cx={cx} cy={cy} r={holeR + 16} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
-      <circle cx={cx} cy={cy} r={holeR + 11} fill="none" stroke="rgba(0,0,0,0.38)" strokeWidth="3" />
-      <circle cx={cx} cy={cy} r={holeR + 5} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
-      {/* Specular highlight arc on the platter (stationary glossy reflection) */}
-      <path d={`M ${cx + Math.cos(-2.4) * (holeR + 24)} ${cy + Math.sin(-2.4) * (holeR + 24)} A ${holeR + 24} ${holeR + 24} 0 0 1 ${cx + Math.cos(-1.55) * (holeR + 24)} ${cy + Math.sin(-1.55) * (holeR + 24)}`}
-        fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="3.5" strokeLinecap="round" opacity="0.55" />
-      <path d={`M ${cx + Math.cos(0.7) * (holeR + 24)} ${cy + Math.sin(0.7) * (holeR + 24)} A ${holeR + 24} ${holeR + 24} 0 0 1 ${cx + Math.cos(1.05) * (holeR + 24)} ${cy + Math.sin(1.05) * (holeR + 24)}`}
-        fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="2.2" strokeLinecap="round" opacity="0.6" />
+      {/* Inner shadow ring cast by plinth edge onto platter */}
+      <circle cx={cx} cy={cy} r={holeR + 6} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="5" />
 
       {/* Right panel */}
       <rect x="510" y="14" width="242" height="534" rx="4" fill={`url(#${id}-panel)`} />
@@ -1326,11 +1232,6 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
         );
       })}
       <text x="609" y="180" fill="rgba(255,255,255,0.30)" fontSize="7" fontFamily="monospace" textAnchor="middle">RPM</text>
-      {/* Brand engraving plate */}
-      <rect x="540" y="492" width="186" height="42" rx="3" fill="rgba(0,0,0,0.5)" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-      <rect x="540" y="492" width="186" height="2" fill="rgba(255,255,255,0.10)" />
-      <text x="633" y="512" fill="rgba(220,225,235,0.85)" fontSize="13" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight="bold" textAnchor="middle" letterSpacing="3">SL-1210</text>
-      <text x="633" y="526" fill="rgba(180,190,210,0.55)" fontSize="6.5" fontFamily="monospace" textAnchor="middle" letterSpacing="3">DIRECT DRIVE · QUARTZ LOCK</text>
 
       {/* Pitch fader slot */}
       <rect x="518" y="196" width="10" height="200" rx="4" fill="#080a0c" stroke="rgba(255,255,255,0.10)" strokeWidth="1" />
@@ -1404,7 +1305,7 @@ function DirectDriveDeck({ vinylRadius, platterRadius, progress }: any) {
 // Wide-format belt-drive deck (760x560)
 function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
   const id = "deck-bd";
-  const g = deckGeometry("beltdrive");
+  const g = deckGeometry("realistic2");
   const stylus = groovePoint(g, vinylRadius, progress);
   const holeR = (platterRadius ?? vinylRadius) + 9;
   const hole = holePath(g.cx, g.cy, holeR);
@@ -1412,10 +1313,10 @@ function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
   const cx = g.cx; const cy = g.cy;
   // Strobe dots
   const strobeDots: React.ReactNode[] = [];
-  const dotCount = 64; const strobeR = holeR + 16;
+  const dotCount = 64; const strobeR = holeR + 12;
   for (let i = 0; i < dotCount; i++) {
     const a = (i / dotCount) * Math.PI * 2;
-    strobeDots.push(<circle key={i} cx={(cx+Math.cos(a)*strobeR).toFixed(1)} cy={(cy+Math.sin(a)*strobeR).toFixed(1)} r="1.6" fill="rgba(255,255,255,0.42)" />);
+    strobeDots.push(<circle key={i} cx={(cx+Math.cos(a)*strobeR).toFixed(1)} cy={(cy+Math.sin(a)*strobeR).toFixed(1)} r="1.6" fill="rgba(255,255,255,0.38)" />);
   }
   return (
     <svg viewBox="0 0 760 560"
@@ -1470,41 +1371,11 @@ function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
         <radialGradient id={`${id}-startbtn`} cx="38%" cy="28%" r="72%">
           <stop offset="0%" stopColor="#3a6a3a" /><stop offset="55%" stopColor="#1c4a1c" /><stop offset="100%" stopColor="#0a200a" />
         </radialGradient>
-        {/* Wood-grain pattern for the cream / walnut plinth */}
-        <pattern id={`${id}-grain`} x="0" y="0" width="520" height="11" patternUnits="userSpaceOnUse">
-          <line x1="0" y1="2"  x2="520" y2="2"  stroke="rgba(80,55,30,0.10)" strokeWidth="0.8" />
-          <line x1="0" y1="5"  x2="520" y2="5"  stroke="rgba(255,250,235,0.08)" strokeWidth="0.6" />
-          <line x1="0" y1="8"  x2="520" y2="8"  stroke="rgba(70,45,25,0.08)" strokeWidth="0.7" />
-          <line x1="0" y1="10" x2="520" y2="10" stroke="rgba(120,85,50,0.06)" strokeWidth="0.4" />
-        </pattern>
-        <radialGradient id={`${id}-foot`} cx="35%" cy="32%" r="68%">
-          <stop offset="0%" stopColor="#5a4830" /><stop offset="60%" stopColor="#2a1d10" /><stop offset="100%" stopColor="#0d0805" />
-        </radialGradient>
       </defs>
 
       {/* Plinth */}
       <path d={`${board} ${hole}`} fill={`url(#${id}-plinth)`} fillRule="evenodd"
         filter={`url(#${id}-shadow)`} />
-      {/* Wood-grain overlay on the plinth (warm cream lacquered wood) */}
-      <path d={`${board} ${hole}`} fill={`url(#${id}-grain)`} fillRule="evenodd" opacity="0.75" />
-      {/* Subtle vignette darkening at edges */}
-      <path d={`${board} ${hole}`} fill="none" stroke="rgba(60,40,20,0.35)" strokeWidth="2.5" />
-      {/* Four recessed isolation feet (visible from above as dark insets at the corners) */}
-      <circle cx="48"  cy="50"  r="13" fill={`url(#${id}-foot)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.4" />
-      <circle cx="48"  cy="50"  r="8"  fill="#1a120a" stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
-      <circle cx="46"  cy="48"  r="2"  fill="rgba(255,255,255,0.14)" />
-      <circle cx="48"  cy="518" r="13" fill={`url(#${id}-foot)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.4" />
-      <circle cx="48"  cy="518" r="8"  fill="#1a120a" stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
-      <circle cx="46"  cy="516" r="2"  fill="rgba(255,255,255,0.14)" />
-      <circle cx="468" cy="50"  r="13" fill={`url(#${id}-foot)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.4" />
-      <circle cx="468" cy="50"  r="8"  fill="#1a120a" stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
-      <circle cx="466" cy="48"  r="2"  fill="rgba(255,255,255,0.14)" />
-      <circle cx="468" cy="518" r="13" fill={`url(#${id}-foot)`} stroke="rgba(0,0,0,0.6)" strokeWidth="1.4" />
-      <circle cx="468" cy="518" r="8"  fill="#1a120a" stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
-      <circle cx="466" cy="516" r="2"  fill="rgba(255,255,255,0.14)" />
-      {/* Brand engraving on the plinth */}
-      <text x="248" y="528" fill="rgba(60,40,20,0.55)" fontSize="11" fontFamily="'Times New Roman', serif" fontStyle="italic" textAnchor="middle" letterSpacing="4">Aurelia · BD-300</text>
-      <text x="248" y="540" fill="rgba(60,40,20,0.35)" fontSize="5.5" fontFamily="monospace" textAnchor="middle" letterSpacing="3">PRECISION BELT-DRIVE TURNTABLE</text>
       {/* Top highlight */}
       <path d="M22 8 Q8 8 8 22 L8 24 Q8 10 22 10 L748 10 Q760 10 760 24 L760 22 Q760 8 748 8 Z"
         fill={`url(#${id}-tophl)`} />
@@ -1519,41 +1390,14 @@ function BeltDriveDeck({ vinylRadius, platterRadius, progress }: any) {
       <rect x="503" y="12" width="2" height="536" fill="rgba(0,0,0,0.5)" />
       <rect x="505" y="12" width="1.5" height="536" fill="rgba(255,255,255,0.10)" />
 
-      {/* Platter — donut so vinyl is visible through the centre */}
-      {(() => {
-        const R = holeR + 28; const r = vinylRadius;
-        const d = `M ${cx - R} ${cy} A ${R} ${R} 0 1 0 ${cx + R} ${cy} A ${R} ${R} 0 1 0 ${cx - R} ${cy} Z M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
-        return <path d={d} fill={`url(#${id}-platter)`} fillRule="evenodd" stroke="rgba(0,0,0,0.6)" strokeWidth="2" />;
-      })()}
-      <circle cx={cx} cy={cy} r={holeR + 26.5} fill="none"
-        stroke="rgba(255,255,255,0.14)" strokeWidth="1.2" />
-      {/* Felt slipmat — donut so the vinyl is visible through the centre */}
-      {(() => {
-        const R = holeR + 18; const r = vinylRadius;
-        const d = `M ${cx - R} ${cy} A ${R} ${R} 0 1 0 ${cx + R} ${cy} A ${R} ${R} 0 1 0 ${cx - R} ${cy} Z M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
-        return <path d={d} fill={`url(#${id}-mat)`} fillRule="evenodd" />;
-      })()}
-      {/* Felt fibre rings */}
-      <circle cx={cx} cy={cy} r={vinylRadius + 5} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="1.2 2.4" />
-      <circle cx={cx} cy={cy} r={vinylRadius + 11} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="0.8 3" />
-      {/* Vinyl resting shadow */}
-      <circle cx={cx} cy={cy + 1.6} r={vinylRadius + 1.8} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="2.6" opacity="0.7" />
-      {/* Brushed machining on outer platter ring */}
-      {Array.from({ length: 144 }).map((_, i) => {
-        const a = (i / 144) * Math.PI * 2;
-        const r1 = holeR + 19; const r2 = holeR + 27;
-        return <line key={`bd-sp-${i}`}
-          x1={(cx + Math.cos(a) * r1).toFixed(1)} y1={(cy + Math.sin(a) * r1).toFixed(1)}
-          x2={(cx + Math.cos(a) * r2).toFixed(1)} y2={(cy + Math.sin(a) * r2).toFixed(1)}
-          stroke="rgba(255,255,255,0.045)" strokeWidth="0.5" />;
-      })}
-      {/* Strobe dots */}
+      {/* Platter rim — stroke-only rings around hole (vinyl visible through hole) */}
+      <circle cx={cx} cy={cy} r={holeR + 3} fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth="7" />
+      <circle cx={cx} cy={cy} r={holeR + 2} fill="none" stroke="rgba(255,255,255,0.20)" strokeWidth="1.8" />
+      <circle cx={cx} cy={cy} r={holeR - 2} fill="none" stroke="rgba(0,0,0,0.45)" strokeWidth="3" />
+      {/* Strobe dots on plinth surface */}
       {strobeDots}
-      {/* Platter rings */}
-      <circle cx={cx} cy={cy} r={holeR + 22} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="7" />
-      <circle cx={cx} cy={cy} r={holeR + 16} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.8" />
-      <circle cx={cx} cy={cy} r={holeR + 11} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="2.5" />
-      <circle cx={cx} cy={cy} r={holeR + 5} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+      {/* Inner shadow cast by plinth onto platter */}
+      <circle cx={cx} cy={cy} r={holeR + 6} fill="none" stroke="rgba(0,0,0,0.22)" strokeWidth="5" />
 
       {/* Right control panel */}
       <rect x="510" y="14" width="242" height="534" rx="4" fill={`url(#${id}-panel)`} />
@@ -1720,7 +1564,7 @@ function StandardDeck({ style, color, vinylRadius, platterRadius, textColor, pro
 
 function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any) {
   const id = "deck-realistic3";
-  const g = deckGeometry("modern");
+  const g = deckGeometry("realistic3");
   const stylus = groovePoint(g, vinylRadius, progress);
   const holeR = (platterRadius ?? vinylRadius) + 7;
   const hole = holePath(g.cx, g.cy, holeR);
@@ -1795,20 +1639,6 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
         fill={`url(#${id}-plinth)`} fillRule="evenodd" filter={`url(#${id}-shadow)`} />
       <path d={`M10 10 L482 10 L482 550 L10 550 Z ${hole}`}
         fill={`url(#${id}-woodgrain)`} fillRule="evenodd" opacity="0.65" />
-      {/* Piano-gloss specular highlight across the wood surface */}
-      <path d="M10 10 L482 10 L482 90 Q260 130 10 88 Z"
-        fill="rgba(255,255,255,0.18)" opacity="0.55" />
-      <path d="M10 470 Q260 500 482 472 L482 550 L10 550 Z"
-        fill="rgba(0,0,0,0.22)" opacity="0.6" />
-      {/* Four polished metal corner accents (Marantz / McIntosh style) */}
-      <rect x="20"  y="20"  width="22" height="22" rx="3" fill="none" stroke="rgba(200,180,140,0.55)" strokeWidth="1" />
-      <rect x="450" y="20"  width="22" height="22" rx="3" fill="none" stroke="rgba(200,180,140,0.55)" strokeWidth="1" />
-      <rect x="20"  y="518" width="22" height="22" rx="3" fill="none" stroke="rgba(200,180,140,0.55)" strokeWidth="1" />
-      <rect x="450" y="518" width="22" height="22" rx="3" fill="none" stroke="rgba(200,180,140,0.55)" strokeWidth="1" />
-      <circle cx="31"  cy="31"  r="1.6" fill="rgba(180,160,120,0.7)" />
-      <circle cx="461" cy="31"  r="1.6" fill="rgba(180,160,120,0.7)" />
-      <circle cx="31"  cy="529" r="1.6" fill="rgba(180,160,120,0.7)" />
-      <circle cx="461" cy="529" r="1.6" fill="rgba(180,160,120,0.7)" />
       {/* Plinth inner border */}
       <rect x="16" y="16" width="462" height="528" fill="none"
         stroke="rgba(0,0,0,0.18)" strokeWidth="1.5" />
@@ -1818,17 +1648,6 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
       {/* Divider strip */}
       <rect x="484" y="10" width="3" height="540" fill="#0c0a08" />
       <rect x="487" y="10" width="2" height="540" fill="rgba(255,255,255,0.06)" />
-
-      {/* Tonearm cueing lever (bottom-right of plinth, near the panel) */}
-      <rect x="430" y="500" width="44" height="14" rx="3" fill="#1a1610" stroke="rgba(0,0,0,0.55)" strokeWidth="1" />
-      <rect x="446" y="494" width="12" height="22" rx="2" fill="#c8c2b0" stroke="rgba(0,0,0,0.5)" strokeWidth="0.9" />
-      <line x1="446" y1="500" x2="458" y2="500" stroke="rgba(0,0,0,0.4)" strokeWidth="0.7" />
-      <text x="452" y="488" fill="rgba(60,40,20,0.6)" fontSize="5.5" fontFamily="monospace" textAnchor="middle">CUE</text>
-
-      {/* Brushed-brass serial plate */}
-      <rect x="36" y="500" width="120" height="36" rx="2" fill="rgba(120,95,55,0.18)" stroke="rgba(200,170,110,0.45)" strokeWidth="0.8" />
-      <text x="96" y="516" fill="rgba(60,40,20,0.75)" fontSize="9" fontFamily="'Times New Roman', serif" fontStyle="italic" textAnchor="middle" letterSpacing="2">Aurae</text>
-      <text x="96" y="528" fill="rgba(60,40,20,0.55)" fontSize="5.5" fontFamily="monospace" textAnchor="middle" letterSpacing="2">MODEL HS-700 · No. 04217</text>
 
       {/* Right control panel */}
       <rect x="490" y="10" width="264" height="540" rx="6"
@@ -1959,372 +1778,19 @@ function Realistic3Deck({ vinylRadius, platterRadius, textColor, progress }: any
 
 function TurntableDeck({ style, color, vinylRadius, platterRadius, textColor, progress }: any) {
   const s = normalizeDeckStyle(style);
-  if (s === "modern") {
+  if (s === "realistic3") {
     return <Realistic3Deck vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
   }
-  if (s === "directdrive") {
+  if (s === "realistic1") {
     return <DirectDriveDeck vinylRadius={vinylRadius} platterRadius={platterRadius} progress={progress} />;
   }
-  if (s === "beltdrive") {
+  if (s === "realistic2") {
     return <BeltDriveDeck vinylRadius={vinylRadius} platterRadius={platterRadius} progress={progress} />;
   }
   return <StandardDeck style={s} color={color} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={textColor} progress={progress} />;
 }
 
-function ThreeTurntableDeck({ playing, progress, cover, deckStyle, vinylColors }: any) {
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const recordGroupRef = useRef<THREE.Group | null>(null);
-  const platterRef = useRef<THREE.Mesh | null>(null);
-  const basePivotRef = useRef<THREE.Group | null>(null);
-  const armPivotRef = useRef<THREE.Group | null>(null);
-  const playingRef = useRef(Boolean(playing));
-  const progressRef = useRef(Number(progress || 0));
-  const coverRef = useRef(cover);
-  const colorsRef = useRef(vinylColors);
-
-  useEffect(() => { playingRef.current = Boolean(playing); }, [playing]);
-  useEffect(() => { progressRef.current = Number(progress || 0); }, [progress]);
-  useEffect(() => { coverRef.current = cover; }, [cover]);
-  useEffect(() => { colorsRef.current = vinylColors; }, [vinylColors]);
-
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
-
-    const scene = new THREE.Scene();
-    scene.background = null;
-
-    // Adjusted camera to prevent cutoff and ensure perfect top-down
-    const camera = new THREE.PerspectiveCamera(28, 760 / 560, 0.1, 100);
-    camera.position.set(0, 14.5, 0.001);
-    camera.lookAt(0, 0, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setSize(mount.clientWidth || 760, mount.clientHeight || 560);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
-    mount.appendChild(renderer.domElement);
-
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const envScene = new THREE.Scene();
-    envScene.background = new THREE.Color(0x353a42);
-    scene.environment = pmrem.fromScene(envScene, 0.04).texture;
-
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x333344, 1.8);
-    scene.add(hemi);
-    const key = new THREE.DirectionalLight(0xffffff, 3.8);
-    key.position.set(-2.5, 12.0, 3.5);
-    key.shadow.bias = -0.001; // Fix shadow acne
-    key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
-    key.shadow.camera.near = 0.5;
-    key.shadow.camera.far = 20;
-    key.shadow.camera.left = -6;
-    key.shadow.camera.right = 6;
-    key.shadow.camera.top = 6;
-    key.shadow.camera.bottom = -6;
-    scene.add(key);
-
-    const rim = new THREE.DirectionalLight(0x8ab6ff, 1.4);
-    rim.position.set(3.5, 10.0, -4.5);
-    scene.add(rim);
-
-    const makeMat = (color: number, roughness: number, metalness = 0) =>
-      new THREE.MeshStandardMaterial({ color, roughness, metalness });
-
-    const isDirectDrive = deckStyle === "directdrive" || deckStyle === "directdrive";
-    const isBeltDrive = deckStyle === "beltdrive" || deckStyle === "beltdrive";
-    
-    const baseColor = isDirectDrive ? 0xb4b9bf : isBeltDrive ? 0x6e4122 : 0x0c0d12;
-    const panelColor = isDirectDrive ? 0x14161a : isBeltDrive ? 0x1e1511 : 0x12151c;
-    const trimColor = isDirectDrive ? 0xd0d4da : isBeltDrive ? 0xc49b56 : 0x7a97ff;
-
-    const baseMat = makeMat(baseColor, isBeltDrive ? 0.6 : 0.3, isBeltDrive ? 0.02 : 0.28);
-    const blackRubber = makeMat(0x242629, 0.9, 0.05);
-    const brushedMetal = makeMat(0xbcbfc4, 0.32, 0.88);
-    const darkMetal = makeMat(0x22252c, 0.45, 0.7);
-    const panelMat = makeMat(panelColor, 0.35, isBeltDrive ? 0.05 : 0.4);
-    const vinylColor = new THREE.Color(colorsRef.current?.[0] || "#080808");
-    const vinylMat = new THREE.MeshStandardMaterial({ color: vinylColor, roughness: 0.15, metalness: 0.6 });
-    const labelMat = new THREE.MeshStandardMaterial({ color: 0xeae1ce, roughness: 0.6, metalness: 0.01 });
-
-    const root = new THREE.Group();
-    scene.add(root);
-
-    const addBox = (size: [number, number, number], pos: [number, number, number], material: THREE.Material, parent: THREE.Group = root) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
-      mesh.position.set(...pos);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      parent.add(mesh);
-      return mesh;
-    };
-    const addCyl = (radius: number, height: number, pos: [number, number, number], material: THREE.Material, parent: THREE.Group = root) => {
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 64), material);
-      mesh.position.set(...pos);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      parent.add(mesh);
-      return mesh;
-    };
-
-    // Wider, deeper rectangular base
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(8.6, 0.46, 6.2), baseMat);
-    plinth.position.y = -0.28;
-    plinth.castShadow = true;
-    plinth.receiveShadow = true;
-    root.add(plinth);
-
-    const bevel = new THREE.Mesh(new THREE.BoxGeometry(8.75, 0.12, 6.35), makeMat(isBeltDrive ? 0x321e12 : 0x0b0d10, 0.5, 0.1));
-    bevel.position.y = -0.55;
-    root.add(bevel);
-
-    const topInset = addBox([8.1, 0.045, 5.7], [0, -0.018, 0], makeMat(isBeltDrive ? 0x8a5530 : isDirectDrive ? 0xc2c6cc : 0x0f131a, 0.4, 0.1));
-    topInset.castShadow = false;
-
-    // Right-side detail panel
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 5.5), panelMat);
-    panel.position.set(3.0, 0, 0);
-    panel.receiveShadow = true;
-    root.add(panel);
-
-    // Platter shifted left
-    const pX = -1.5;
-    const platter = new THREE.Mesh(new THREE.CylinderGeometry(2.15, 2.2, 0.26, 128), brushedMetal);
-    platter.position.set(pX, 0.12, 0);
-    platter.receiveShadow = true;
-    platter.castShadow = false;
-    root.add(platter);
-    platterRef.current = platter;
-
-    const mat = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.05, 0.08, 128), blackRubber);
-    mat.position.set(pX, 0.31, 0);
-    mat.receiveShadow = true;
-    root.add(mat);
-
-    // Strobe dots highly detailed
-    for (let i = 0; i < 90; i++) {
-      const a = (i / 90) * Math.PI * 2;
-      const dot = addBox([0.06, 0.02, 0.022], [
-        pX + Math.cos(a) * 2.12,
-        0.39,
-        Math.sin(a) * 2.12,
-      ], brushedMetal);
-      dot.rotation.y = -a;
-      dot.castShadow = false;
-    }
-
-    addCyl(2.15, 0.03, [pX, 0.395, 0], makeMat(0x050505, 0.7, 0.04));
-
-    // Record Group
-    const recordGroup = new THREE.Group();
-    recordGroup.position.set(pX, 0.39, 0);
-    root.add(recordGroup);
-    recordGroupRef.current = recordGroup;
-
-    const record = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 0.055, 128), vinylMat);
-    record.receiveShadow = true;
-    recordGroup.add(record);
-
-    // Highly realistic vinyl grooves
-    for (let i = 0; i < 48; i++) {
-      const r = 0.65 + i * 0.026;
-      const groove = new THREE.Mesh(
-        new THREE.TorusGeometry(r, i % 9 === 0 ? 0.0055 : 0.0035, 12, 128),
-        new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.2, metalness: 0.8 })
-      );
-      groove.rotation.x = Math.PI / 2;
-      groove.position.y = 0.034 + i * 0.0001;
-      recordGroup.add(groove);
-    }
-
-    const label = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.066, 64), labelMat);
-    label.position.y = 0.012;
-    recordGroup.add(label);
-
-    const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.45, 32), brushedMetal);
-    spindle.position.set(pX, 0.58, 0);
-    spindle.castShadow = true;
-    root.add(spindle);
-
-    // Realistic Extra Details
-    addCyl(0.24, 0.35, [pX - 2.2, 0.3, 1.8], brushedMetal); // Strobe Tower Base
-    addCyl(0.18, 0.38, [pX - 2.2, 0.35, 1.8], darkMetal); // Strobe Tower Top
-    const strobeLight = addBox([0.08, 0.1, 0.1], [pX - 2.05, 0.45, 1.8], makeMat(0xff2a2a, 0.2, 0.8));
-    strobeLight.rotation.y = 0.5;
-
-    // Start/Stop
-    addBox([0.5, 0.1, 0.35], [pX - 1.8, 0.3, 2.4], brushedMetal);
-    addBox([0.45, 0.12, 0.3], [pX - 1.8, 0.32, 2.4], darkMetal);
-    
-    // 33/45 RPM
-    addBox([0.25, 0.08, 0.18], [pX - 1.1, 0.3, 2.5], brushedMetal);
-    addBox([0.25, 0.08, 0.18], [pX - 0.7, 0.3, 2.5], brushedMetal);
-
-    // 45 Adapter
-    addCyl(0.2, 0.2, [pX - 2.1, 0.35, -2.1], brushedMetal);
-    addCyl(0.06, 0.25, [pX - 2.1, 0.35, -2.1], darkMetal);
-
-    // Pitch Slider
-    addBox([0.35, 0.05, 1.8], [3.2, 0.3, 1.4], darkMetal);
-    addBox([0.1, 0.06, 1.7], [3.2, 0.31, 1.4], makeMat(0x0a0a0a, 0.9));
-    addBox([0.2, 0.18, 0.3], [3.2, 0.4, 1.4], brushedMetal); // Slider handle
-
-    // Tonearm Base
-    const armX = 2.0;
-    const armZ = -1.8;
-    addCyl(0.8, 0.15, [armX, 0.3, armZ], darkMetal);
-    addCyl(0.65, 0.25, [armX, 0.35, armZ], brushedMetal);
-    
-    // Anti-skate dial
-    addCyl(0.15, 0.15, [armX + 0.6, 0.38, armZ + 0.3], darkMetal);
-
-    // Tonearm Gimbal (Pan)
-    const basePivot = new THREE.Group();
-    basePivot.position.set(armX, 0.6, armZ);
-    root.add(basePivot);
-    basePivotRef.current = basePivot;
-
-    const gimbalRing = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.18, 64), brushedMetal);
-    gimbalRing.castShadow = true;
-    basePivot.add(gimbalRing);
-
-    // Arm Lift (Vertical tilt)
-    const armPivot = new THREE.Group();
-    basePivot.add(armPivot);
-    armPivotRef.current = armPivot;
-
-    // Counterweight
-    const counterWeight = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.45, 48), darkMetal);
-    counterWeight.rotation.z = Math.PI / 2;
-    counterWeight.position.set(0.5, 0, 0);
-    counterWeight.castShadow = true;
-    armPivot.add(counterWeight);
-    
-    const cwMark = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.08, 48), brushedMetal);
-    cwMark.rotation.z = Math.PI / 2;
-    cwMark.position.set(0.35, 0, 0);
-    armPivot.add(cwMark);
-
-    // Tonearm tube (S-shape curve towards platter)
-    const armCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.04, 0, 0),
-      new THREE.Vector3(-0.8, 0, 0.35),
-      new THREE.Vector3(-1.8, 0, 1.1),
-      new THREE.Vector3(-2.8, 0, 1.25),
-    ]);
-    const armTube = new THREE.Mesh(new THREE.TubeGeometry(armCurve, 80, 0.04, 16, false), brushedMetal);
-    armTube.castShadow = true;
-    armPivot.add(armTube);
-
-    // Headshell connector
-    const connector = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.12, 16), darkMetal);
-    connector.rotation.z = Math.PI / 2;
-    connector.position.set(-2.8, 0, 1.25);
-    armPivot.add(connector);
-
-    // Headshell
-    const headshellGroup = new THREE.Group();
-    headshellGroup.position.set(-2.95, 0, 1.3);
-    headshellGroup.rotation.y = -0.3; // Angle of headshell
-    armPivot.add(headshellGroup);
-
-    const headshell = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.06, 0.28), darkMetal);
-    headshell.castShadow = true;
-    headshellGroup.add(headshell);
-
-    // Finger lift
-    const fingerLift = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.15), brushedMetal);
-    fingerLift.position.set(-0.1, 0, 0.18);
-    headshellGroup.add(fingerLift);
-
-    // Stylus cartridge
-    const cartridge = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.15, 0.18), makeMat(0xcc1111, 0.4, 0.2));
-    cartridge.position.set(0, -0.1, 0);
-    cartridge.castShadow = true;
-    headshellGroup.add(cartridge);
-
-    const ro = new ResizeObserver(() => {
-      if (!mount) return;
-      const w = mount.clientWidth || 760;
-      const h = mount.clientHeight || 560;
-      renderer.setSize(w, h);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    });
-    ro.observe(mount);
-
-    let raf = 0;
-    let last = performance.now();
-    const animate = (now: number) => {
-      const dt = Math.min(0.04, (now - last) / 1000);
-      last = now;
-
-      const spin = playingRef.current ? dt * 3.45 : dt * 0.22;
-      if (recordGroupRef.current) recordGroupRef.current.rotation.y -= spin;
-      if (platterRef.current) platterRef.current.rotation.y -= spin * 0.72;
-
-      // Flawless Sequenced Tonearm Mechanics (Lift -> Pan -> Drop)
-      const currentPan = basePivotRef.current ? basePivotRef.current.rotation.y : 0;
-      const currentLift = armPivotRef.current ? armPivotRef.current.rotation.z : 0;
-      const p = Math.max(0, Math.min(1, progressRef.current || 0));
-      const playing = playingRef.current;
-      
-      const desiredPan = playing ? 0.45 - (p * 0.50) : 0.65; 
-      let targetPan = currentPan;
-      let targetLift = -0.06; // UP position
-
-      if (playing) {
-         if (Math.abs(currentPan - desiredPan) > 0.02) {
-            targetPan = desiredPan; // Pan to target
-            targetLift = -0.06; // Keep it up while panning
-         } else {
-            targetPan = desiredPan; // Track the groove
-            targetLift = 0.002; // Gently drop onto record
-         }
-      } else {
-         if (currentLift > -0.05) {
-            targetPan = currentPan; // Don't pan yet!
-            targetLift = -0.06; // Lift it!
-         } else {
-            targetPan = 0.65; // Now pan to rest
-            targetLift = -0.06; // Keep it up
-         }
-      }
-
-      if (basePivotRef.current) basePivotRef.current.rotation.y += (targetPan - currentPan) * 0.12;
-      if (armPivotRef.current) armPivotRef.current.rotation.z += (targetLift - currentLift) * 0.15;
-
-      renderer.render(scene, camera);
-      raf = requestAnimationFrame(animate);
-    };
-    raf = requestAnimationFrame(animate);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      mount.removeChild(renderer.domElement);
-      scene.traverse(obj => {
-        const mesh = obj as THREE.Mesh;
-        if (mesh.geometry) mesh.geometry.dispose();
-        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
-        if (Array.isArray(material)) material.forEach(m => m.dispose());
-        else material?.dispose();
-      });
-      scene.environment?.dispose();
-      renderer.dispose();
-      pmrem.dispose();
-    };
-  }, [deckStyle, cover, vinylColors?.[0]]);
-
-  return <div ref={mountRef} style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }} />;
-}
-
-  function EqualizerVisualizer({
+function EqualizerVisualizer({
   analyserRef, shape, color, color2, bars, glow, bgColor, playing, width, height,
 }: any) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -3452,22 +2918,11 @@ export function Aurae() {
   const [splatterColor, setSplatterColor] = useState("#3a7bd5");
   const [splatterOn, setSplatterOn] = useState(false);
   const [splatterStyle, setSplatterStyle] = useState("burst");
-  const [deckStyle, setDeckStyle] = useState("directdrive");
+  const [deckStyle, setDeckStyle] = useState("classic");
   const [deckColor, setDeckColor] = useState("#1a1a1a");
   const [vinylSide, setVinylSide] = useState(1);
   const [flipping, setFlipping] = useState(false);
   const [awaitingFlip, setAwaitingFlip] = useState(false);
-
-  // Synchronize play state with time update more robustly to prevent 0s stuck bug
-  useEffect(() => {
-    if (!playing || !audioRef.current) return;
-    const int = setInterval(() => {
-      const a = audioRef.current;
-      if (a && a.currentTime > 0) setCurrentTime(a.currentTime);
-    }, 250);
-    return () => clearInterval(int);
-  }, [playing]);
-
   const [pictureVinyl, setPictureVinyl] = useState(false);
 
   const [stageMode, setStageMode] = useState<"vinyl" | "equalizer">("vinyl");
@@ -3951,7 +3406,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
       vinylColor: "#111111", vinylColors: DEFAULT_VINYL_COLORS,
       vinylGradient: "solid", vinylOpacity: 1,
       splatterColor: "#3a7bd5", splatterOn: false, splatterStyle: "burst",
-      deckStyle: "directdrive", deckColor: "#24272d", pictureVinyl: false,
+      deckStyle: "classic", deckColor: "#1a1a1a", pictureVinyl: false,
     };
     setProjectsMeta((prev: any) => ({ ...prev, [clean]: p }));
     if (currentUser) {
@@ -4407,8 +3862,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
   const normalizedDeckStyle = normalizeDeckStyle(deckStyle);
   const geometry = deckGeometry(normalizedDeckStyle);
   const compactDecks = ["dark", "chrome", "wood"].includes(normalizedDeckStyle);
-  const isRealisticDeck = ["directdrive", "beltdrive", "modern"].includes(normalizedDeckStyle);
-  const platterRadius = ["directdrive", "beltdrive", "modern"].includes(normalizedDeckStyle) ? 172 : compactDecks ? 164 : 188;
+  const platterRadius = ["realistic1", "realistic2", "realistic3"].includes(normalizedDeckStyle) ? 172 : compactDecks ? 164 : 188;
   const vinylRadius = isSingle ? Math.round(platterRadius * 0.64) : platterRadius;
   const current = tracks[index];
   const displayDuration = duration || current?.duration || 0;
@@ -4976,47 +4430,15 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
 
       <div style={S.stage}>
         {stageMode === "vinyl" ? (
-          <div style={{
-            position: "relative",
-            width: geometry.width,
-            height: 560,
-            filter: isRealisticDeck
-              ? "drop-shadow(0 42px 42px rgba(0,0,0,0.44))"
-              : undefined,
-          }}>
-            {isRealisticDeck && (
-              <div style={{
-                position: "absolute",
-                left: 24,
-                right: 24,
-                bottom: -18,
-                height: 72,
-                borderRadius: "50%",
-                background: "radial-gradient(ellipse at center, rgba(0,0,0,0.46) 0%, rgba(0,0,0,0.24) 38%, transparent 72%)",
-                pointerEvents: "none",
-                zIndex: 0,
-              }} />
-            )}
-            {isRealisticDeck ? (
-              <ThreeTurntableDeck
-                playing={playing}
-                progress={sideProgress}
-                cover={currentVinylCover}
-                deckStyle={normalizedDeckStyle}
-                vinylColors={vinylColors}
-              />
-            ) : (
-              <>
-                <div style={{ position: "absolute", left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius, width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1 }}>
-                  <VinylDisc
-                    radius={vinylRadius} colors={vinylColors} gradient={vinylGradient}
-                    opacity={vinylOpacity} splatterOn={splatterOn} splatterColor={splatterColor}
-                    splatterStyle={splatterStyle} cover={currentVinylCover} isSingle={isSingle}
-                    playing={playing} textColor={text} flipping={flipping} pictureVinyl={pictureVinyl} />
-                </div>
-                <TurntableDeck style={normalizedDeckStyle} color={deckColor} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={text} progress={sideProgress} />
-              </>
-            )}
+          <div style={{ position: "relative", width: geometry.width, height: 560 }}>
+            <div style={{ position: "absolute", left: geometry.cx - vinylRadius, top: geometry.cy - vinylRadius, width: vinylRadius * 2, height: vinylRadius * 2, zIndex: 1 }}>
+              <VinylDisc
+                radius={vinylRadius} colors={vinylColors} gradient={vinylGradient}
+                opacity={vinylOpacity} splatterOn={splatterOn} splatterColor={splatterColor}
+                splatterStyle={splatterStyle} cover={currentVinylCover} isSingle={isSingle}
+                playing={playing} textColor={text} flipping={flipping} pictureVinyl={pictureVinyl} />
+            </div>
+            <TurntableDeck style={normalizedDeckStyle} color={deckColor} vinylRadius={vinylRadius} platterRadius={platterRadius} textColor={text} progress={sideProgress} />
             {needsTurn && <button style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>}
             {awaitingVinylChange && !flipping && <button style={S.turnBtn} onClick={changeVinyl}>change vinyl</button>}
           </div>
@@ -5119,50 +4541,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
           <button style={S.menuBtn} onClick={() => setSongMenu(null)}>close</button>
         </div>
       )}
-      <audio
-        ref={audioRef}
-        onTimeUpdate={(e) => {
-          const a = e.currentTarget;
-          const known = trackDuration(tracks[index]);
-          const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : known;
-          setCurrentTime(a.currentTime || 0);
-          setDuration(dur || 0);
-        }}
-        onLoadedMetadata={(e) => {
-          const a = e.currentTarget;
-          const known = trackDuration(tracks[index]);
-          const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : known;
-          setDuration(dur || 0);
-        }}
-        onDurationChange={(e) => {
-          const a = e.currentTarget;
-          const known = trackDuration(tracks[index]);
-          const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : known;
-          setDuration(dur || 0);
-        }}
-        onCanPlay={(e) => {
-          const a = e.currentTarget;
-          const known = trackDuration(tracks[index]);
-          const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : known;
-          setDuration(dur || 0);
-        }}
-        onEnded={() => {
-          const lastOfSide = getLastTrackOfSide(sideBoundaries, vinylSide, tracks.length);
-          if (index === lastOfSide && vinylSide < totalSides) {
-            setPlaying(false);
-            if (vinylSide % 2 === 0) {
-              setGatefoldOpen(true);
-              setView("sleeve");
-            } else {
-              setAwaitingFlip(true);
-            }
-          } else if (index < tracks.length - 1) {
-            playTrack(index + 1);
-          } else {
-            setPlaying(false);
-          }
-        }}
-      />
+      <audio ref={audioRef} />
     </div>
   );
 }
