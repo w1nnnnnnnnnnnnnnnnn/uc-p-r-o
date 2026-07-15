@@ -306,7 +306,7 @@ function seededRand(seed: number) {
 
 // Side splitting logic
 
-const SIDE_TARGET = 25 * 60;
+const SIDE_TARGET = 20 * 60;
 const SINGLE_SIDE_TARGET = 5 * 60;
 const SINGLE_TOTAL_TARGET = 10 * 60;
 const SINGLE_LONG_TRACK_OK = 6 * 60;
@@ -417,6 +417,488 @@ const DECK_STYLES = [
   "classic", "dark", "chrome", "wood", "minimal",
   "realistic1", "realistic2", "realistic3",
 ];
+
+const CD_STYLES = ["tray", "walkman", "vintage"] as const;
+const TAPE_STYLES = ["deck", "walkman", "boombox", "vintage"] as const;
+
+const CD_DISC_TARGET = 74 * 60; // 74 min per disc
+const TAPE_SIDE_TARGET = 45 * 60; // 45 min per side (C-90)
+const MAX_DISCS = 4;
+const MAX_TAPES = 4;
+
+const THEMES = [
+  { id: "dark", label: "dark", desc: "Default" },
+  { id: "light", label: "light", desc: "Clean" },
+  { id: "vaporwave", label: "vaporwave", desc: "Neon 80s" },
+  { id: "synthwave", label: "synthwave", desc: "Retro Synth" },
+  { id: "retro", label: "retro", desc: "Warm Amber" },
+  { id: "minimal", label: "minimal", desc: "Pure" },
+];
+
+function getThemePalette(theme: string) {
+  switch (theme) {
+    case "vaporwave":
+      return {
+        bg: "linear-gradient(135deg, #0d001a 0%, #1a0033 35%, #001a33 70%, #000d1a 100%)",
+        text: "#ff79ff",
+        accent: "#7afcff",
+        glass: "rgba(255,80,255,0.10)",
+        glassStrong: "rgba(255,80,255,0.22)",
+        border: "1px solid rgba(255,80,255,0.22)",
+        shadow: "0 24px 70px rgba(180,0,255,0.28)",
+        pageBg: "linear-gradient(135deg, #0d001a 0%, #1a0033 35%, #001a33 70%, #000d1a 100%)",
+        dark: true,
+      };
+    case "synthwave":
+      return {
+        bg: "#0a0010",
+        text: "#ff6b35",
+        accent: "#ff0090",
+        glass: "rgba(255,107,53,0.09)",
+        glassStrong: "rgba(255,107,53,0.20)",
+        border: "1px solid rgba(255,107,53,0.22)",
+        shadow: "0 24px 70px rgba(255,0,144,0.22)",
+        pageBg: "linear-gradient(180deg, #0a0010 0%, #150020 50%, #0a0010 100%)",
+        dark: true,
+      };
+    case "retro":
+      return {
+        bg: "#fdf6e3",
+        text: "#5c4a1e",
+        accent: "#c87941",
+        glass: "rgba(200,121,65,0.12)",
+        glassStrong: "rgba(200,121,65,0.24)",
+        border: "1px solid rgba(200,121,65,0.24)",
+        shadow: "0 24px 70px rgba(92,74,30,0.14)",
+        pageBg: "radial-gradient(circle at 20% 20%, rgba(255,200,100,0.22), transparent 40%), #fdf6e3",
+        dark: false,
+      };
+    case "minimal":
+      return {
+        bg: "#ffffff",
+        text: "#0a0a0a",
+        accent: "#0a0a0a",
+        glass: "rgba(0,0,0,0.04)",
+        glassStrong: "rgba(0,0,0,0.10)",
+        border: "1px solid rgba(0,0,0,0.10)",
+        shadow: "0 24px 70px rgba(0,0,0,0.08)",
+        pageBg: "#ffffff",
+        dark: false,
+      };
+    case "light":
+      return {
+        bg: "#f4f6f8",
+        text: "#000000",
+        accent: "#3a7bd5",
+        glass: "rgba(255,255,255,0.64)",
+        glassStrong: "rgba(255,255,255,0.86)",
+        border: "1px solid rgba(0,0,0,0.08)",
+        shadow: "0 24px 70px rgba(60,70,90,0.16)",
+        pageBg: "radial-gradient(circle at 14% 12%, rgba(120,170,255,0.22), transparent 28%), radial-gradient(circle at 82% 16%, rgba(255,160,210,0.18), transparent 32%), #f4f6f8",
+        dark: false,
+      };
+    default: // dark
+      return {
+        bg: "#070708",
+        text: "#ffffff",
+        accent: "#7afcff",
+        glass: "rgba(255,255,255,0.08)",
+        glassStrong: "rgba(255,255,255,0.14)",
+        border: "1px solid rgba(255,255,255,0.13)",
+        shadow: "0 24px 70px rgba(0,0,0,0.34)",
+        pageBg: "radial-gradient(circle at 16% 12%, rgba(120,160,255,0.12), transparent 28%), radial-gradient(circle at 78% 20%, rgba(255,120,190,0.10), transparent 28%), #070708",
+        dark: true,
+      };
+  }
+}
+
+function computeCdBoundaries(tracks: any[]) {
+  if (!tracks.length) return [0];
+  const boundaries = [0];
+  let pos = 0;
+  while (pos < tracks.length && boundaries.length < MAX_DISCS) {
+    let elapsed = 0;
+    let i = pos;
+    while (i < tracks.length) {
+      const dur = tracks[i].duration || 0;
+      if (elapsed + dur > CD_DISC_TARGET && i > pos) break;
+      elapsed += dur;
+      i++;
+    }
+    if (i === pos) i = pos + 1;
+    pos = i;
+    if (pos < tracks.length) boundaries.push(pos);
+  }
+  return boundaries;
+}
+
+function computeTapeBoundaries(tracks: any[]) {
+  if (!tracks.length) return [0];
+  const boundaries = [0];
+  let pos = 0;
+  let sideCount = 0;
+  while (pos < tracks.length && sideCount < MAX_TAPES * 2) {
+    let elapsed = 0;
+    let i = pos;
+    while (i < tracks.length) {
+      const dur = tracks[i].duration || 0;
+      if (elapsed + dur > TAPE_SIDE_TARGET && i > pos) break;
+      elapsed += dur;
+      i++;
+    }
+    if (i === pos) i = pos + 1;
+    pos = i;
+    sideCount++;
+    if (pos < tracks.length) boundaries.push(pos);
+  }
+  return boundaries;
+}
+
+// CD Player Component
+function CDPlayer({ style, cover, playing, discNumber, totalDiscs, cdColor, ejecting }: any) {
+  const s = style || "tray";
+  const discBg = cdColor || "#c8c8c8";
+
+  if (s === "walkman") {
+    return (
+      <div style={{ position: "relative", width: 380, height: 380, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {/* Walkman body */}
+        <div style={{ position: "absolute", inset: 0, borderRadius: 28, background: "linear-gradient(145deg, #d0d4dc 0%, #9a9ea8 40%, #b8bcc6 100%)", boxShadow: "0 20px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 0 rgba(0,0,0,0.20)" }} />
+        <div style={{ position: "absolute", top: 24, left: 24, right: 24, height: 200, borderRadius: 18, background: "linear-gradient(145deg, #1a1c22 0%, #0d0f14 100%)", boxShadow: "inset 0 4px 16px rgba(0,0,0,0.8), inset 0 -2px 4px rgba(255,255,255,0.06)" }}>
+          {/* CD window */}
+          <div style={{ position: "absolute", inset: 14, borderRadius: 12, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+            {/* Disc */}
+            <div style={{
+              width: 150, height: 150, borderRadius: "50%",
+              background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 40% 35%, rgba(255,255,255,0.9) 0%, ${discBg} 25%, rgba(100,100,120,0.8) 60%, rgba(20,20,30,0.9) 100%)`,
+              boxShadow: "0 0 30px rgba(120,200,255,0.3), 0 8px 24px rgba(0,0,0,0.6)",
+              animation: playing ? "cdSpin 3s linear infinite" : "none",
+              position: "relative",
+            }}>
+              {/* Iridescent sheen */}
+              <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "conic-gradient(from 0deg, rgba(255,100,100,0.15), rgba(255,200,0,0.12), rgba(0,255,150,0.12), rgba(0,150,255,0.12), rgba(200,0,255,0.12), rgba(255,100,100,0.15))", mixBlendMode: "screen" }} />
+              {/* Center hub */}
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 26, height: 26, borderRadius: "50%", background: "radial-gradient(circle, #e8e8e8 0%, #a0a0a8 60%, #606068 100%)", boxShadow: "inset 0 1px 2px rgba(255,255,255,0.8), 0 2px 6px rgba(0,0,0,0.5)" }} />
+            </div>
+          </div>
+        </div>
+        {/* Controls */}
+        <div style={{ position: "absolute", bottom: 28, left: 24, right: 24, display: "flex", justifyContent: "center", gap: 14 }}>
+          {["⏮","⏸","⏭"].map(btn => (
+            <div key={btn} style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(145deg, #c0c4cc, #8890a0)", boxShadow: "0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{btn}</div>
+          ))}
+        </div>
+        {totalDiscs > 1 && <div style={{ position: "absolute", top: 14, right: 18, fontSize: 10, color: "rgba(255,255,255,0.6)", fontFamily: "monospace" }}>DISC {discNumber}/{totalDiscs}</div>}
+      </div>
+    );
+  }
+
+  if (s === "vintage") {
+    return (
+      <div style={{ position: "relative", width: 520, height: 360 }}>
+        {/* Main body */}
+        <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "linear-gradient(160deg, #2a2010 0%, #1a150c 50%, #0e0b07 100%)", boxShadow: "0 24px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,220,100,0.15)" }} />
+        {/* Front panel */}
+        <div style={{ position: "absolute", top: 14, left: 14, right: 14, bottom: 14, borderRadius: 10, background: "linear-gradient(160deg, #352810 0%, #221a0c 100%)", border: "1px solid rgba(255,200,60,0.15)" }}>
+          {/* CD window */}
+          <div style={{ position: "absolute", left: 14, top: 14, width: 200, height: 200+28, background: "#080604", borderRadius: 8, border: "1px solid rgba(255,180,30,0.12)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+            <div style={{
+              width: 180, height: 180, borderRadius: "50%",
+              background: cover ? `url(${cover}) center/cover` : `conic-gradient(from 0deg, rgba(200,160,100,0.6), rgba(255,220,150,0.4), rgba(150,120,80,0.6), rgba(100,80,40,0.8), rgba(200,160,100,0.6))`,
+              animation: playing ? "cdSpin 3s linear infinite" : "none",
+              position: "relative",
+              boxShadow: "0 0 20px rgba(200,150,50,0.3), inset 0 0 30px rgba(0,0,0,0.5)",
+            }}>
+              <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "conic-gradient(from 60deg, rgba(255,150,50,0.14), rgba(255,220,80,0.10), rgba(0,200,150,0.10), rgba(100,100,255,0.10), rgba(255,150,50,0.14))", mixBlendMode: "screen" }} />
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 24, height: 24, borderRadius: "50%", background: "radial-gradient(circle, #e8d090 0%, #a08040 60%, #504020 100%)" }} />
+            </div>
+          </div>
+          {/* Right controls */}
+          <div style={{ position: "absolute", left: 228, top: 14, right: 8, bottom: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ color: "rgba(255,200,60,0.8)", fontSize: 10, fontFamily: "monospace", letterSpacing: 2 }}>DISC PLAYER</div>
+            <div style={{ color: "rgba(255,200,60,0.5)", fontSize: 9, fontFamily: "monospace" }}>MODE: AUDIO CD</div>
+            {totalDiscs > 1 && <div style={{ color: "rgba(255,200,60,0.7)", fontSize: 9, fontFamily: "monospace" }}>DISC {discNumber} / {totalDiscs}</div>}
+            <div style={{ flex: 1 }} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {["PLAY","STOP","SKIP","REV"].map(lbl => (
+                <div key={lbl} style={{ padding: "4px 8px", borderRadius: 4, background: "rgba(255,180,30,0.12)", border: "1px solid rgba(255,180,30,0.22)", color: "rgba(255,200,60,0.7)", fontSize: 8, fontFamily: "monospace" }}>{lbl}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default: tray style
+  return (
+    <div style={{ position: "relative", width: 480, height: 320 }}>
+      {/* Main unit body */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: 12, background: "linear-gradient(160deg, #2c2c32 0%, #1a1a1e 50%, #111114 100%)", boxShadow: "0 24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.10)" }} />
+      {/* Tray slot */}
+      <div style={{ position: "absolute", top: "50%", left: 16, right: 140, transform: `translateY(-50%) ${ejecting ? "translateX(240px)" : "translateX(0)"}`, transition: "transform 0.9s cubic-bezier(0.4,0,0.2,1)", background: "linear-gradient(160deg, #1a1a1e, #0d0d10)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", padding: 10, display: "flex", alignItems: "center", justifyContent: "center", height: 160 }}>
+        {/* CD on tray */}
+        <div style={{
+          width: 130, height: 130, borderRadius: "50%",
+          background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 38% 32%, rgba(255,255,255,0.92) 0%, ${discBg} 22%, rgba(80,80,120,0.75) 55%, rgba(10,10,20,0.95) 100%)`,
+          boxShadow: "0 0 24px rgba(100,180,255,0.25), 0 6px 20px rgba(0,0,0,0.6)",
+          animation: playing ? "cdSpin 3s linear infinite" : "none",
+          position: "relative",
+          flexShrink: 0,
+        }}>
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "conic-gradient(from 0deg, rgba(255,100,100,0.12), rgba(255,200,0,0.09), rgba(0,255,150,0.10), rgba(0,150,255,0.10), rgba(200,0,255,0.10), rgba(255,100,100,0.12))", mixBlendMode: "screen" }} />
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 22, height: 22, borderRadius: "50%", background: "radial-gradient(circle, #e4e4e8 0%, #a4a4ac 60%, #646468 100%)", boxShadow: "inset 0 1px 2px rgba(255,255,255,0.7)" }} />
+        </div>
+      </div>
+      {/* Right panel */}
+      <div style={{ position: "absolute", right: 12, top: 12, bottom: 12, width: 116, display: "flex", flexDirection: "column", gap: 8, padding: 10 }}>
+        {/* Display */}
+        <div style={{ padding: "6px 8px", borderRadius: 6, background: "#0a1a0a", border: "1px solid rgba(0,200,80,0.2)", color: "#00dd44", fontFamily: "monospace", fontSize: 9, letterSpacing: 1 }}>
+          <div>DISC {discNumber}</div>
+          {totalDiscs > 1 && <div style={{ opacity: 0.6 }}>OF {totalDiscs}</div>}
+          <div style={{ marginTop: 3, opacity: 0.7 }}>{playing ? "PLAYING" : "PAUSED"}</div>
+        </div>
+        {/* Buttons */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            {[["OPEN","△"],["STOP","■"],["PREV","⏮"],["NEXT","⏭"]].map(([label, icon]) => (
+              <div key={label} style={{ padding: "5px 4px", borderRadius: 5, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)", fontFamily: "monospace", fontSize: 7, textAlign: "center" }}>
+                <div style={{ fontSize: 10 }}>{icon}</div>
+                <div>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: playing ? "#22dd44" : "#333", boxShadow: playing ? "0 0 8px rgba(34,221,68,0.8)" : "none", alignSelf: "flex-end" }} />
+      </div>
+    </div>
+  );
+}
+
+// Case animation for CD (disc emerging from jewel case)
+function CDCaseAnimation({ cover, cdColor, open }: any) {
+  return (
+    <div style={{ position: "relative", width: 320, height: 380, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {/* Jewel case base */}
+      <div style={{ position: "absolute", width: 240, height: 270, borderRadius: 6, background: "linear-gradient(160deg, rgba(80,100,180,0.35), rgba(30,40,80,0.55))", border: "1px solid rgba(120,160,255,0.25)", boxShadow: "0 20px 50px rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+        {cover ? <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 5, opacity: 0.9 }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(160deg, rgba(100,120,220,0.4), rgba(20,30,80,0.6))", borderRadius: 5 }} />}
+        {/* Spine highlight */}
+        <div style={{ position: "absolute", top: 0, left: 0, width: 10, bottom: 0, background: "rgba(255,255,255,0.1)", borderRadius: "5px 0 0 5px" }} />
+      </div>
+      {/* CD disc emerging */}
+      <div style={{
+        position: "absolute",
+        width: 200, height: 200, borderRadius: "50%",
+        background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 38% 32%, rgba(255,255,255,0.90) 0%, ${cdColor || "#c8c8c8"} 22%, rgba(80,80,120,0.75) 55%, rgba(10,10,20,0.95) 100%)`,
+        boxShadow: "0 0 30px rgba(100,180,255,0.3), 0 8px 30px rgba(0,0,0,0.7)",
+        transform: open ? "translateY(-100px) rotate(-15deg)" : "translateY(0px) rotate(0deg)",
+        transition: "transform 1.2s cubic-bezier(0.4,0,0.2,1)",
+        zIndex: 2,
+      }}>
+        <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "conic-gradient(from 0deg, rgba(255,100,100,0.12), rgba(255,200,0,0.09), rgba(0,255,150,0.10), rgba(0,150,255,0.10), rgba(200,0,255,0.10), rgba(255,100,100,0.12))", mixBlendMode: "screen" }} />
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 28, height: 28, borderRadius: "50%", background: "radial-gradient(circle, #e4e4e8 0%, #a4a4ac 60%, #646468 100%)" }} />
+      </div>
+    </div>
+  );
+}
+
+// Cassette Tape Component
+function TapePlayer({ style, cover, playing, sideLabel, tapeNumber, totalTapes, tapeColor }: any) {
+  const s = style || "deck";
+  const reel1Angle = playing ? "tapeSpin" : "none";
+  const reelColor = tapeColor || "#1a1a1a";
+
+  if (s === "walkman") {
+    return (
+      <div style={{ position: "relative", width: 280, height: 380 }}>
+        {/* Body */}
+        <div style={{ position: "absolute", inset: 0, borderRadius: 20, background: "linear-gradient(160deg, #2a2a3a 0%, #16161f 50%, #0e0e14 100%)", boxShadow: "0 24px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)" }} />
+        {/* Cassette window */}
+        <div style={{ position: "absolute", top: 28, left: 18, right: 18, height: 180, borderRadius: 12, background: "#0a0a10", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden" }}>
+          {cover && <img src={cover} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, borderRadius: 12 }} />}
+          {/* Cassette shell */}
+          <div style={{ position: "absolute", inset: 10, borderRadius: 8, background: `linear-gradient(160deg, ${reelColor} 0%, rgba(30,30,40,0.9) 100%)`, border: "1px solid rgba(255,255,255,0.08)" }}>
+            {/* Tape window */}
+            <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", width: 100, height: 28, borderRadius: 4, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <div style={{ width: "100%", height: 3, background: "rgba(100,80,40,0.8)", borderRadius: 1 }} />
+            </div>
+            {/* Reels */}
+            {[32, 100].map((x, ri) => (
+              <div key={ri} style={{ position: "absolute", top: 16, left: x, width: 46, height: 46, borderRadius: "50%", background: `radial-gradient(circle, rgba(80,80,90,0.9) 0%, ${reelColor} 60%, rgba(10,10,14,0.95) 100%)`, border: "1px solid rgba(255,255,255,0.1)", animation: playing ? `${reel1Angle} 2s linear infinite` : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 14, height: 14, borderRadius: "50%", background: "rgba(40,40,50,0.9)", border: "1px solid rgba(255,255,255,0.15)" }} />
+                {[0,1,2,3,4].map(i => (
+                  <div key={i} style={{ position: "absolute", width: 2, height: 14, background: "rgba(255,255,255,0.15)", transformOrigin: "50% 100%", transform: `rotate(${i * 72}deg) translateX(-50%)`, top: "50%", left: "calc(50% - 1px)", marginTop: -14 }} />
+                ))}
+              </div>
+            ))}
+            {/* Label */}
+            {cover && <img src={cover} alt="" style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 60, height: 32, objectFit: "cover", borderRadius: 3, opacity: 0.85 }} />}
+          </div>
+        </div>
+        {/* Side label */}
+        <div style={{ position: "absolute", top: 218, left: 0, right: 0, textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.55)", fontFamily: "monospace", letterSpacing: 2 }}>SIDE {sideLabel}</div>
+        {totalTapes > 1 && <div style={{ position: "absolute", top: 232, left: 0, right: 0, textAlign: "center", fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "monospace" }}>TAPE {tapeNumber}/{totalTapes}</div>}
+        {/* Controls */}
+        <div style={{ position: "absolute", bottom: 28, left: 18, right: 18, display: "flex", justifyContent: "center", gap: 10 }}>
+          {["⏮","⏹","▶","⏭"].map(btn => (
+            <div key={btn} style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(145deg, #3a3a4a, #1e1e2a)", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 4px 8px rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "rgba(255,255,255,0.7)" }}>{btn}</div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (s === "boombox") {
+    return (
+      <div style={{ position: "relative", width: 520, height: 320 }}>
+        {/* Body */}
+        <div style={{ position: "absolute", inset: 0, borderRadius: 18, background: "linear-gradient(160deg, #1e1e24 0%, #111116 50%, #0a0a0e 100%)", boxShadow: "0 20px 55px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.09)" }} />
+        {/* Speaker grills */}
+        {[{ left: 12, width: 100 }, { right: 12, width: 100 }].map((pos, si) => (
+          <div key={si} style={{ position: "absolute", top: 16, ...pos, height: 200, borderRadius: 10, background: "#0c0c10", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {Array.from({ length: 8 }).map((_, r) => Array.from({ length: 5 }).map((_, c) => (
+              <div key={`${r}-${c}`} style={{ position: "absolute", width: 5, height: 5, borderRadius: "50%", background: "rgba(255,255,255,0.06)", left: 14 + c * 14, top: 20 + r * 20 }} />
+            )))}
+          </div>
+        ))}
+        {/* Center cassette deck */}
+        <div style={{ position: "absolute", top: 16, left: 124, right: 124, height: 200, borderRadius: 10, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ position: "absolute", inset: 10, borderRadius: 6, background: `linear-gradient(160deg, ${reelColor} 0%, rgba(20,20,28,0.95) 100%)`, border: "1px solid rgba(255,255,255,0.06)" }}>
+            {[25, 115].map((x, ri) => (
+              <div key={ri} style={{ position: "absolute", top: 20, left: x, width: 50, height: 50, borderRadius: "50%", background: `radial-gradient(circle, rgba(70,70,80,0.9) 0%, ${reelColor} 55%, rgba(5,5,8,0.98) 100%)`, border: "1px solid rgba(255,255,255,0.08)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 16, height: 16, borderRadius: "50%", background: "rgba(40,40,50,0.9)" }} />
+              </div>
+            ))}
+            <div style={{ position: "absolute", bottom: 8, left: 8, right: 8, height: 26, borderRadius: 4, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: "80%", height: 3, background: "rgba(90,70,40,0.7)", borderRadius: 1 }} />
+            </div>
+            {cover && <img src={cover} alt="" style={{ position: "absolute", top: 6, left: "50%", transform: "translateX(-50%)", width: 52, height: 30, objectFit: "cover", borderRadius: 3, opacity: 0.8 }} />}
+          </div>
+        </div>
+        {/* Bottom controls */}
+        <div style={{ position: "absolute", bottom: 12, left: 124, right: 124, display: "flex", justifyContent: "center", gap: 8 }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", fontFamily: "monospace", letterSpacing: 1 }}>SIDE {sideLabel}</div>
+          {totalTapes > 1 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.30)", fontFamily: "monospace" }}>TAPE {tapeNumber}/{totalTapes}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  if (s === "vintage") {
+    return (
+      <div style={{ position: "relative", width: 480, height: 300 }}>
+        <div style={{ position: "absolute", inset: 0, borderRadius: 10, background: "linear-gradient(160deg, #c8b890 0%, #a09060 50%, #706040 100%)", boxShadow: "0 20px 55px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,240,180,0.35)" }} />
+        <div style={{ position: "absolute", inset: 8, borderRadius: 7, background: "linear-gradient(160deg, #8a6a30 0%, #604a20 100%)", border: "1px solid rgba(200,160,60,0.3)" }}>
+          {/* Cassette window */}
+          <div style={{ position: "absolute", top: 10, left: 10, width: 280, height: 150, borderRadius: 6, background: "#0a0806", border: "1px solid rgba(200,160,60,0.2)" }}>
+            <div style={{ position: "absolute", inset: 8, borderRadius: 4, background: `linear-gradient(160deg, ${reelColor} 0%, rgba(15,12,8,0.95) 100%)` }}>
+              {[30, 120].map((x, ri) => (
+                <div key={ri} style={{ position: "absolute", top: 20, left: x, width: 44, height: 44, borderRadius: "50%", background: `radial-gradient(circle, rgba(80,70,50,0.9) 0%, ${reelColor} 55%, rgba(5,4,2,0.98) 100%)`, border: "1px solid rgba(200,150,50,0.2)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: 14, height: 14, borderRadius: "50%", background: "rgba(60,50,30,0.9)" }} />
+                </div>
+              ))}
+              <div style={{ position: "absolute", bottom: 8, left: 8, right: 8, height: 22, borderRadius: 3, background: "rgba(0,0,0,0.45)" }}>
+                <div style={{ position: "absolute", top: "50%", left: "10%", right: "10%", height: 3, background: "rgba(120,90,40,0.7)", borderRadius: 1, transform: "translateY(-50%)" }} />
+              </div>
+            </div>
+          </div>
+          {/* Right panel */}
+          <div style={{ position: "absolute", left: 300, top: 10, right: 8, bottom: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ color: "rgba(255,200,60,0.7)", fontSize: 9, fontFamily: "monospace", letterSpacing: 2 }}>TAPE DECK</div>
+            <div style={{ color: "rgba(255,200,60,0.5)", fontSize: 8, fontFamily: "monospace" }}>SIDE {sideLabel}</div>
+            {totalTapes > 1 && <div style={{ color: "rgba(255,200,60,0.5)", fontSize: 8, fontFamily: "monospace" }}>TAPE {tapeNumber}/{totalTapes}</div>}
+            <div style={{ flex: 1 }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {["PLAY","STOP","FF","REW"].map(lbl => (
+                <div key={lbl} style={{ padding: "3px 6px", borderRadius: 3, background: "rgba(200,150,50,0.12)", border: "1px solid rgba(200,150,50,0.2)", color: "rgba(255,200,60,0.6)", fontSize: 7, fontFamily: "monospace" }}>{lbl}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default: deck style
+  return (
+    <div style={{ position: "relative", width: 480, height: 300 }}>
+      {/* Main body */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: 12, background: "linear-gradient(160deg, #28282e 0%, #18181c 50%, #101012 100%)", boxShadow: "0 24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.09)" }} />
+      {/* Cassette bay */}
+      <div style={{ position: "absolute", top: 16, left: 16, right: 140, height: 200, borderRadius: 8, background: "#0a0a0c", border: "1px solid rgba(255,255,255,0.07)" }}>
+        {/* Cassette */}
+        <div style={{ position: "absolute", inset: 10, borderRadius: 6, background: `linear-gradient(160deg, ${reelColor} 0%, rgba(20,20,24,0.95) 100%)`, border: "1px solid rgba(255,255,255,0.06)" }}>
+          {cover && <img src={cover} alt="" style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 70, height: 40, objectFit: "cover", borderRadius: 4, opacity: 0.85 }} />}
+          {/* Reels */}
+          {[24, 120].map((x, ri) => (
+            <div key={ri} style={{ position: "absolute", top: 22, left: x, width: 52, height: 52, borderRadius: "50%", background: `radial-gradient(circle, rgba(70,70,78,0.9) 0%, ${reelColor} 55%, rgba(5,5,7,0.98) 100%)`, border: "1px solid rgba(255,255,255,0.08)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 16, height: 16, borderRadius: "50%", background: "rgba(35,35,42,0.9)", border: "1px solid rgba(255,255,255,0.10)" }} />
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{ position: "absolute", width: 2, height: 16, background: "rgba(255,255,255,0.12)", transformOrigin: "50% 100%", transform: `rotate(${i * 90}deg) translateX(-50%)`, top: "50%", left: "calc(50% - 1px)", marginTop: -16 }} />
+              ))}
+            </div>
+          ))}
+          {/* Tape window */}
+          <div style={{ position: "absolute", bottom: 8, left: 8, right: 8, height: 26, borderRadius: 4, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", padding: "0 8px" }}>
+            <div style={{ flex: 1, height: 3, background: `linear-gradient(90deg, rgba(90,70,40,0.9), rgba(60,50,30,0.7))`, borderRadius: 1 }} />
+          </div>
+        </div>
+      </div>
+      {/* Right controls */}
+      <div style={{ position: "absolute", right: 12, top: 12, bottom: 12, width: 116, display: "flex", flexDirection: "column", gap: 8, padding: 10 }}>
+        <div style={{ padding: "6px 8px", borderRadius: 6, background: "#080810", border: "1px solid rgba(80,80,200,0.2)", color: "#8888ff", fontFamily: "monospace", fontSize: 9, letterSpacing: 1 }}>
+          <div>SIDE {sideLabel}</div>
+          {totalTapes > 1 && <div style={{ opacity: 0.6 }}>TAPE {tapeNumber}/{totalTapes}</div>}
+          <div style={{ marginTop: 3, opacity: 0.7 }}>{playing ? "PLAYING" : "PAUSED"}</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+          {[["REW","⏮"],["FF","⏭"],["STOP","⏹"],["PLAY","▶"]].map(([label, icon]) => (
+            <div key={label} style={{ padding: "5px 4px", borderRadius: 5, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.55)", fontFamily: "monospace", fontSize: 7, textAlign: "center" }}>
+              <div style={{ fontSize: 10 }}>{icon}</div>
+              <div>{label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: playing ? "#4488ff" : "#222", boxShadow: playing ? "0 0 8px rgba(68,136,255,0.8)" : "none", alignSelf: "flex-end", marginTop: "auto" }} />
+      </div>
+    </div>
+  );
+}
+
+// Cassette box animation
+function TapeCaseAnimation({ cover, tapeColor, open }: any) {
+  return (
+    <div style={{ position: "relative", width: 320, height: 380, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {/* Box */}
+      <div style={{ position: "absolute", width: 220, height: 160, borderRadius: 8, background: "linear-gradient(160deg, rgba(40,40,60,0.9), rgba(15,15,25,0.95))", border: "1px solid rgba(100,100,200,0.25)", boxShadow: "0 20px 50px rgba(0,0,0,0.7)" }}>
+        {cover ? <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 7, opacity: 0.9 }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(160deg, rgba(60,60,120,0.4), rgba(15,15,40,0.6))", borderRadius: 7 }} />}
+      </div>
+      {/* Cassette emerging */}
+      <div style={{
+        position: "absolute",
+        width: 200, height: 130, borderRadius: 8,
+        background: `linear-gradient(160deg, ${tapeColor || "#1a1a2a"} 0%, rgba(15,15,22,0.95) 100%)`,
+        border: "1px solid rgba(100,100,200,0.2)",
+        boxShadow: "0 8px 30px rgba(0,0,0,0.7)",
+        transform: open ? "translateY(-100px)" : "translateY(0px)",
+        transition: "transform 1.2s cubic-bezier(0.4,0,0.2,1)",
+        zIndex: 2,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {/* Reels */}
+        {[40, 120].map((x, ri) => (
+          <div key={ri} style={{ position: "absolute", top: 16, left: x, width: 40, height: 40, borderRadius: "50%", background: `radial-gradient(circle, rgba(70,70,90,0.9) 0%, rgba(25,25,35,0.95) 100%)`, border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: "rgba(40,40,55,0.9)" }} />
+          </div>
+        ))}
+        <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, height: 20, borderRadius: 3, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ position: "absolute", top: "50%", left: "10%", right: "10%", height: 2, background: "rgba(80,60,30,0.7)", borderRadius: 1, transform: "translateY(-50%)" }} />
+        </div>
+        {cover && <img src={cover} alt="" style={{ position: "absolute", top: 6, left: "50%", transform: "translateX(-50%)", width: 60, height: 35, objectFit: "cover", borderRadius: 3, opacity: 0.8 }} />}
+      </div>
+    </div>
+  );
+}
 
 const VINYL_GRADIENTS = [
   { id: "radial", label: "radial" },
@@ -2879,6 +3361,12 @@ export function Aurae() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [newProjectFormat, setNewProjectFormat] = useState<"vinyl" | "cd" | "tape">("vinyl");
+  const [caseAnimOpen, setCaseAnimOpen] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem("aurae_tutorial_seen");
+  });
   const [renameModal, setRenameModal] = useState<any>(null);
   const [songMenu, setSongMenu] = useState<any>(null);
   const [projectMenu, setProjectMenu] = useState<any>(null);
@@ -2925,7 +3413,12 @@ export function Aurae() {
   const [awaitingFlip, setAwaitingFlip] = useState(false);
   const [pictureVinyl, setPictureVinyl] = useState(false);
 
-  const [stageMode, setStageMode] = useState<"vinyl" | "equalizer">("vinyl");
+  const [projectFormat, setProjectFormat] = useState<"vinyl" | "cd" | "tape">("vinyl");
+  const [cdStyle, setCdStyle] = useState("tray");
+  const [tapeStyle, setTapeStyle] = useState("deck");
+  const [cdColor, setCdColor] = useState("#c8c8c8");
+  const [tapeColor, setTapeColor] = useState("#1a1a2a");
+  const [stageMode, setStageMode] = useState<"vinyl" | "cd" | "tape" | "equalizer">("vinyl");
   const [eqShape, setEqShape] = useState("bars");
   const [eqColor, setEqColor] = useState("#7afcff");
   const [eqColor2, setEqColor2] = useState("#ff5edf");
@@ -2940,9 +3433,10 @@ export function Aurae() {
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const hoverTimeoutRef = useRef<any>(null);
 
-  const dark = theme === "dark";
-  const text = dark ? "#ffffff" : "#000000";
-  const S: any = useMemo(() => makeStyles(dark, text), [dark, text]);
+  const themePalette = useMemo(() => getThemePalette(theme), [theme]);
+  const dark = themePalette.dark;
+  const text = themePalette.text;
+  const S: any = useMemo(() => makeStyles(dark, text, themePalette), [dark, text, themePalette]);
 
   const isSingle = useMemo(() => isSevenInchSingleRelease(tracks), [tracks]);
   const sideBoundaries = useMemo(() => computeSideBoundaries(tracks, isSingle), [tracks, isSingle]);
@@ -3063,6 +3557,14 @@ export function Aurae() {
   useEffect(() => { localStorage.setItem("aurae_theme", theme); }, [theme]);
 
   useEffect(() => {
+    if (view === "sleeve" && (projectFormat === "cd" || projectFormat === "tape")) {
+      setCaseAnimOpen(false);
+      const t = setTimeout(() => setCaseAnimOpen(true), 400);
+      return () => clearTimeout(t);
+    }
+  }, [view, projectFormat]);
+
+  useEffect(() => {
     if (stageMode === "equalizer" && playing) {
       ensureAudioGraph();
     }
@@ -3114,11 +3616,14 @@ export function Aurae() {
   };
   const totalDur = (list: any[]) => fmt(list.reduce((sum, t) => sum + (t.duration || 0), 0));
 
-  function finishAuth(cleanEmail: string) {
+  function finishAuth(cleanEmail: string, isNewUser = false) {
     persistSession(cleanEmail, rememberMe);
     setCurrentUser(cleanEmail);
     setAuthError("");
     setView("home");
+    if (isNewUser && !localStorage.getItem("aurae_tutorial_seen")) {
+      setShowTutorial(true);
+    }
   }
 
   const handleGoogleLogin = useCallback((googleUser: { name: string; email: string; sub: string }) => {
@@ -3322,7 +3827,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
     const next = { ...store, [verified.email]: await hashPassword(password) };
     setUsers(next);
     saveUsers(next);
-    finishAuth(verified.email);
+    finishAuth(verified.email, true);
     setAuthLoading(false);
   }
 
@@ -3399,6 +3904,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
     if (!clean || projectsMeta[clean]) return;
     const p = {
       createdAt: Date.now(), updatedAt: Date.now(),
+      format: newProjectFormat,
       tracks: [], cover: null, sideCovers: [],
       side1Cover: null, side2Cover: null, repeatSideCovers: false,
       homeCover: null, gatefoldCover: null, gatefoldLeft: null, gatefoldRight: null,
@@ -3407,6 +3913,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
       vinylGradient: "solid", vinylOpacity: 1,
       splatterColor: "#3a7bd5", splatterOn: false, splatterStyle: "burst",
       deckStyle: "classic", deckColor: "#1a1a1a", pictureVinyl: false,
+      cdStyle: "tray", tapeStyle: "deck", cdColor: "#c8c8c8", tapeColor: "#1a1a2a",
     };
     setProjectsMeta((prev: any) => ({ ...prev, [clean]: p }));
     if (currentUser) {
@@ -3461,6 +3968,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
       deckStyle: normalizeDeckStyle(overrides.deckStyle ?? deckStyle),
       deckColor: overrides.deckColor ?? deckColor,
       pictureVinyl: overrides.pictureVinyl ?? pictureVinyl,
+      format: overrides.format ?? projectFormat,
+      cdStyle: overrides.cdStyle ?? cdStyle,
+      tapeStyle: overrides.tapeStyle ?? tapeStyle,
+      cdColor: overrides.cdColor ?? cdColor,
+      tapeColor: overrides.tapeColor ?? tapeColor,
     };
   }
 
@@ -3521,6 +4033,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
     setDeckStyle(style);
     setDeckColor(p.deckColor || "#1a1a1a");
     setPictureVinyl(Boolean(p.pictureVinyl));
+    const fmt = (p.format as "vinyl" | "cd" | "tape") || "vinyl";
+    setProjectFormat(fmt);
+    setCdStyle(p.cdStyle || "tray");
+    setTapeStyle(p.tapeStyle || "deck");
+    setCdColor(p.cdColor || "#c8c8c8");
+    setTapeColor(p.tapeColor || "#1a1a2a");
+    setStageMode(fmt === "vinyl" ? "vinyl" : fmt);
     setVinylSide(1);
     setActiveVinyl(1);
     setAwaitingVinylChange(false);
@@ -3971,9 +4490,12 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
           <div style={S.storageTopbar}>
             <div style={S.logo}>AURAE</div>
             <div style={S.topBtns}>
-              <button style={S.btn} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? "Light" : "Dark"}</button>
-              <button style={S.btn} onClick={() => setShowStorageCreate(true)}>+ storage</button>
+              {THEMES.map(t => (
+                <button key={t.id} style={{ ...S.btn, ...(theme === t.id ? { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)" } : {}) }} onClick={() => setTheme(t.id)}>{t.label}</button>
+              ))}
               <button style={S.btn} onClick={() => setShowCreate(true)}>+ project</button>
+              <button style={S.btn} onClick={() => setShowStorageCreate(true)}>+ storage</button>
+              <button style={S.btn} onClick={() => setShowTutorial(true)}>?</button>
               <button style={S.btn} onClick={logout}>log out</button>
             </div>
           </div>
@@ -4092,9 +4614,19 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
         {showCreate && (
           <div style={OVL} onClick={() => setShowCreate(false)}>
             <div style={MOD(dark, text)} onClick={e => e.stopPropagation()}>
+              <div style={S.modalTitle}>New project</div>
               <input autoFocus style={S.input} placeholder="project name" value={projectName}
                 onChange={e => setProjectName(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setShowCreate(false); }} />
+              <div style={{ color: text, fontSize: 10, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase", fontFamily: "Courier New, monospace" }}>format</div>
+              <div style={S.formatPicker}>
+                {(["vinyl", "cd", "tape"] as const).map(f => (
+                  <button key={f} style={{ ...S.formatBtn, ...(newProjectFormat === f ? S.formatBtnActive : {}) }} onClick={() => setNewProjectFormat(f)}>
+                    <div style={{ fontSize: 16, marginBottom: 3 }}>{f === "vinyl" ? "💿" : f === "cd" ? "📀" : "📼"}</div>
+                    <div>{f}</div>
+                  </button>
+                ))}
+              </div>
               <button style={S.btn} onClick={() => createProject()}>create</button>
             </div>
           </div>
@@ -4181,6 +4713,64 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
             </div>
           </>
         )}
+
+        {showTutorial && (
+          <div style={S.tutorialOverlay} onClick={() => { setShowTutorial(false); localStorage.setItem("aurae_tutorial_seen", "1"); }}>
+            <div style={S.tutorialBox} onClick={e => e.stopPropagation()}>
+              <div style={S.tutorialTitle}>aurae</div>
+              <div style={{ ...S.tutorialText, opacity: 0.65 }}>Your personal record player — for vinyl, CD, and tape.</div>
+              <div style={S.tutorialSection}>
+                <div style={S.tutorialSectionTitle}>what is aurae?</div>
+                <div style={S.tutorialText}>Aurae is a music player that simulates the experience of physical media. Create projects that behave like real vinyl records, CDs, or cassette tapes — with sleeves, cases, and authentic playback animations.</div>
+              </div>
+              <div style={S.tutorialSection}>
+                <div style={S.tutorialSectionTitle}>creating a project</div>
+                <div style={S.tutorialText}>Click "new project" to get started. Choose a format: vinyl (20 min/side), CD (74 min/disc), or tape (45 min/side). Add your audio files and a cover image.</div>
+              </div>
+              <div style={S.tutorialSection}>
+                <div style={S.tutorialSectionTitle}>storage crates</div>
+                <div style={S.tutorialText}>Your projects live in storage crates. Create multiple crates to organise your collection. Right-click a crate tab to delete it. Drag records to reorder them.</div>
+              </div>
+              <div style={S.tutorialSection}>
+                <div style={S.tutorialSectionTitle}>the player</div>
+                <div style={S.tutorialText}>Open a project to enter the player. Vinyl mode shows a spinning record on a turntable — pick from 8 deck styles. CD mode shows a CD player. Tape mode shows a cassette deck. Switch to EQ mode for the visualiser.</div>
+              </div>
+              <div style={S.tutorialSection}>
+                <div style={S.tutorialSectionTitle}>sides & discs</div>
+                <div style={S.tutorialText}>Tracks are split across sides automatically. Vinyl gets 20 min/side, CDs 74 min/disc, tapes 45 min/side (A+B). Long projects get multiple vinyls, discs, or tapes.</div>
+              </div>
+              <div style={S.tutorialSection}>
+                <div style={S.tutorialSectionTitle}>design</div>
+                <div style={S.tutorialText}>In the player, switch to the "design" tab to customise your vinyl colour, gradient, splatter, and deck style. Use the theme panel on the right to switch between dark, light, vaporwave, synthwave, retro, and minimal.</div>
+              </div>
+              <button style={{ ...S.btn, marginTop: 8, alignSelf: "flex-start" }} onClick={() => { setShowTutorial(false); localStorage.setItem("aurae_tutorial_seen", "1"); }}>
+                got it — start listening
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+
+  if (view === "sleeve" && projectFormat === "cd") {
+    return (
+      <div style={{ ...S.auth, flexDirection: "column", gap: 24 }}>
+        <div style={{ color: text, fontSize: 14, fontFamily: "monospace", letterSpacing: 2, opacity: 0.7 }}>{activeProject}</div>
+        <CDCaseAnimation cover={albumCover} cdColor={cdColor} open={caseAnimOpen} />
+        <button style={S.btn} onClick={() => { setView("studio"); setStageMode("cd"); }}>open player</button>
+      </div>
+    );
+  }
+
+  if (view === "sleeve" && projectFormat === "tape") {
+    return (
+      <div style={{ ...S.auth, flexDirection: "column", gap: 24 }}>
+        <div style={{ color: text, fontSize: 14, fontFamily: "monospace", letterSpacing: 2, opacity: 0.7 }}>{activeProject}</div>
+        <TapeCaseAnimation cover={albumCover} tapeColor={tapeColor} open={caseAnimOpen} />
+        <button style={S.btn} onClick={() => { setView("studio"); setStageMode("tape"); }}>open player</button>
       </div>
     );
   }
@@ -4347,6 +4937,40 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
               {!tracks.length && <div style={S.emptyState}>Add songs and the needle will move across the record.</div>}
             </div>
           </>
+        ) : stageMode === "cd" ? (
+          <div style={S.designPanel}>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>CD player style</div>
+              <div style={S.optionGrid}>
+                {(CD_STYLES as readonly string[]).map(s => (
+                  <button key={s} style={{ ...S.smallBtn, ...(cdStyle === s ? S.optionActive : {}) }} onClick={() => { setCdStyle(s); if (activeProject) saveCurrentProject(tracks, albumCover, { cdStyle: s }); }}>{s}</button>
+                ))}
+              </div>
+            </div>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Disc color</div>
+              <div style={S.swatchGrid}>
+                <ColorSwatch value={cdColor} onChange={v => { setCdColor(v); if (activeProject) saveCurrentProject(tracks, albumCover, { cdColor: v }); }} label="disc" dark={dark} />
+              </div>
+            </div>
+          </div>
+        ) : stageMode === "tape" ? (
+          <div style={S.designPanel}>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Tape player style</div>
+              <div style={S.optionGrid}>
+                {(TAPE_STYLES as readonly string[]).map(s => (
+                  <button key={s} style={{ ...S.smallBtn, ...(tapeStyle === s ? S.optionActive : {}) }} onClick={() => { setTapeStyle(s); if (activeProject) saveCurrentProject(tracks, albumCover, { tapeStyle: s }); }}>{s}</button>
+                ))}
+              </div>
+            </div>
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Cassette color</div>
+              <div style={S.swatchGrid}>
+                <ColorSwatch value={tapeColor} onChange={v => { setTapeColor(v); if (activeProject) saveCurrentProject(tracks, albumCover, { tapeColor: v }); }} label="shell" dark={dark} />
+              </div>
+            </div>
+          </div>
         ) : stageMode === "equalizer" ? (
           <div style={S.designPanel}>
             <div style={S.section}>
@@ -4442,14 +5066,61 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
             {needsTurn && <button style={S.turnBtn} onClick={flipVinyl}>turn vinyl</button>}
             {awaitingVinylChange && !flipping && <button style={S.turnBtn} onClick={changeVinyl}>change vinyl</button>}
           </div>
+        ) : stageMode === "cd" ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, minHeight: 500 }}>
+            <CDPlayer style={cdStyle} cover={currentVinylCover} playing={playing}
+              discNumber={Math.ceil(vinylSide / 1)} totalDiscs={Math.max(1, Math.ceil(computeCdBoundaries(tracks).length - 1))}
+              cdColor={cdColor} ejecting={false} />
+            <div style={{ color: text, opacity: 0.55, fontSize: 11, fontFamily: "monospace", letterSpacing: 1 }}>
+              {tracks.length ? `DISC ${Math.max(1, Math.ceil(vinylSide / 1))} · ${current?.name || ""}` : "Add tracks to begin"}
+            </div>
+          </div>
+        ) : stageMode === "tape" ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, minHeight: 500 }}>
+            <TapePlayer style={tapeStyle} cover={currentVinylCover} playing={playing}
+              sideLabel={vinylSide % 2 === 1 ? "A" : "B"}
+              tapeNumber={Math.ceil(vinylSide / 2)}
+              totalTapes={Math.max(1, Math.ceil(computeTapeBoundaries(tracks).length / 2))}
+              tapeColor={tapeColor} />
+            <div style={{ color: text, opacity: 0.55, fontSize: 11, fontFamily: "monospace", letterSpacing: 1 }}>
+              {tracks.length ? `TAPE ${Math.ceil(vinylSide / 2)} SIDE ${vinylSide % 2 === 1 ? "A" : "B"} · ${current?.name || ""}` : "Add tracks to begin"}
+            </div>
+          </div>
         ) : (
           <div style={{ position: "relative", width: "min(760px, 100%)", height: 480, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <EqualizerVisualizer analyserRef={analyserRef} shape={eqShape} color={eqColor} color2={eqColor2} bars={eqBars} glow={eqGlow} bgColor={eqBgColor} playing={playing} width={720} height={420} />
           </div>
         )}
         <div style={S.modeSwitch}>
-          <button style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("vinyl")}>vinyl</button>
+          {projectFormat === "vinyl" && <button style={{ ...S.modeSwitchBtn, ...(stageMode === "vinyl" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("vinyl")}>vinyl</button>}
+          {projectFormat === "cd" && <button style={{ ...S.modeSwitchBtn, ...(stageMode === "cd" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("cd")}>cd</button>}
+          {projectFormat === "tape" && <button style={{ ...S.modeSwitchBtn, ...(stageMode === "tape" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("tape")}>tape</button>}
           <button style={{ ...S.modeSwitchBtn, ...(stageMode === "equalizer" ? S.modeSwitchActive : {}) }} onClick={() => setStageMode("equalizer")}>EQ</button>
+        </div>
+      </div>
+
+      {/* Theme Panel — right side */}
+      <div style={S.themePanel}>
+        <div style={S.themePanelTitle}>themes</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {THEMES.map(t => (
+            <button key={t.id} style={{ ...S.themeBtn, ...(theme === t.id ? S.themeBtnActive : {}) }} onClick={() => setTheme(t.id)}>
+              <span style={{ flex: 1 }}>{t.label}</span>
+              <span style={{ opacity: 0.5, fontSize: 9 }}>{t.desc}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ marginTop: 12, borderTop: S.themeBorder, paddingTop: 12 }}>
+          <div style={S.themePanelTitle}>format</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 6 }}>
+            {(["vinyl", "cd", "tape"] as const).map(f => (
+              <button key={f} style={{ ...S.themeBtn, ...(projectFormat === f ? S.themeBtnActive : {}) }} onClick={() => {
+                setProjectFormat(f);
+                setStageMode(f === "vinyl" ? "vinyl" : f);
+                if (activeProject) saveCurrentProject(tracks, albumCover, { format: f });
+              }}>{f}</button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -4469,7 +5140,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
             </div>
             <div style={S.playerTrackMeta}>
               {tracks.length > 0 ? (
-                `Vinyl ${activeVinyl} · Side ${vinylSide === 1 ? 'A' : vinylSide === 2 ? 'B' : vinylSide === 3 ? 'C' : 'D'}`
+                projectFormat === "cd"
+                  ? `Disc ${Math.ceil(vinylSide / 1)} · Track ${index + 1}`
+                  : projectFormat === "tape"
+                  ? `Tape ${Math.ceil(vinylSide / 2)} · Side ${vinylSide % 2 === 1 ? "A" : "B"}`
+                  : `Vinyl ${activeVinyl} · Side ${vinylSide === 1 ? "A" : vinylSide === 2 ? "B" : vinylSide === 3 ? "C" : "D"}`
               ) : (
                 "Aurae OS Player"
               )}
@@ -4546,14 +5221,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
   );
 }
 
-function makeStyles(dark: boolean, text: string) {
-  const glass = dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.64)";
-  const glassStrong = dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.86)";
-  const border = dark ? "1px solid rgba(255,255,255,0.13)" : "1px solid rgba(0,0,0,0.08)";
-  const shadow = dark ? "0 24px 70px rgba(0,0,0,0.34)" : "0 24px 70px rgba(60,70,90,0.16)";
-  const pageBg = dark
+function makeStyles(dark: boolean, text: string, palette?: any) {
+  const glass = palette?.glass ?? (dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.64)");
+  const glassStrong = palette?.glassStrong ?? (dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.86)");
+  const border = palette?.border ?? (dark ? "1px solid rgba(255,255,255,0.13)" : "1px solid rgba(0,0,0,0.08)");
+  const shadow = palette?.shadow ?? (dark ? "0 24px 70px rgba(0,0,0,0.34)" : "0 24px 70px rgba(60,70,90,0.16)");
+  const pageBg = palette?.pageBg ?? (dark
     ? "radial-gradient(circle at 16% 12%, rgba(120,160,255,0.12), transparent 28%), radial-gradient(circle at 78% 20%, rgba(255,120,190,0.10), transparent 28%), #070708"
-    : "radial-gradient(circle at 14% 12%, rgba(120,170,255,0.22), transparent 28%), radial-gradient(circle at 82% 16%, rgba(255,160,210,0.18), transparent 32%), #f4f6f8";
+    : "radial-gradient(circle at 14% 12%, rgba(120,170,255,0.22), transparent 28%), radial-gradient(circle at 82% 16%, rgba(255,160,210,0.18), transparent 32%), #f4f6f8");
   const baseFont = "Courier New, monospace";
   const scrollVars: any = {
     "--aurae-scroll-track": dark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.045)",
@@ -4663,7 +5338,7 @@ function makeStyles(dark: boolean, text: string) {
     modeSwitchBtn: { padding: "7px 14px", borderRadius: 999, border: "none", background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase", opacity: 0.7 },
     modeSwitchActive: { background: dark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.08)", color: text, opacity: 1, boxShadow: dark ? "inset 0 1px 0 rgba(255,255,255,0.18)" : "0 4px 10px rgba(70,80,100,0.12)" },
     turnBtn: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 10, padding: "14px 20px", borderRadius: 999, border, background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.86)", color: text, fontFamily: baseFont, fontSize: 13, cursor: "pointer", backdropFilter: "blur(24px) saturate(1.25)", boxShadow: shadow },
-    player: { position: "fixed", left: 360, right: 0, bottom: 0, height: 82, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", background: dark ? "rgba(12,12,14,0.85)" : "rgba(255,255,255,0.85)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)", zIndex: 100 },
+    player: { position: "fixed", left: 360, right: 180, bottom: 0, height: 82, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", background: dark ? "rgba(12,12,14,0.85)" : "rgba(255,255,255,0.85)", color: text, borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(28px) saturate(1.2)", zIndex: 100 },
     playerLeft: { display: "flex", alignItems: "center", gap: 12, width: "30%", minWidth: 180 },
     playerMiniCover: { width: 44, height: 44, borderRadius: 8, overflow: "hidden", background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", border: dark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)", boxShadow: "0 4px 10px rgba(0,0,0,0.2)", flexShrink: 0 },
     playerTrackInfo: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0 },
@@ -4680,6 +5355,20 @@ function makeStyles(dark: boolean, text: string) {
     playerTextBtn: { background: "transparent", border: "none", color: text, cursor: "pointer", fontSize: 16, opacity: 0.75, display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "50%" },
     menu: { position: "fixed", zIndex: 999, background: dark ? "rgba(20,20,22,0.94)" : "rgba(255,255,255,0.94)", color: text, border, borderRadius: 14, padding: 8, display: "flex", flexDirection: "column", gap: 6, boxShadow: shadow, backdropFilter: "blur(20px)" },
     menuBtn: { border: "none", padding: "10px 14px", borderRadius: 10, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", color: text, cursor: "pointer", fontFamily: baseFont },
+    themePanel: { width: 180, minWidth: 180, height: "100vh", padding: 16, display: "flex", flexDirection: "column", gap: 10, overflow: "hidden auto", background: dark ? "rgba(0,0,0,0.20)" : "rgba(255,255,255,0.28)", borderLeft: dark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.07)", backdropFilter: "blur(24px) saturate(1.2)" },
+    themePanelTitle: { color: text, fontSize: 9, opacity: 0.55, letterSpacing: 2, textTransform: "uppercase", fontFamily: baseFont, paddingBottom: 4 },
+    themeBtn: { padding: "9px 10px", borderRadius: 10, border, background: "transparent", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11, display: "flex", alignItems: "center", gap: 6, textAlign: "left" },
+    themeBtnActive: { background: glass, borderColor: dark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.18)" },
+    themeBorder: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)",
+    formatPicker: { display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" as const },
+    formatBtn: { flex: 1, minWidth: 60, padding: "10px 6px", borderRadius: 12, border, background: dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.62)", color: text, cursor: "pointer", fontFamily: baseFont, fontSize: 11, textAlign: "center" as const },
+    formatBtnActive: { background: dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.10)", borderColor: dark ? "rgba(255,255,255,0.36)" : "rgba(0,0,0,0.22)" },
+    tutorialOverlay: { position: "fixed" as const, inset: 0, zIndex: 3000, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(12px)" },
+    tutorialBox: { width: "min(600px, calc(100vw - 40px))", maxHeight: "80vh", overflowY: "auto" as const, padding: 32, borderRadius: 24, background: dark ? "rgba(14,14,18,0.96)" : "rgba(255,255,255,0.97)", color: text, border, boxShadow: shadow, display: "flex", flexDirection: "column" as const, gap: 16 },
+    tutorialTitle: { fontSize: 22, fontFamily: baseFont, letterSpacing: 3, color: text },
+    tutorialSection: { display: "flex", flexDirection: "column" as const, gap: 6 },
+    tutorialSectionTitle: { fontSize: 11, opacity: 0.6, letterSpacing: 2, textTransform: "uppercase" as const, fontFamily: baseFont },
+    tutorialText: { fontSize: 12, lineHeight: 1.65, opacity: 0.85, fontFamily: baseFont },
   };
 }
 
@@ -4689,6 +5378,8 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   style.id = _auraeStyleId;
   style.innerHTML = `
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes cdSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes tapeSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes sleeveArrow {
       0%, 100% { transform: translateY(-50%) translateX(0); }
       50% { transform: translateY(-50%) translateX(5px); }
@@ -4726,3 +5417,4 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
