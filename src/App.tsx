@@ -554,10 +554,30 @@ function computeTapeBoundaries(tracks: any[]) {
   return boundaries;
 }
 
+// Lightens (positive percent) or darkens (negative percent) a #rrggbb color.
+// Used so the CD/cassette colour picker tints the ENTIRE disc/shell instead
+// of just a thin band, by deriving every gradient stop from the chosen colour.
+function shadeColor(hex: string, percent: number): string {
+  let color = (hex || "#c8c8c8").replace("#", "");
+  if (color.length === 3) color = color.split("").map(c => c + c).join("");
+  const num = parseInt(color, 16) || 0;
+  const amt = Math.round(2.55 * percent);
+  let r = (num >> 16) + amt;
+  let g = ((num >> 8) & 0x00ff) + amt;
+  let b = (num & 0x0000ff) + amt;
+  r = Math.max(0, Math.min(255, r));
+  g = Math.max(0, Math.min(255, g));
+  b = Math.max(0, Math.min(255, b));
+  return `#${(0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1)}`;
+}
+
 // CD Player Component
 function CDPlayer({ style, cover, playing, discNumber, totalDiscs, cdColor, ejecting }: any) {
   const s = style || "tray";
   const discBg = cdColor || "#c8c8c8";
+  const discLight = shadeColor(discBg, 55);
+  const discMid = shadeColor(discBg, -15);
+  const discDark = shadeColor(discBg, -55);
 
   if (s === "walkman") {
     return (
@@ -570,7 +590,7 @@ function CDPlayer({ style, cover, playing, discNumber, totalDiscs, cdColor, ejec
             {/* Disc */}
             <div style={{
               width: 150, height: 150, borderRadius: "50%",
-              background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 40% 35%, rgba(255,255,255,0.9) 0%, ${discBg} 25%, rgba(100,100,120,0.8) 60%, rgba(20,20,30,0.9) 100%)`,
+              background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 40% 35%, ${discLight} 0%, ${discBg} 25%, ${discMid} 60%, ${discDark} 100%)`,
               boxShadow: "0 0 30px rgba(120,200,255,0.3), 0 8px 24px rgba(0,0,0,0.6)",
               animation: playing ? "cdSpin 3s linear infinite" : "none",
               position: "relative",
@@ -604,7 +624,7 @@ function CDPlayer({ style, cover, playing, discNumber, totalDiscs, cdColor, ejec
           <div style={{ position: "absolute", left: 14, top: 14, width: 200, height: 200+28, background: "#080604", borderRadius: 8, border: "1px solid rgba(255,180,30,0.12)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
             <div style={{
               width: 180, height: 180, borderRadius: "50%",
-              background: cover ? `url(${cover}) center/cover` : `conic-gradient(from 0deg, rgba(200,160,100,0.6), rgba(255,220,150,0.4), rgba(150,120,80,0.6), rgba(100,80,40,0.8), rgba(200,160,100,0.6))`,
+              background: cover ? `url(${cover}) center/cover` : `conic-gradient(from 0deg, ${discBg}, ${discLight}, ${discMid}, ${discDark}, ${discBg})`,
               animation: playing ? "cdSpin 3s linear infinite" : "none",
               position: "relative",
               boxShadow: "0 0 20px rgba(200,150,50,0.3), inset 0 0 30px rgba(0,0,0,0.5)",
@@ -640,7 +660,7 @@ function CDPlayer({ style, cover, playing, discNumber, totalDiscs, cdColor, ejec
         {/* CD on tray */}
         <div style={{
           width: 130, height: 130, borderRadius: "50%",
-          background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 38% 32%, rgba(255,255,255,0.92) 0%, ${discBg} 22%, rgba(80,80,120,0.75) 55%, rgba(10,10,20,0.95) 100%)`,
+          background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 38% 32%, ${discLight} 0%, ${discBg} 22%, ${discMid} 55%, ${discDark} 100%)`,
           boxShadow: "0 0 24px rgba(100,180,255,0.25), 0 6px 20px rgba(0,0,0,0.6)",
           animation: playing ? "cdSpin 3s linear infinite" : "none",
           position: "relative",
@@ -677,6 +697,10 @@ function CDPlayer({ style, cover, playing, discNumber, totalDiscs, cdColor, ejec
 
 // Case animation for CD (disc emerging from jewel case)
 function CDCaseAnimation({ cover, cdColor, open }: any) {
+  const discBg = cdColor || "#c8c8c8";
+  const discLight = shadeColor(discBg, 55);
+  const discMid = shadeColor(discBg, -15);
+  const discDark = shadeColor(discBg, -55);
   return (
     <div style={{ position: "relative", width: 320, height: 380, display: "flex", alignItems: "center", justifyContent: "center" }}>
       {/* Jewel case base */}
@@ -689,7 +713,7 @@ function CDCaseAnimation({ cover, cdColor, open }: any) {
       <div style={{
         position: "absolute",
         width: 200, height: 200, borderRadius: "50%",
-        background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 38% 32%, rgba(255,255,255,0.90) 0%, ${cdColor || "#c8c8c8"} 22%, rgba(80,80,120,0.75) 55%, rgba(10,10,20,0.95) 100%)`,
+        background: cover ? `url(${cover}) center/cover` : `radial-gradient(circle at 38% 32%, ${discLight} 0%, ${discBg} 22%, ${discMid} 55%, ${discDark} 100%)`,
         boxShadow: "0 0 30px rgba(100,180,255,0.3), 0 8px 30px rgba(0,0,0,0.7)",
         transform: open ? "translateY(-100px) rotate(-15deg)" : "translateY(0px) rotate(0deg)",
         transition: "transform 1.2s cubic-bezier(0.4,0,0.2,1)",
@@ -707,6 +731,11 @@ function TapePlayer({ style, cover, playing, sideLabel, tapeNumber, totalTapes, 
   const s = style || "deck";
   const reel1Angle = playing ? "tapeSpin" : "none";
   const reelColor = tapeColor || "#1a1a1a";
+  const shellLight = shadeColor(reelColor, 25);
+  const shellDark = shadeColor(reelColor, -40);
+  // Like a real cassette: when a cover/label is set, it wraps the whole shell body;
+  // otherwise the shell is a solid-colour plastic shade end to end.
+  const shellBg = cover ? `url(${cover}) center/cover` : `linear-gradient(160deg, ${shellLight} 0%, ${reelColor} 45%, ${shellDark} 100%)`;
 
   if (s === "walkman") {
     return (
@@ -715,24 +744,21 @@ function TapePlayer({ style, cover, playing, sideLabel, tapeNumber, totalTapes, 
         <div style={{ position: "absolute", inset: 0, borderRadius: 20, background: "linear-gradient(160deg, #2a2a3a 0%, #16161f 50%, #0e0e14 100%)", boxShadow: "0 24px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)" }} />
         {/* Cassette window */}
         <div style={{ position: "absolute", top: 28, left: 18, right: 18, height: 180, borderRadius: 12, background: "#0a0a10", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden" }}>
-          {cover && <img src={cover} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.18, borderRadius: 12 }} />}
-          {/* Cassette shell */}
-          <div style={{ position: "absolute", inset: 10, borderRadius: 8, background: `linear-gradient(160deg, ${reelColor} 0%, rgba(30,30,40,0.9) 100%)`, border: "1px solid rgba(255,255,255,0.08)" }}>
+          {/* Cassette shell — full colour or full cover, like a real cassette */}
+          <div style={{ position: "absolute", inset: 10, borderRadius: 8, background: shellBg, border: "1px solid rgba(255,255,255,0.08)" }}>
             {/* Tape window */}
             <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", width: 100, height: 28, borderRadius: 4, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
               <div style={{ width: "100%", height: 3, background: "rgba(100,80,40,0.8)", borderRadius: 1 }} />
             </div>
             {/* Reels */}
             {[32, 100].map((x, ri) => (
-              <div key={ri} style={{ position: "absolute", top: 16, left: x, width: 46, height: 46, borderRadius: "50%", background: `radial-gradient(circle, rgba(80,80,90,0.9) 0%, ${reelColor} 60%, rgba(10,10,14,0.95) 100%)`, border: "1px solid rgba(255,255,255,0.1)", animation: playing ? `${reel1Angle} 2s linear infinite` : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div key={ri} style={{ position: "absolute", top: 16, left: x, width: 46, height: 46, borderRadius: "50%", background: `radial-gradient(circle, ${shellLight} 0%, ${reelColor} 60%, ${shellDark} 100%)`, border: "1px solid rgba(255,255,255,0.1)", animation: playing ? `${reel1Angle} 2s linear infinite` : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ width: 14, height: 14, borderRadius: "50%", background: "rgba(40,40,50,0.9)", border: "1px solid rgba(255,255,255,0.15)" }} />
                 {[0,1,2,3,4].map(i => (
                   <div key={i} style={{ position: "absolute", width: 2, height: 14, background: "rgba(255,255,255,0.15)", transformOrigin: "50% 100%", transform: `rotate(${i * 72}deg) translateX(-50%)`, top: "50%", left: "calc(50% - 1px)", marginTop: -14 }} />
                 ))}
               </div>
             ))}
-            {/* Label */}
-            {cover && <img src={cover} alt="" style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 60, height: 32, objectFit: "cover", borderRadius: 3, opacity: 0.85 }} />}
           </div>
         </div>
         {/* Side label */}
@@ -763,16 +789,15 @@ function TapePlayer({ style, cover, playing, sideLabel, tapeNumber, totalTapes, 
         ))}
         {/* Center cassette deck */}
         <div style={{ position: "absolute", top: 16, left: 124, right: 124, height: 200, borderRadius: 10, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ position: "absolute", inset: 10, borderRadius: 6, background: `linear-gradient(160deg, ${reelColor} 0%, rgba(20,20,28,0.95) 100%)`, border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ position: "absolute", inset: 10, borderRadius: 6, background: shellBg, border: "1px solid rgba(255,255,255,0.06)" }}>
             {[25, 115].map((x, ri) => (
-              <div key={ri} style={{ position: "absolute", top: 20, left: x, width: 50, height: 50, borderRadius: "50%", background: `radial-gradient(circle, rgba(70,70,80,0.9) 0%, ${reelColor} 55%, rgba(5,5,8,0.98) 100%)`, border: "1px solid rgba(255,255,255,0.08)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div key={ri} style={{ position: "absolute", top: 20, left: x, width: 50, height: 50, borderRadius: "50%", background: `radial-gradient(circle, ${shellLight} 0%, ${reelColor} 55%, ${shellDark} 100%)`, border: "1px solid rgba(255,255,255,0.08)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ width: 16, height: 16, borderRadius: "50%", background: "rgba(40,40,50,0.9)" }} />
               </div>
             ))}
             <div style={{ position: "absolute", bottom: 8, left: 8, right: 8, height: 26, borderRadius: 4, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ width: "80%", height: 3, background: "rgba(90,70,40,0.7)", borderRadius: 1 }} />
             </div>
-            {cover && <img src={cover} alt="" style={{ position: "absolute", top: 6, left: "50%", transform: "translateX(-50%)", width: 52, height: 30, objectFit: "cover", borderRadius: 3, opacity: 0.8 }} />}
           </div>
         </div>
         {/* Bottom controls */}
@@ -791,9 +816,9 @@ function TapePlayer({ style, cover, playing, sideLabel, tapeNumber, totalTapes, 
         <div style={{ position: "absolute", inset: 8, borderRadius: 7, background: "linear-gradient(160deg, #8a6a30 0%, #604a20 100%)", border: "1px solid rgba(200,160,60,0.3)" }}>
           {/* Cassette window */}
           <div style={{ position: "absolute", top: 10, left: 10, width: 280, height: 150, borderRadius: 6, background: "#0a0806", border: "1px solid rgba(200,160,60,0.2)" }}>
-            <div style={{ position: "absolute", inset: 8, borderRadius: 4, background: `linear-gradient(160deg, ${reelColor} 0%, rgba(15,12,8,0.95) 100%)` }}>
+            <div style={{ position: "absolute", inset: 8, borderRadius: 4, background: shellBg }}>
               {[30, 120].map((x, ri) => (
-                <div key={ri} style={{ position: "absolute", top: 20, left: x, width: 44, height: 44, borderRadius: "50%", background: `radial-gradient(circle, rgba(80,70,50,0.9) 0%, ${reelColor} 55%, rgba(5,4,2,0.98) 100%)`, border: "1px solid rgba(200,150,50,0.2)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div key={ri} style={{ position: "absolute", top: 20, left: x, width: 44, height: 44, borderRadius: "50%", background: `radial-gradient(circle, ${shellLight} 0%, ${reelColor} 55%, ${shellDark} 100%)`, border: "1px solid rgba(200,150,50,0.2)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <div style={{ width: 14, height: 14, borderRadius: "50%", background: "rgba(60,50,30,0.9)" }} />
                 </div>
               ))}
@@ -827,11 +852,10 @@ function TapePlayer({ style, cover, playing, sideLabel, tapeNumber, totalTapes, 
       {/* Cassette bay */}
       <div style={{ position: "absolute", top: 16, left: 16, right: 140, height: 200, borderRadius: 8, background: "#0a0a0c", border: "1px solid rgba(255,255,255,0.07)" }}>
         {/* Cassette */}
-        <div style={{ position: "absolute", inset: 10, borderRadius: 6, background: `linear-gradient(160deg, ${reelColor} 0%, rgba(20,20,24,0.95) 100%)`, border: "1px solid rgba(255,255,255,0.06)" }}>
-          {cover && <img src={cover} alt="" style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 70, height: 40, objectFit: "cover", borderRadius: 4, opacity: 0.85 }} />}
+        <div style={{ position: "absolute", inset: 10, borderRadius: 6, background: shellBg, border: "1px solid rgba(255,255,255,0.06)" }}>
           {/* Reels */}
           {[24, 120].map((x, ri) => (
-            <div key={ri} style={{ position: "absolute", top: 22, left: x, width: 52, height: 52, borderRadius: "50%", background: `radial-gradient(circle, rgba(70,70,78,0.9) 0%, ${reelColor} 55%, rgba(5,5,7,0.98) 100%)`, border: "1px solid rgba(255,255,255,0.08)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div key={ri} style={{ position: "absolute", top: 22, left: x, width: 52, height: 52, borderRadius: "50%", background: `radial-gradient(circle, ${shellLight} 0%, ${reelColor} 55%, ${shellDark} 100%)`, border: "1px solid rgba(255,255,255,0.08)", animation: playing ? "tapeSpin 2s linear infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ width: 16, height: 16, borderRadius: "50%", background: "rgba(35,35,42,0.9)", border: "1px solid rgba(255,255,255,0.10)" }} />
               {[0,1,2,3].map(i => (
                 <div key={i} style={{ position: "absolute", width: 2, height: 16, background: "rgba(255,255,255,0.12)", transformOrigin: "50% 100%", transform: `rotate(${i * 90}deg) translateX(-50%)`, top: "50%", left: "calc(50% - 1px)", marginTop: -16 }} />
@@ -867,6 +891,10 @@ function TapePlayer({ style, cover, playing, sideLabel, tapeNumber, totalTapes, 
 
 // Cassette box animation
 function TapeCaseAnimation({ cover, tapeColor, open }: any) {
+  const reelColor = tapeColor || "#1a1a2a";
+  const shellLight = shadeColor(reelColor, 25);
+  const shellDark = shadeColor(reelColor, -40);
+  const shellBg = cover ? `url(${cover}) center/cover` : `linear-gradient(160deg, ${shellLight} 0%, ${reelColor} 45%, ${shellDark} 100%)`;
   return (
     <div style={{ position: "relative", width: 320, height: 380, display: "flex", alignItems: "center", justifyContent: "center" }}>
       {/* Box */}
@@ -877,7 +905,7 @@ function TapeCaseAnimation({ cover, tapeColor, open }: any) {
       <div style={{
         position: "absolute",
         width: 200, height: 130, borderRadius: 8,
-        background: `linear-gradient(160deg, ${tapeColor || "#1a1a2a"} 0%, rgba(15,15,22,0.95) 100%)`,
+        background: shellBg,
         border: "1px solid rgba(100,100,200,0.2)",
         boxShadow: "0 8px 30px rgba(0,0,0,0.7)",
         transform: open ? "translateY(-100px)" : "translateY(0px)",
@@ -894,7 +922,6 @@ function TapeCaseAnimation({ cover, tapeColor, open }: any) {
         <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, height: 20, borderRadius: 3, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ position: "absolute", top: "50%", left: "10%", right: "10%", height: 2, background: "rgba(80,60,30,0.7)", borderRadius: 1, transform: "translateY(-50%)" }} />
         </div>
-        {cover && <img src={cover} alt="" style={{ position: "absolute", top: 6, left: "50%", transform: "translateX(-50%)", width: 60, height: 35, objectFit: "cover", borderRadius: 3, opacity: 0.8 }} />}
       </div>
     </div>
   );
@@ -4282,9 +4309,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
     
     const audio = audioRef.current;
     if (!audio) return;
-    audio.src = track.url;
+    // Setting .src already triggers the browser's load pipeline. Calling
+    // audio.load() again right after used to race that implicit load —
+    // on the first track of a freshly opened project this could reset
+    // readyState right as play() fired, so timeupdate/loadedmetadata
+    // never dispatched and the UI stayed stuck at 0:00 even though
+    // (sometimes) audio was actually playing.
     audio.preload = "metadata";
-    audio.load();
+    audio.src = track.url;
     audio.play()
       .then(() => {
         if (stageMode === "equalizer") ensureAudioGraph();
@@ -5417,4 +5449,3 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
-
