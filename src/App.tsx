@@ -2545,7 +2545,7 @@ function SleevePresentation({
     dragRef.current.moved = Math.max(dragRef.current.moved, Math.abs(dx));
     setCaseRotation(dragRef.current.startRotation + dx * 0.5);
   };
-  const handleCasePointerUp = (vinyl: number) => {
+  const handleCasePointerUp = (onOpen: () => void) => {
     if (!caseDragging) return;
     setCaseDragging(false);
     const wasClick = dragRef.current.moved < 6;
@@ -2553,18 +2553,141 @@ function SleevePresentation({
     const n = normalizeDeg(caseRotation);
     const isPerfectlyFront = n < 0.5 || n > 359.5;
     if (isPerfectlyFront) {
-      pullVinyl(vinyl);
+      onOpen();
     } else {
       // Any deviation from dead-on-front — even a slight tilt, not just the
-      // back — spins it to exactly front first, then enters the player.
+      // back — spins it to exactly front first, then opens.
       setCaseAutoSpinning(true);
       const target = caseRotation + (n <= 180 ? -n : 360 - n);
       setCaseRotation(target);
       setTimeout(() => {
         setCaseAutoSpinning(false);
-        pullVinyl(vinyl);
+        onOpen();
       }, 700);
     }
+  };
+
+  // ── Shared 3D case geometry (front/back/edges) — used by both the
+  // single-vinyl sleeve and the gatefold's closed cover, so both turn the
+  // same believable way and both reveal the same back cover / spine. ──
+  // A real gatefold gets physically thicker the more records it holds — a
+  // 2-LP set is noticeably chunkier than a single sleeve, a 4-LP box more so.
+  const DEPTH = Math.max(13, Math.round(SIZE * 0.045 * (1 + (totalVinyls - 1) * 0.55)));
+  const noSelect: React.CSSProperties = {
+    userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none",
+  };
+  const edgeFace = (axis: "left" | "right" | "top" | "bottom") => {
+    const horizontal = axis === "left" || axis === "right";
+    const sign = axis === "left" || axis === "top" ? 1 : -1;
+    return {
+      position: "absolute" as const,
+      ...(horizontal
+        ? { top: 0, left: axis === "left" ? -DEPTH / 2 : SIZE - DEPTH / 2, width: DEPTH, height: SIZE }
+        : { left: 0, top: axis === "top" ? -DEPTH / 2 : SIZE - DEPTH / 2, width: SIZE, height: DEPTH }),
+      transform: horizontal ? `rotateY(${sign * 90}deg)` : `rotateX(${sign * -90}deg)`,
+      background: horizontal
+        ? "linear-gradient(90deg, #08080a, #34343f 50%, #08080a)"
+        : "linear-gradient(180deg, #08080a, #34343f 50%, #08080a)",
+      boxShadow: "inset 0 0 16px rgba(0,0,0,0.6)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    };
+  };
+  const glossOverlay = (
+    <div style={{
+      position: "absolute", inset: 0, pointerEvents: "none", mixBlendMode: "screen",
+      background: "linear-gradient(112deg, transparent 34%, rgba(255,255,255,0.16) 46%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.16) 54%, transparent 66%)",
+      backgroundSize: "240% 240%", backgroundPosition: `${50 + Math.sin((caseRotation * Math.PI) / 180) * 62}% 50%`,
+      opacity: 0.65,
+    }} />
+  );
+  const edgeShadow = `0 ${28 + Math.abs(Math.sin((caseRotation * Math.PI) / 180)) * 16}px ${70 + Math.abs(Math.sin((caseRotation * Math.PI) / 180)) * 30}px rgba(0,0,0,${0.5 + Math.abs(Math.cos((caseRotation * Math.PI) / 180)) * 0.15})`;
+
+  // Renders the draggable 3D case (front cover / back cover / real edges).
+  // `onOpen` fires once the case is confirmed front-facing after a tap —
+  // pulling the vinyl out for the single-sleeve view, or unfolding the
+  // gatefold panels for 2/3/4-vinyl releases. `showHinge` draws the closed
+  // gatefold's centre fold — a thin seam with a soft shadow on both sides,
+  // like a real hinged jacket that's just shut rather than a solid box.
+  const draggableCase = (onOpen: () => void, showHinge = false) => {
+    const hinge = showHinge && (
+      <div style={{
+        position: "absolute", top: 0, bottom: 0, left: "50%", width: 22,
+        transform: "translateX(-50%)", pointerEvents: "none",
+        background: "linear-gradient(90deg, transparent, rgba(0,0,0,0.28) 46%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.28) 54%, transparent)",
+      }} />
+    );
+    return (
+    <div
+      onPointerDown={handleCasePointerDown}
+      onPointerMove={handleCasePointerMove}
+      onPointerUp={() => handleCasePointerUp(onOpen)}
+      onPointerCancel={() => setCaseDragging(false)}
+      style={{
+        position: "relative", width: SIZE, height: SIZE,
+        cursor: caseDragging ? "grabbing" : "grab", ...noSelect,
+      }} title="drag to turn the case · tap to open">
+      <div style={{
+        position: "relative", width: "100%", height: "100%",
+        perspective: 2000, filter: `drop-shadow(${edgeShadow})`,
+      }}>
+        <div style={{
+          position: "relative", width: "100%", height: "100%",
+          transformStyle: "preserve-3d",
+          transform: `rotateY(${caseRotation}deg)`,
+          transition: caseDragging ? "none" : "transform 0.65s cubic-bezier(0.22,1,0.36,1)",
+        }}>
+          {/* front face */}
+          <div style={{
+            position: "absolute", inset: 0, borderRadius: 6, overflow: "hidden",
+            backfaceVisibility: "hidden", transform: `translateZ(${DEPTH / 2}px)`,
+            background: frontCover ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
+            border, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3), inset 0 0 0 1px rgba(0,0,0,0.06)",
+          }}>
+            {frontCover
+              ? <img src={frontCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none", ...noSelect }} />
+              : <div style={{
+                width: "100%", height: "100%", display: "flex", alignItems: "center",
+                justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.35,
+              }}>{title || "AURAE"}</div>}
+            <div style={{
+              position: "absolute", top: 0, bottom: 0, right: 0, width: 6,
+              background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))",
+            }} />
+            {glossOverlay}
+            {hinge}
+            <div style={{
+              position: "absolute", inset: "-50% -20%", pointerEvents: "none", mixBlendMode: "screen",
+              background: "linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.55) 52%, transparent 58%)",
+              animation: "sleeveReveal 1.6s cubic-bezier(0.22,1,0.36,1) 0.25s 1 both",
+            }} />
+          </div>
+          {/* back face */}
+          <div style={{
+            position: "absolute", inset: 0, borderRadius: 6, overflow: "hidden",
+            backfaceVisibility: "hidden", transform: `rotateY(180deg) translateZ(${DEPTH / 2}px)`,
+            background: backCover ? "#111" : "linear-gradient(145deg, #22222a 0%, #16161c 55%, #0e0e12 100%)",
+            border, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(0,0,0,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {backCover
+              ? <img src={backCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none", ...noSelect }} />
+              : <div style={{ fontFamily: mono, letterSpacing: 2, fontSize: 11, opacity: 0.35, color: "#fff" }}>NO BACK COVER</div>}
+            {glossOverlay}
+            {hinge}
+          </div>
+          {/* left / right / top / bottom edges — the case's actual thickness */}
+          <div style={edgeFace("left")}>
+            <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
+              {(title || "AURAE").toUpperCase()}
+            </div>
+          </div>
+          <div style={edgeFace("right")} />
+          <div style={edgeFace("top")} />
+          <div style={edgeFace("bottom")} />
+        </div>
+      </div>
+    </div>
+    );
   };
 
   const panelArt = gatefoldPanelArts || [];
@@ -2681,100 +2804,32 @@ function SleevePresentation({
     );
   };
 
-  // ── CHANGE 2c: pass pictureVinyl to RealVinyl inside closedCover ──────
+  // ── CHANGE 2c: gatefold's closed cover now uses the same real 3D case
+  // as the single-vinyl sleeve — draggable, real depth, back cover + spine,
+  // snaps to dead-front before actually unfolding the gatefold. ──
   const closedCover = (
-    <div onClick={() => setGatefoldOpen(true)}
-      style={{ position: "relative", width: SIZE, height: SIZE, cursor: "pointer" }} title="tap to open">
-      <div style={{
-        position: "absolute", top: "50%", right: -SIZE * 0.12,
-        width: SIZE * 0.9, height: SIZE * 0.9,
-        transform: "translateY(-50%)", zIndex: 0,
-      }}>
-        {/* pictureVinyl forwarded here */}
-        <RealVinyl size={SIZE * 0.9} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
-      </div>
-      <div style={{
-        position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
-        background: frontCover ? "#111" : (dark ? "#15151a" : "#e7e9ee"), border,
-        boxShadow: "0 34px 80px rgba(0,0,0,0.55)", zIndex: 1,
-      }}>
-        {frontCover
-          ? <img src={frontCover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : <div style={{
-            width: "100%", height: "100%", display: "flex", alignItems: "center",
-            justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.5,
-          }}>{title || "AURAE"}</div>}
-      </div>
+    <div style={{ position: "relative", width: SIZE, height: SIZE }}>
+      {draggableCase(() => setGatefoldOpen(true), true)}
       <div style={{
         position: "absolute", bottom: -34, left: 0, right: 0,
-        textAlign: "center", fontFamily: mono, fontSize: 12, opacity: 0.7,
-      }}>tap to open</div>
+        textAlign: "center", fontFamily: mono, fontSize: 12, opacity: 0.7, pointerEvents: "none",
+      }}>drag to turn · tap to open</div>
     </div>
   );
 
   // ── CHANGE 2d: pass pictureVinyl to RealVinyl in single-vinyl view ────
   if (!isGatefold) {
     const pull = pulling === 1;
-    const frontFacing = isFrontFacing(caseRotation);
-    // Specular highlight that glides across the case as it turns, like light
-    // glinting off glossy shrink-wrap — driven directly by the live rotation
-    // angle so it tracks the drag in real time instead of just looping.
-    const glossPos = 50 + Math.sin((caseRotation * Math.PI) / 180) * 62;
-    const glossOverlay = (
-      <div style={{
-        position: "absolute", inset: 0, pointerEvents: "none", mixBlendMode: "screen",
-        background: "linear-gradient(112deg, transparent 34%, rgba(255,255,255,0.16) 46%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.16) 54%, transparent 66%)",
-        backgroundSize: "240% 240%", backgroundPosition: `${glossPos}% 50%`,
-        opacity: 0.65,
-      }} />
-    );
-    const edgeShadow = `0 ${28 + Math.abs(Math.sin((caseRotation * Math.PI) / 180)) * 16}px ${70 + Math.abs(Math.sin((caseRotation * Math.PI) / 180)) * 30}px rgba(0,0,0,${0.5 + Math.abs(Math.cos((caseRotation * Math.PI) / 180)) * 0.15})`;
-    // Real box thickness. Faces are positioned with translateZ so the front
-    // and back are genuinely DEPTH apart (not stacked on the same plane),
-    // and the edge strips are centred exactly on that gap — that's what
-    // reads as an actual case instead of a flat card doing a 2D flip.
-    // A real 12" sleeve is noticeably thick relative to its face, so this
-    // is scaled up from the earlier attempt (which was too thin to read).
-    const DEPTH = Math.max(13, Math.round(SIZE * 0.045));
-    const noSelect: React.CSSProperties = {
-      userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none",
-    };
-    const edgeFace = (axis: "left" | "right" | "top" | "bottom") => {
-      const horizontal = axis === "left" || axis === "right";
-      const sign = axis === "left" || axis === "top" ? 1 : -1;
-      return {
-        position: "absolute" as const,
-        ...(horizontal
-          ? { top: 0, left: axis === "left" ? -DEPTH / 2 : SIZE - DEPTH / 2, width: DEPTH, height: SIZE }
-          : { left: 0, top: axis === "top" ? -DEPTH / 2 : SIZE - DEPTH / 2, width: SIZE, height: DEPTH }),
-        transform: horizontal ? `rotateY(${sign * 90}deg)` : `rotateX(${sign * -90}deg)`,
-        // No backfaceVisibility here on purpose: these edges have no
-        // direction-sensitive content (just a shaded strip), so leaving
-        // both sides visible makes the box read correctly no matter which
-        // way it's dragged, instead of risking an invisible/culled edge.
-        background: horizontal
-          ? "linear-gradient(90deg, #08080a, #34343f 50%, #08080a)"
-          : "linear-gradient(180deg, #08080a, #34343f 50%, #08080a)",
-        boxShadow: "inset 0 0 16px rgba(0,0,0,0.6)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      };
-    };
     return (
       <div style={{
         position: "fixed", inset: 0, background: pageBg,
         display: "flex", alignItems: "center", justifyContent: "center", color: text,
       }}>
         {headerBar}
-        <div
-          onPointerDown={handleCasePointerDown}
-          onPointerMove={handleCasePointerMove}
-          onPointerUp={() => handleCasePointerUp(1)}
-          onPointerCancel={() => setCaseDragging(false)}
-          style={{
-            position: "relative", width: SIZE * 1.7, height: SIZE * 1.18,
-            cursor: pulling ? "default" : caseDragging ? "grabbing" : "grab",
-            overflow: "visible", touchAction: "none", ...noSelect,
-          }} title="drag to turn the case · tap to play">
+        <div style={{
+          position: "relative", width: SIZE * 1.7, height: SIZE * 1.18,
+          overflow: "visible",
+        }}>
           <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: SIZE * 0.96, height: SIZE * 0.96,
@@ -2793,79 +2848,17 @@ function SleevePresentation({
             <RealVinyl size={SIZE * 0.96} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
           </div>
 
-          {/* ── Draggable case: front cover / back cover / real edges ── */}
           <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: SIZE, height: SIZE, transform: "translate(-50%, -50%)",
-            perspective: 2000, zIndex: 3,
-            // The drop-shadow lives on this OUTER (non-3D) wrapper, not on the
-            // preserve-3d element below. A filter on an element that also has
-            // transform-style: preserve-3d forces the browser to flatten its
-            // children into a 2D layer first — which silently destroys the
-            // box's real depth and is why it was rendering paper-thin.
-            filter: `drop-shadow(${edgeShadow})`,
+            width: SIZE, height: SIZE, transform: "translate(-50%, -50%)", zIndex: 3,
           }}>
-            <div style={{
-              position: "relative", width: "100%", height: "100%",
-              transformStyle: "preserve-3d",
-              transform: `rotateY(${caseRotation}deg)`,
-              transition: caseDragging ? "none" : "transform 0.65s cubic-bezier(0.22,1,0.36,1)",
-            }}>
-              {/* front face */}
-              <div style={{
-                position: "absolute", inset: 0, borderRadius: 6, overflow: "hidden",
-                backfaceVisibility: "hidden", transform: `translateZ(${DEPTH / 2}px)`,
-                background: frontCover ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
-                border, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3), inset 0 0 0 1px rgba(0,0,0,0.06)",
-              }}>
-                {frontCover
-                  ? <img src={frontCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none", ...noSelect }} />
-                  : <div style={{
-                    width: "100%", height: "100%", display: "flex", alignItems: "center",
-                    justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.35,
-                  }}>{title || "AURAE"}</div>}
-                <div style={{
-                  position: "absolute", top: 0, bottom: 0, right: 0, width: 6,
-                  background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))",
-                }} />
-                {glossOverlay}
-                {/* one-time foil-wrap shine sweep, plays when the sleeve is revealed */}
-                <div style={{
-                  position: "absolute", inset: "-50% -20%", pointerEvents: "none", mixBlendMode: "screen",
-                  background: "linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.55) 52%, transparent 58%)",
-                  animation: "sleeveReveal 1.6s cubic-bezier(0.22,1,0.36,1) 0.25s 1 both",
-                }} />
-              </div>
-              {/* back face */}
-              <div style={{
-                position: "absolute", inset: 0, borderRadius: 6, overflow: "hidden",
-                backfaceVisibility: "hidden", transform: `rotateY(180deg) translateZ(${DEPTH / 2}px)`,
-                background: backCover ? "#111" : "linear-gradient(145deg, #22222a 0%, #16161c 55%, #0e0e12 100%)",
-                border, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(0,0,0,0.2)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {backCover
-                  ? <img src={backCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none", ...noSelect }} />
-                  : <div style={{ fontFamily: mono, letterSpacing: 2, fontSize: 11, opacity: 0.35, color: "#fff" }}>NO BACK COVER</div>}
-                {glossOverlay}
-              </div>
-              {/* left / right edges — the case's actual thickness */}
-              <div style={edgeFace("left")}>
-                <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
-                  {(title || "AURAE").toUpperCase()}
-                </div>
-              </div>
-              <div style={edgeFace("right")} />
-              {/* top / bottom edges */}
-              <div style={edgeFace("top")} />
-              <div style={edgeFace("bottom")} />
-            </div>
+            {draggableCase(() => pullVinyl(1))}
           </div>
 
           <div style={{
             position: "absolute", top: "50%", right: SIZE * 0.18,
             transform: "translateY(-50%)", zIndex: 3, fontSize: 28, color: text,
-            opacity: (pulling || !frontFacing) ? 0 : 0.7, transition: "opacity 0.3s",
+            opacity: (pulling || !isFrontFacing(caseRotation)) ? 0 : 0.7, transition: "opacity 0.3s",
             animation: "sleeveArrow 1.4s ease-in-out infinite", pointerEvents: "none",
           }}>›</div>
         </div>
@@ -5149,4 +5142,5 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
