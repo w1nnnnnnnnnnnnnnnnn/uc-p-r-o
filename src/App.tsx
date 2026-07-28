@@ -2533,12 +2533,14 @@ function SleevePresentation({
   };
   const handleCasePointerDown = (e: React.PointerEvent) => {
     if (pulling || caseAutoSpinning) return;
+    e.preventDefault(); // stops the browser from starting a text/image drag-selection
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     dragRef.current = { startX: e.clientX, startRotation: caseRotation, moved: 0 };
     setCaseDragging(true);
   };
   const handleCasePointerMove = (e: React.PointerEvent) => {
     if (!caseDragging) return;
+    e.preventDefault();
     const dx = e.clientX - dragRef.current.startX;
     dragRef.current.moved = Math.max(dragRef.current.moved, Math.abs(dx));
     setCaseRotation(dragRef.current.startRotation + dx * 0.5);
@@ -2725,6 +2727,36 @@ function SleevePresentation({
       }} />
     );
     const edgeShadow = `0 ${28 + Math.abs(Math.sin((caseRotation * Math.PI) / 180)) * 16}px ${70 + Math.abs(Math.sin((caseRotation * Math.PI) / 180)) * 30}px rgba(0,0,0,${0.5 + Math.abs(Math.cos((caseRotation * Math.PI) / 180)) * 0.15})`;
+    // Real box thickness. Faces are positioned with translateZ so the front
+    // and back are genuinely DEPTH apart (not stacked on the same plane),
+    // and the edge strips are centred exactly on that gap — that's what
+    // reads as an actual case instead of a flat card doing a 2D flip.
+    // A real 12" sleeve is noticeably thick relative to its face, so this
+    // is scaled up from the earlier attempt (which was too thin to read).
+    const DEPTH = Math.max(13, Math.round(SIZE * 0.045));
+    const noSelect: React.CSSProperties = {
+      userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none",
+    };
+    const edgeFace = (axis: "left" | "right" | "top" | "bottom") => {
+      const horizontal = axis === "left" || axis === "right";
+      const sign = axis === "left" || axis === "top" ? 1 : -1;
+      return {
+        position: "absolute" as const,
+        ...(horizontal
+          ? { top: 0, left: axis === "left" ? -DEPTH / 2 : SIZE - DEPTH / 2, width: DEPTH, height: SIZE }
+          : { left: 0, top: axis === "top" ? -DEPTH / 2 : SIZE - DEPTH / 2, width: SIZE, height: DEPTH }),
+        transform: horizontal ? `rotateY(${sign * 90}deg)` : `rotateX(${sign * -90}deg)`,
+        // No backfaceVisibility here on purpose: these edges have no
+        // direction-sensitive content (just a shaded strip), so leaving
+        // both sides visible makes the box read correctly no matter which
+        // way it's dragged, instead of risking an invisible/culled edge.
+        background: horizontal
+          ? "linear-gradient(90deg, #08080a, #34343f 50%, #08080a)"
+          : "linear-gradient(180deg, #08080a, #34343f 50%, #08080a)",
+        boxShadow: "inset 0 0 16px rgba(0,0,0,0.6)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      };
+    };
     return (
       <div style={{
         position: "fixed", inset: 0, background: pageBg,
@@ -2739,14 +2771,16 @@ function SleevePresentation({
           style={{
             position: "relative", width: SIZE * 1.7, height: SIZE * 1.18,
             cursor: pulling ? "default" : caseDragging ? "grabbing" : "grab",
-            overflow: "visible", touchAction: "none",
+            overflow: "visible", touchAction: "none", ...noSelect,
           }} title="drag to turn the case · tap to play">
           <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: SIZE * 0.96, height: SIZE * 0.96,
-            transform: `translate(calc(-50% + ${pull ? SIZE * 1.1 : SIZE * 0.08}px), -50%)`,
-            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1), opacity 0.3s",
-            opacity: frontFacing ? 1 : 0, pointerEvents: "none", zIndex: 2,
+            transform: `translate(calc(-50% + ${pull ? SIZE * 1.1 : 0}px), -50%)`,
+            transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1), opacity 0.25s",
+            // Hidden until the case is actually pressed to open — dragging/
+            // turning the case must never reveal the record underneath.
+            opacity: pull ? 1 : 0, pointerEvents: "none", zIndex: 2,
           }}>
             <div style={{
               position: "absolute", inset: "3%", borderRadius: "50%",
@@ -2757,28 +2791,33 @@ function SleevePresentation({
             <RealVinyl size={SIZE * 0.96} cover={vinylCovers[0]} vinylColor={vc} pictureVinyl={pictureVinyl} />
           </div>
 
-          {/* ── Draggable case: front cover / spine / back cover ── */}
+          {/* ── Draggable case: front cover / back cover / real edges ── */}
           <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: SIZE, height: SIZE, transform: "translate(-50%, -50%)",
             perspective: 2000, zIndex: 3,
+            // The drop-shadow lives on this OUTER (non-3D) wrapper, not on the
+            // preserve-3d element below. A filter on an element that also has
+            // transform-style: preserve-3d forces the browser to flatten its
+            // children into a 2D layer first — which silently destroys the
+            // box's real depth and is why it was rendering paper-thin.
+            filter: `drop-shadow(${edgeShadow})`,
           }}>
             <div style={{
               position: "relative", width: "100%", height: "100%",
               transformStyle: "preserve-3d",
               transform: `rotateY(${caseRotation}deg)`,
               transition: caseDragging ? "none" : "transform 0.65s cubic-bezier(0.22,1,0.36,1)",
-              filter: `drop-shadow(${edgeShadow})`,
             }}>
               {/* front face */}
               <div style={{
                 position: "absolute", inset: 0, borderRadius: 6, overflow: "hidden",
-                backfaceVisibility: "hidden",
+                backfaceVisibility: "hidden", transform: `translateZ(${DEPTH / 2}px)`,
                 background: frontCover ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
                 border, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3), inset 0 0 0 1px rgba(0,0,0,0.06)",
               }}>
                 {frontCover
-                  ? <img src={frontCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+                  ? <img src={frontCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none", ...noSelect }} />
                   : <div style={{
                     width: "100%", height: "100%", display: "flex", alignItems: "center",
                     justifyContent: "center", fontFamily: mono, letterSpacing: 3, opacity: 0.35,
@@ -2798,42 +2837,26 @@ function SleevePresentation({
               {/* back face */}
               <div style={{
                 position: "absolute", inset: 0, borderRadius: 6, overflow: "hidden",
-                backfaceVisibility: "hidden", transform: "rotateY(180deg)",
+                backfaceVisibility: "hidden", transform: `rotateY(180deg) translateZ(${DEPTH / 2}px)`,
                 background: backCover ? "#111" : "linear-gradient(145deg, #22222a 0%, #16161c 55%, #0e0e12 100%)",
                 border, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(0,0,0,0.2)",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 {backCover
-                  ? <img src={backCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+                  ? <img src={backCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none", ...noSelect }} />
                   : <div style={{ fontFamily: mono, letterSpacing: 2, fontSize: 11, opacity: 0.35, color: "#fff" }}>NO BACK COVER</div>}
                 {glossOverlay}
               </div>
-              {/* left spine — visible turning towards the back this way */}
-              <div style={{
-                position: "absolute", left: 0, top: 0, width: SIZE * 0.1, height: "100%",
-                transformOrigin: "left center", transform: "rotateY(90deg)", backfaceVisibility: "hidden",
-                background: "linear-gradient(90deg, #0c0c10, #2a2a33 55%, #0c0c10)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                borderTop: border, borderBottom: border,
-                boxShadow: "inset 0 0 14px rgba(0,0,0,0.5)",
-              }}>
+              {/* left / right edges — the case's actual thickness */}
+              <div style={edgeFace("left")}>
                 <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
                   {(title || "AURAE").toUpperCase()}
                 </div>
               </div>
-              {/* right spine — visible turning towards the back the other way */}
-              <div style={{
-                position: "absolute", right: 0, top: 0, width: SIZE * 0.1, height: "100%",
-                transformOrigin: "right center", transform: "rotateY(-90deg)", backfaceVisibility: "hidden",
-                background: "linear-gradient(90deg, #0c0c10, #2a2a33 55%, #0c0c10)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                borderTop: border, borderBottom: border,
-                boxShadow: "inset 0 0 14px rgba(0,0,0,0.5)",
-              }}>
-                <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
-                  {(title || "AURAE").toUpperCase()}
-                </div>
-              </div>
+              <div style={edgeFace("right")} />
+              {/* top / bottom edges */}
+              <div style={edgeFace("top")} />
+              <div style={edgeFace("bottom")} />
             </div>
           </div>
 
