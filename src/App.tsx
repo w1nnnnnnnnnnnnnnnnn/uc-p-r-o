@@ -2572,7 +2572,7 @@ function SleevePresentation({
   // same believable way and both reveal the same back cover / spine. ──
   // A real gatefold gets physically thicker the more records it holds — a
   // 2-LP set is noticeably chunkier than a single sleeve, a 4-LP box more so.
-  const DEPTH = Math.max(13, Math.round(SIZE * 0.045 * (1 + (totalVinyls - 1) * 0.55)));
+  const DEPTH = Math.max(22, Math.round(SIZE * 0.07 * (1 + (totalVinyls - 1) * 0.55)));
   const noSelect: React.CSSProperties = {
     userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none",
   };
@@ -2586,9 +2586,9 @@ function SleevePresentation({
         : { left: 0, top: axis === "top" ? -DEPTH / 2 : SIZE - DEPTH / 2, width: SIZE, height: DEPTH }),
       transform: horizontal ? `rotateY(${sign * 90}deg)` : `rotateX(${sign * -90}deg)`,
       background: horizontal
-        ? "linear-gradient(90deg, #08080a, #34343f 50%, #08080a)"
-        : "linear-gradient(180deg, #08080a, #34343f 50%, #08080a)",
-      boxShadow: "inset 0 0 16px rgba(0,0,0,0.6)",
+        ? "linear-gradient(90deg, #050506, #4a4a58 50%, #050506)"
+        : "linear-gradient(180deg, #050506, #4a4a58 50%, #050506)",
+      boxShadow: "inset 0 0 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.15)",
       display: "flex", alignItems: "center", justifyContent: "center",
     };
   };
@@ -2605,17 +2605,11 @@ function SleevePresentation({
   // Renders the draggable 3D case (front cover / back cover / real edges).
   // `onOpen` fires once the case is confirmed front-facing after a tap —
   // pulling the vinyl out for the single-sleeve view, or unfolding the
-  // gatefold panels for 2/3/4-vinyl releases. `showHinge` draws the closed
-  // gatefold's centre fold — a thin seam with a soft shadow on both sides,
-  // like a real hinged jacket that's just shut rather than a solid box.
+  // gatefold panels for 2/3/4-vinyl releases. `showHinge` marks the closed
+  // gatefold's spine (the left edge) with a centre groove, like a real
+  // hinged jacket folded shut — the front/back cover art itself stays
+  // clean and uninterrupted, exactly as printed.
   const draggableCase = (onOpen: () => void, showHinge = false) => {
-    const hinge = showHinge && (
-      <div style={{
-        position: "absolute", top: 0, bottom: 0, left: "50%", width: 22,
-        transform: "translateX(-50%)", pointerEvents: "none",
-        background: "linear-gradient(90deg, transparent, rgba(0,0,0,0.28) 46%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.28) 54%, transparent)",
-      }} />
-    );
     return (
     <div
       onPointerDown={handleCasePointerDown}
@@ -2654,7 +2648,6 @@ function SleevePresentation({
               background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))",
             }} />
             {glossOverlay}
-            {hinge}
             <div style={{
               position: "absolute", inset: "-50% -20%", pointerEvents: "none", mixBlendMode: "screen",
               background: "linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.55) 52%, transparent 58%)",
@@ -2673,13 +2666,30 @@ function SleevePresentation({
               ? <img src={backCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none", ...noSelect }} />
               : <div style={{ fontFamily: mono, letterSpacing: 2, fontSize: 11, opacity: 0.35, color: "#fff" }}>NO BACK COVER</div>}
             {glossOverlay}
-            {hinge}
           </div>
           {/* left / right / top / bottom edges — the case's actual thickness */}
           <div style={edgeFace("left")}>
-            <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
-              {(title || "AURAE").toUpperCase()}
-            </div>
+            {showHinge ? (
+              // The spine, marked as a closed hinge: a groove running down
+              // its centre, exactly where the two gatefold halves meet.
+              <div style={{
+                position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <div style={{
+                  position: "absolute", left: "50%", top: "4%", bottom: "4%", width: 3,
+                  transform: "translateX(-50%)",
+                  background: "linear-gradient(180deg, transparent, rgba(0,0,0,0.65) 8%, rgba(0,0,0,0.65) 92%, transparent)",
+                  boxShadow: "0 0 3px rgba(0,0,0,0.5)",
+                }} />
+                <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.5)", fontFamily: mono, fontSize: 9, letterSpacing: 2, zIndex: 1 }}>
+                  {(title || "AURAE").toUpperCase()}
+                </div>
+              </div>
+            ) : (
+              <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
+                {(title || "AURAE").toUpperCase()}
+              </div>
+            )}
           </div>
           <div style={edgeFace("right")} />
           <div style={edgeFace("top")} />
@@ -5142,5 +5152,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
 
