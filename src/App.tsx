@@ -3200,6 +3200,7 @@ export function Aurae() {
 
   const [stageMode, setStageMode] = useState<"vinyl" | "equalizer">("vinyl");
   const [sideLengthMinutes, setSideLengthMinutes] = useState<10 | 15 | 20>(20);
+  const [trackLimitMsg, setTrackLimitMsg] = useState<string | null>(null);
 
   // Case rotation: the user can drag the case with the mouse to turn it around
   // and view the back cover / spine. 0 = front, 180 = back.
@@ -3898,6 +3899,18 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
   async function addTracks(e: React.ChangeEvent<HTMLInputElement>) {
     const files: File[] = Array.from(e.target.files || []);
     if (!files.length) return;
+    // Hard capacity: MAX_SIDES sides (4 vinyls, 2 sides each) at the
+    // project's chosen side length (10/15/20 min). Once the 4th vinyl is
+    // full, no more songs can be added — same rule regardless of side length,
+    // since it's just a different number of minutes per side.
+    const capacitySeconds = MAX_SIDES * sideLengthMinutes * 60;
+    const usedSeconds = tracks.reduce((sum, t: any) => sum + (t.duration || 0), 0);
+    if (usedSeconds >= capacitySeconds) {
+      setTrackLimitMsg(`all 4 vinyls are full at ${sideLengthMinutes} min/side — remove a track or increase the side length to add more`);
+      setTimeout(() => setTrackLimitMsg(null), 4500);
+      e.target.value = "";
+      return;
+    }
     const loaded = await Promise.all(
       files.map(file => new Promise<any>(resolve => {
         const probeUrl = URL.createObjectURL(file);
@@ -3912,7 +3925,25 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
         probe.onerror = () => finish(0);
       }))
     );
-    saveCurrentProject([...tracks, ...loaded]);
+    // Only keep as many of the newly loaded tracks as still fit within the
+    // remaining capacity — accept the ones that fit, drop the rest, and let
+    // the user know rather than silently overflowing past the 4th vinyl.
+    let remaining = capacitySeconds - usedSeconds;
+    const accepted: any[] = [];
+    let rejected = 0;
+    for (const t of loaded) {
+      if (t.duration <= remaining || accepted.length === 0 && remaining > 0) {
+        accepted.push(t);
+        remaining -= t.duration;
+      } else {
+        rejected++;
+      }
+    }
+    if (rejected > 0) {
+      setTrackLimitMsg(`added ${accepted.length} track${accepted.length === 1 ? "" : "s"} — ${rejected} more didn't fit, all 4 vinyls are full at ${sideLengthMinutes} min/side`);
+      setTimeout(() => setTrackLimitMsg(null), 4500);
+    }
+    if (accepted.length) saveCurrentProject([...tracks, ...accepted]);
     e.target.value = "";
   }
 
@@ -4649,6 +4680,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
             <div style={S.importRow}>
               <label style={S.btn}>add tracks<input hidden multiple type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg" onChange={addTracks} /></label>
             </div>
+            {trackLimitMsg && (
+              <div style={{
+                fontFamily: "Courier New, monospace", fontSize: 11, color: "#ff8a8a",
+                background: "rgba(255,80,80,0.1)", border: "1px solid rgba(255,80,80,0.3)",
+                borderRadius: 8, padding: "8px 10px", marginTop: -4,
+              }}>{trackLimitMsg}</div>
+            )}
             <div style={S.coverTools}>
               <div style={S.coverToolsHeader}>
                 <span>side covers</span>
