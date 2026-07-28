@@ -2712,6 +2712,19 @@ function SleevePresentation({
   if (!isGatefold) {
     const pull = pulling === 1;
     const frontFacing = isFrontFacing(caseRotation);
+    // Specular highlight that glides across the case as it turns, like light
+    // glinting off glossy shrink-wrap — driven directly by the live rotation
+    // angle so it tracks the drag in real time instead of just looping.
+    const glossPos = 50 + Math.sin((caseRotation * Math.PI) / 180) * 62;
+    const glossOverlay = (
+      <div style={{
+        position: "absolute", inset: 0, pointerEvents: "none", mixBlendMode: "screen",
+        background: "linear-gradient(112deg, transparent 34%, rgba(255,255,255,0.16) 46%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.16) 54%, transparent 66%)",
+        backgroundSize: "240% 240%", backgroundPosition: `${glossPos}% 50%`,
+        opacity: 0.65,
+      }} />
+    );
+    const edgeShadow = `0 ${28 + Math.abs(Math.sin((caseRotation * Math.PI) / 180)) * 16}px ${70 + Math.abs(Math.sin((caseRotation * Math.PI) / 180)) * 30}px rgba(0,0,0,${0.5 + Math.abs(Math.cos((caseRotation * Math.PI) / 180)) * 0.15})`;
     return (
       <div style={{
         position: "fixed", inset: 0, background: pageBg,
@@ -2748,20 +2761,21 @@ function SleevePresentation({
           <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: SIZE, height: SIZE, transform: "translate(-50%, -50%)",
-            perspective: 1600, zIndex: 3,
+            perspective: 2000, zIndex: 3,
           }}>
             <div style={{
               position: "relative", width: "100%", height: "100%",
               transformStyle: "preserve-3d",
               transform: `rotateY(${caseRotation}deg)`,
-              transition: caseDragging ? "none" : "transform 0.6s cubic-bezier(0.22,1,0.36,1)",
+              transition: caseDragging ? "none" : "transform 0.65s cubic-bezier(0.22,1,0.36,1)",
+              filter: `drop-shadow(${edgeShadow})`,
             }}>
               {/* front face */}
               <div style={{
-                position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
+                position: "absolute", inset: 0, borderRadius: 6, overflow: "hidden",
                 backfaceVisibility: "hidden",
                 background: frontCover ? "#111" : "linear-gradient(145deg, #faf8f4 0%, #f0ede6 55%, #e8e5dd 100%)",
-                border, boxShadow: "0 34px 80px rgba(0,0,0,0.55)",
+                border, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3), inset 0 0 0 1px rgba(0,0,0,0.06)",
               }}>
                 {frontCover
                   ? <img src={frontCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
@@ -2773,26 +2787,48 @@ function SleevePresentation({
                   position: "absolute", top: 0, bottom: 0, right: 0, width: 6,
                   background: "linear-gradient(90deg,transparent,rgba(0,0,0,0.4))",
                 }} />
+                {glossOverlay}
+                {/* one-time foil-wrap shine sweep, plays when the sleeve is revealed */}
+                <div style={{
+                  position: "absolute", inset: "-50% -20%", pointerEvents: "none", mixBlendMode: "screen",
+                  background: "linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.55) 52%, transparent 58%)",
+                  animation: "sleeveReveal 1.6s cubic-bezier(0.22,1,0.36,1) 0.25s 1 both",
+                }} />
               </div>
               {/* back face */}
               <div style={{
-                position: "absolute", inset: 0, borderRadius: 4, overflow: "hidden",
+                position: "absolute", inset: 0, borderRadius: 6, overflow: "hidden",
                 backfaceVisibility: "hidden", transform: "rotateY(180deg)",
                 background: backCover ? "#111" : "linear-gradient(145deg, #22222a 0%, #16161c 55%, #0e0e12 100%)",
-                border, boxShadow: "0 34px 80px rgba(0,0,0,0.55)",
+                border, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(0,0,0,0.2)",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 {backCover
                   ? <img src={backCover} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
                   : <div style={{ fontFamily: mono, letterSpacing: 2, fontSize: 11, opacity: 0.35, color: "#fff" }}>NO BACK COVER</div>}
+                {glossOverlay}
               </div>
-              {/* spine — visible mid-turn, connecting front and back */}
+              {/* left spine — visible turning towards the back this way */}
               <div style={{
-                position: "absolute", left: 0, top: 0, width: SIZE * 0.09, height: "100%",
-                transformOrigin: "left center", transform: "rotateY(90deg)",
-                background: "linear-gradient(180deg, #26262e, #0c0c10)",
+                position: "absolute", left: 0, top: 0, width: SIZE * 0.1, height: "100%",
+                transformOrigin: "left center", transform: "rotateY(90deg)", backfaceVisibility: "hidden",
+                background: "linear-gradient(90deg, #0c0c10, #2a2a33 55%, #0c0c10)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 borderTop: border, borderBottom: border,
+                boxShadow: "inset 0 0 14px rgba(0,0,0,0.5)",
+              }}>
+                <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
+                  {(title || "AURAE").toUpperCase()}
+                </div>
+              </div>
+              {/* right spine — visible turning towards the back the other way */}
+              <div style={{
+                position: "absolute", right: 0, top: 0, width: SIZE * 0.1, height: "100%",
+                transformOrigin: "right center", transform: "rotateY(-90deg)", backfaceVisibility: "hidden",
+                background: "linear-gradient(90deg, #0c0c10, #2a2a33 55%, #0c0c10)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                borderTop: border, borderBottom: border,
+                boxShadow: "inset 0 0 14px rgba(0,0,0,0.5)",
               }}>
                 <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
                   {(title || "AURAE").toUpperCase()}
@@ -4461,14 +4497,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
           <div style={S.tutorialOverlay} onClick={() => { setShowTutorial(false); localStorage.setItem("aurae_tutorial_seen", "1"); }}>
             <div style={S.tutorialBox} onClick={e => e.stopPropagation()}>
               <div style={S.tutorialTitle}>aurae</div>
-              <div style={{ ...S.tutorialText, opacity: 0.65 }}>Your personal record player — for vinyl, CD, and tape.</div>
+              <div style={{ ...S.tutorialText, opacity: 0.65 }}>Your personal vinyl record player.</div>
               <div style={S.tutorialSection}>
                 <div style={S.tutorialSectionTitle}>what is aurae?</div>
                 <div style={S.tutorialText}>Aurae is a music player that simulates the experience of real vinyl records — with sleeves, cases, gatefolds, and authentic playback animations.</div>
               </div>
               <div style={S.tutorialSection}>
                 <div style={S.tutorialSectionTitle}>creating a project</div>
-                <div style={S.tutorialText}>Click "new project" to get started. Choose a format: vinyl (20 min/side), CD (74 min/disc), or tape (45 min/side). Add your audio files and a cover image.</div>
+                <div style={S.tutorialText}>Click "new project" to get started. Choose a side length — 10, 15, or 20 minutes per side. Add your audio files and a cover image.</div>
               </div>
               <div style={S.tutorialSection}>
                 <div style={S.tutorialSectionTitle}>storage crates</div>
@@ -4479,8 +4515,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
                 <div style={S.tutorialText}>Open a project to enter the player. Vinyl mode shows a spinning record on a turntable — pick from 8 deck styles. Switch to EQ mode for the visualiser. Drag the sleeve with your mouse to turn it around and see the back cover.</div>
               </div>
               <div style={S.tutorialSection}>
-                <div style={S.tutorialSectionTitle}>sides & discs</div>
-                <div style={S.tutorialText}>Tracks are split across sides automatically. Vinyl gets 20 min/side, CDs 74 min/disc, tapes 45 min/side (A+B). Long projects get multiple vinyls, discs, or tapes.</div>
+                <div style={S.tutorialSectionTitle}>sides</div>
+                <div style={S.tutorialText}>Tracks are split across sides automatically, based on the side length you picked when creating the project. Long projects automatically get multiple vinyls.</div>
               </div>
               <div style={S.tutorialSection}>
                 <div style={S.tutorialSectionTitle}>design</div>
@@ -5045,8 +5081,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
   style.id = _auraeStyleId;
   style.innerHTML = `
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    @keyframes cdSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    @keyframes tapeSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes sleeveArrow {
       0%, 100% { transform: translateY(-50%) translateX(0); }
       50% { transform: translateY(-50%) translateX(5px); }
@@ -5055,6 +5089,12 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       0% { transform: rotateY(-38deg) scale(0.9); opacity: 0; }
       60% { opacity: 1; }
       100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+    }
+    @keyframes sleeveReveal {
+      0% { transform: translateX(-160%) rotate(20deg); opacity: 0; }
+      12% { opacity: 1; }
+      55% { opacity: 0.9; }
+      100% { transform: translateX(160%) rotate(20deg); opacity: 0; }
     }
     @keyframes vinylFlip {
       0% { transform: perspective(1200px) rotateY(0deg) scale(1); filter: brightness(1); }
