@@ -2550,12 +2550,14 @@ function SleevePresentation({
     setCaseDragging(false);
     const wasClick = dragRef.current.moved < 6;
     if (!wasClick) return; // real drag — leave the case turned where it was released
-    if (isFrontFacing(caseRotation)) {
+    const n = normalizeDeg(caseRotation);
+    const isPerfectlyFront = n < 0.5 || n > 359.5;
+    if (isPerfectlyFront) {
       pullVinyl(vinyl);
     } else {
-      // Spin back around to the front, then enter the player.
+      // Any deviation from dead-on-front — even a slight tilt, not just the
+      // back — spins it to exactly front first, then enters the player.
       setCaseAutoSpinning(true);
-      const n = normalizeDeg(caseRotation);
       const target = caseRotation + (n <= 180 ? -n : 360 - n);
       setCaseRotation(target);
       setTimeout(() => {
