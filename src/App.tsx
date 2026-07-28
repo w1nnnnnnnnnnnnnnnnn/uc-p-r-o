@@ -2722,16 +2722,17 @@ function SleevePresentation({
     const art = panelArt[panelIdx] || null;
     const hasArt = Boolean(art || sharedArtSrc);
     const isPulling = pulling === vinylNum;
-    const dX = discSide === "left" ? (isPulling ? -SIZE * 1.12 : 0)
-      : discSide === "right" ? (isPulling ? SIZE * 1.12 : 0) : 0;
+    const peek = SIZE * 0.1;
+    const dX = discSide === "left" ? (isPulling ? -SIZE * 1.12 : -peek)
+      : discSide === "right" ? (isPulling ? SIZE * 1.12 : peek) : 0;
     // Vertical travel is shorter than horizontal: there is usually much less
     // headroom above/below the gatefold than there is beside it, so pulling
     // the top/bottom disc out by the same amount as left/right used to push
     // it off the top of the viewport, behind the header bar. 0.62 keeps the
     // whole disc visible on typical viewport heights while still reading
     // clearly as "sliding out of the case".
-    const dY = discSide === "top" ? (isPulling ? -SIZE * 0.62 : 0)
-      : discSide === "bottom" ? (isPulling ? SIZE * 0.62 : 0) : 0;
+    const dY = discSide === "top" ? (isPulling ? -SIZE * 0.62 : -peek)
+      : discSide === "bottom" ? (isPulling ? SIZE * 0.62 : peek) : 0;
     const arrowChar = discSide === "left" ? "‹" : discSide === "top" ? "↑" : discSide === "bottom" ? "↓" : "›";
     const arrowPos: any = discSide === "left" ? { left: 8, top: "50%", transform: "translateY(-50%)" }
       : discSide === "right" ? { right: 8, top: "50%", transform: "translateY(-50%)" }
@@ -2750,8 +2751,7 @@ function SleevePresentation({
           position: "absolute", top: "50%", left: "50%",
           width: SIZE * 0.9, height: SIZE * 0.9,
           transform: `translate(calc(-50% + ${dX}px), calc(-50% + ${dY}px))`,
-          transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1), opacity 0.25s",
-          opacity: isPulling ? 1 : 0,
+          transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)",
           pointerEvents: "none", zIndex: 2,
         }}>
           <div style={{
@@ -5184,6 +5184,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
 
 
