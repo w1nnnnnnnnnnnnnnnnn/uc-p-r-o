@@ -2667,31 +2667,24 @@ function SleevePresentation({
               : <div style={{ fontFamily: mono, letterSpacing: 2, fontSize: 11, opacity: 0.35, color: "#fff" }}>NO BACK COVER</div>}
             {glossOverlay}
           </div>
-          {/* left / right / top / bottom edges — the case's actual thickness */}
+          {/* left edge — spine label (unchanged, this is the "spine cover") */}
           <div style={edgeFace("left")}>
-            {showHinge ? (
-              // The spine, marked as a closed hinge: a groove running down
-              // its centre, exactly where the two gatefold halves meet.
+            <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
+              {(title || "AURAE").toUpperCase()}
+            </div>
+          </div>
+          {/* right edge — this is where the gatefold's actual fold/hinge
+             reads, deliberately kept apart from the spine label on the left */}
+          <div style={edgeFace("right")}>
+            {showHinge && (
               <div style={{
-                position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <div style={{
-                  position: "absolute", left: "50%", top: "4%", bottom: "4%", width: 3,
-                  transform: "translateX(-50%)",
-                  background: "linear-gradient(180deg, transparent, rgba(0,0,0,0.65) 8%, rgba(0,0,0,0.65) 92%, transparent)",
-                  boxShadow: "0 0 3px rgba(0,0,0,0.5)",
-                }} />
-                <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.5)", fontFamily: mono, fontSize: 9, letterSpacing: 2, zIndex: 1 }}>
-                  {(title || "AURAE").toUpperCase()}
-                </div>
-              </div>
-            ) : (
-              <div style={{ writingMode: "vertical-rl", color: "rgba(255,255,255,0.55)", fontFamily: mono, fontSize: 10, letterSpacing: 2 }}>
-                {(title || "AURAE").toUpperCase()}
-              </div>
+                position: "absolute", left: "50%", top: "4%", bottom: "4%", width: 3,
+                transform: "translateX(-50%)",
+                background: "linear-gradient(180deg, transparent, rgba(0,0,0,0.65) 8%, rgba(0,0,0,0.65) 92%, transparent)",
+                boxShadow: "0 0 3px rgba(0,0,0,0.5)",
+              }} />
             )}
           </div>
-          <div style={edgeFace("right")} />
           <div style={edgeFace("top")} />
           <div style={edgeFace("bottom")} />
         </div>
@@ -2729,17 +2722,16 @@ function SleevePresentation({
     const art = panelArt[panelIdx] || null;
     const hasArt = Boolean(art || sharedArtSrc);
     const isPulling = pulling === vinylNum;
-    const peek = SIZE * 0.08;
-    const dX = discSide === "left" ? (isPulling ? -SIZE * 1.12 : -peek)
-      : discSide === "right" ? (isPulling ? SIZE * 1.12 : peek) : 0;
+    const dX = discSide === "left" ? (isPulling ? -SIZE * 1.12 : 0)
+      : discSide === "right" ? (isPulling ? SIZE * 1.12 : 0) : 0;
     // Vertical travel is shorter than horizontal: there is usually much less
     // headroom above/below the gatefold than there is beside it, so pulling
     // the top/bottom disc out by the same amount as left/right used to push
     // it off the top of the viewport, behind the header bar. 0.62 keeps the
     // whole disc visible on typical viewport heights while still reading
     // clearly as "sliding out of the case".
-    const dY = discSide === "top" ? (isPulling ? -SIZE * 0.62 : -peek)
-      : discSide === "bottom" ? (isPulling ? SIZE * 0.62 : peek) : 0;
+    const dY = discSide === "top" ? (isPulling ? -SIZE * 0.62 : 0)
+      : discSide === "bottom" ? (isPulling ? SIZE * 0.62 : 0) : 0;
     const arrowChar = discSide === "left" ? "‹" : discSide === "top" ? "↑" : discSide === "bottom" ? "↓" : "›";
     const arrowPos: any = discSide === "left" ? { left: 8, top: "50%", transform: "translateY(-50%)" }
       : discSide === "right" ? { right: 8, top: "50%", transform: "translateY(-50%)" }
@@ -2758,7 +2750,8 @@ function SleevePresentation({
           position: "absolute", top: "50%", left: "50%",
           width: SIZE * 0.9, height: SIZE * 0.9,
           transform: `translate(calc(-50% + ${dX}px), calc(-50% + ${dY}px))`,
-          transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1)",
+          transition: "transform 1.2s cubic-bezier(0.16,1,0.3,1), opacity 0.25s",
+          opacity: isPulling ? 1 : 0,
           pointerEvents: "none", zIndex: 2,
         }}>
           <div style={{
@@ -2889,6 +2882,7 @@ function SleevePresentation({
           <div style={{
             display: "flex", alignItems: "stretch",
             animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)",
+            transformOrigin: "left center",
             boxShadow: "0 40px 90px rgba(0,0,0,0.6)",
           }}>
             {CardPanel({ panelIdx: 0, discSide: "left", vinylNum: 1, sharedArtSrc: sharedArt, totalHorizPanels: 2, panelHorizIdx: 0 })}
@@ -2910,7 +2904,7 @@ function SleevePresentation({
       }}>
         {headerBar}
         {!gatefoldOpen ? closedCover : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)", transformOrigin: "left center" }}>
             <div style={{ display: "flex", alignItems: "stretch" }}>
               <div style={{ width: SIZE }} /><Crease />
               {CardPanel({ panelIdx: 2, discSide: "top", vinylNum: 3 })}
@@ -2937,7 +2931,7 @@ function SleevePresentation({
     }}>
       {headerBar}
       {!gatefoldOpen ? closedCover : (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "gatefoldOpen 0.7s cubic-bezier(0.22,1,0.36,1)", transformOrigin: "left center" }}>
           <div style={{ display: "flex", alignItems: "stretch" }}>
             <div style={{ width: SIZE + 20 }} />
             {CardPanel({ panelIdx: 2, discSide: "top", vinylNum: 3 })}
@@ -5114,9 +5108,9 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       50% { transform: translateY(-50%) translateX(5px); }
     }
     @keyframes gatefoldOpen {
-      0% { transform: rotateY(-38deg) scale(0.9); opacity: 0; }
-      60% { opacity: 1; }
-      100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+      0% { transform: perspective(1400px) rotateY(-52deg) scale(0.94); opacity: 0; }
+      55% { opacity: 1; }
+      100% { transform: perspective(1400px) rotateY(0deg) scale(1); opacity: 1; }
     }
     @keyframes sleeveReveal {
       0% { transform: translateX(-160%) rotate(20deg); opacity: 0; }
@@ -5152,6 +5146,7 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
+
 
 
 
