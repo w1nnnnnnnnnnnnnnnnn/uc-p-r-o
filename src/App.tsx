@@ -3914,7 +3914,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
     // full, no more songs can be added — same rule regardless of side length,
     // since it's just a different number of minutes per side.
     const capacitySeconds = MAX_SIDES * sideLengthMinutes * 60;
-    const usedSeconds = tracks.reduce((sum, t: any) => sum + (t.duration || 0), 0);
+    const usedSeconds = tracks.reduce((sum, t: any) => sum + (Number.isFinite(t.duration) && t.duration > 0 ? t.duration : 0), 0);
     if (usedSeconds >= capacitySeconds) {
       setTrackLimitMsg(`all 4 vinyls are full at ${sideLengthMinutes} min/side — remove a track or increase the side length to add more`);
       setTimeout(() => setTrackLimitMsg(null), 4500);
@@ -3926,12 +3926,28 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
         const probeUrl = URL.createObjectURL(file);
         const probe = new Audio(probeUrl);
         const finish = async (dur: number) => {
+          // Some browsers/codecs report duration as Infinity (or NaN) on
+          // metadata load for certain files (a known quirk with blob-URL
+          // audio, common with webm/ogg). An Infinity here used to poison
+          // the whole remaining-capacity count for every track after it,
+          // making the app think all 4 vinyls were full after just a
+          // couple of tracks. Anything non-finite is treated as unknown (0)
+          // instead of being trusted.
+          const safeDur = Number.isFinite(dur) && dur > 0 ? dur : 0;
           const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
           await saveBlob(id, file);
           URL.revokeObjectURL(probeUrl);
-          resolve({ id, name: file.name.replace(/\.[^/.]+$/, ""), url: URL.createObjectURL(file), duration: dur || 0 });
+          resolve({ id, name: file.name.replace(/\.[^/.]+$/, ""), url: URL.createObjectURL(file), duration: safeDur });
         };
-        probe.onloadedmetadata = () => finish(probe.duration || 0);
+        probe.onloadedmetadata = () => {
+          if (Number.isFinite(probe.duration)) { finish(probe.duration); return; }
+          // Infinity workaround: seeking far forward forces the browser to
+          // resolve the real duration, reported via `durationchange`.
+          probe.ondurationchange = () => {
+            if (Number.isFinite(probe.duration)) { probe.ondurationchange = null; finish(probe.duration); }
+          };
+          try { probe.currentTime = 1e101; } catch { finish(0); }
+        };
         probe.onerror = () => finish(0);
       }))
     );
@@ -3942,9 +3958,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
     const accepted: any[] = [];
     let rejected = 0;
     for (const t of loaded) {
-      if (t.duration <= remaining || accepted.length === 0 && remaining > 0) {
+      const dur = Number.isFinite(t.duration) && t.duration > 0 ? t.duration : 0;
+      if (dur <= remaining || accepted.length === 0 && remaining > 0) {
         accepted.push(t);
-        remaining -= t.duration;
+        remaining -= dur;
       } else {
         rejected++;
       }
