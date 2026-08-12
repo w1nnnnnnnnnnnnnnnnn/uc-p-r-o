@@ -2498,6 +2498,11 @@ function SleevePresentation({
   const [fading, setFading] = useState(false);
   const [caseDragging, setCaseDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startRotation: 0, moved: 0 });
+  // The tap that opens a closed gatefold can — a beat later — also land on
+  // whatever CardPanel now happens to be sitting under that same screen
+  // position, firing its click and yanking a vinyl out immediately. This
+  // timestamp blocks any pull for a short window right after opening.
+  const [openedAt, setOpenedAt] = useState(0);
   const panelBg = dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.6)";
   const border = dark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.08)";
   const pageBg = dark
@@ -2519,7 +2524,7 @@ function SleevePresentation({
   const vinylCovers = [1, 2, 3, 4].map(v => sideCoverFor((v - 1) * 2 + 1, sideCovers || [], repeatSideCovers, cover));
 
   const pullVinyl = (vinyl: number) => {
-    if (pulling) return;
+    if (pulling || Date.now() - openedAt < 400) return;
     setPulling(vinyl);
     setTimeout(() => setFading(true), 900);
     setTimeout(() => onEnterPlayer(vinyl), 1350);
@@ -2817,7 +2822,7 @@ function SleevePresentation({
   // snaps to dead-front before actually unfolding the gatefold. ──
   const closedCover = (
     <div style={{ position: "relative", width: SIZE, height: SIZE }}>
-      {draggableCase(() => setGatefoldOpen(true), true)}
+      {draggableCase(() => { setGatefoldOpen(true); setOpenedAt(Date.now()); }, true)}
       <div style={{
         position: "absolute", bottom: -34, left: 0, right: 0,
         textAlign: "center", fontFamily: mono, fontSize: 12, opacity: 0.7, pointerEvents: "none",
@@ -5151,8 +5156,8 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
       50% { transform: translateY(-50%) translateX(5px); }
     }
     @keyframes gatefoldOpen {
-      0% { transform: scale(0.92); opacity: 0; }
-      100% { transform: scale(1); opacity: 1; }
+      0% { opacity: 0; }
+      100% { opacity: 1; }
     }
     @keyframes sleeveReveal {
       0% { transform: translateX(-160%) rotate(20deg); opacity: 0; }
@@ -5188,7 +5193,6 @@ if (typeof document !== "undefined" && !document.getElementById(_auraeStyleId)) 
 }
 
 export default Aurae;
-
 
 
 
